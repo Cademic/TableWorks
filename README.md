@@ -1,5 +1,5 @@
 # TableWorks
-> TableWorks is starting as a web application which allows the user to plan projects, create quick notes, and manage their schedule. The app will also include interactive feature to keep the user engaged.
+- TableWorks is starting as a web application which allows the user to plan projects, create quick notes, and manage their schedule. The app will also include interactive feature to keep the user engaged.
 - This app is planned to be lauched as a desktop and IOS app in the future.
 
 ## Project Goal

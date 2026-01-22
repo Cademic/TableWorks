@@ -2,38 +2,92 @@
 
 ## Contents
 
-1. [Executive Summary](#executive-summary)
-2. [Software Description](#software-description)
-   - 2.1 [The client experience](#the-client-experience)
-3. [User Stories](#user-stories)
-4. [Functional Requirements](#functional-requirements)
-5. [Nonfunctional Requirements](#nonfunctional-requirements)
-6. [Data Model and Design](#data-model-and-design)
-   - 6.1 [Core Entities](#core-entities)
-   - 6.2 [Database Design Principles](#database-design-principles)
-   - 6.3 [Data Relationships Summary](#data-relationships-summary)
-7. [API Design](#api-design)
-   - 7.1 [API Overview](#api-overview)
-   - 7.2 [Authentication Endpoints](#authentication-endpoints)
-   - 7.3 [User Endpoints](#user-endpoints)
-   - 7.4 [Note Endpoints](#note-endpoints)
-   - 7.5 [Project Endpoints](#project-endpoints)
-   - 7.6 [Tag Endpoints](#tag-endpoints)
-   - 7.7 [Folder Endpoints](#folder-endpoints)
-   - 7.8 [Notification Endpoints](#notification-endpoints)
-   - 7.9 [Admin Endpoints](#admin-endpoints)
-   - 7.10 [Error Responses](#error-responses)
-   - 7.11 [API Versioning](#api-versioning)
-8. [UI and UX Design](#ui-and-ux-design)
-   - 8.1 [Design Philosophy](#design-philosophy)
-   - 8.2 [Layout Structure](#layout-structure)
-   - 8.3 [Key UI Components](#key-ui-components)
-   - 8.4 [Navigation Patterns](#navigation-patterns)
-   - 8.5 [Theme System](#theme-system)
-   - 8.6 [Responsive Design](#responsive-design)
-   - 8.7 [User Experience Flows](#user-experience-flows)
-   - 8.8 [Accessibility Features](#accessibility-features)
-   - 8.9 [Visual Design Elements](#visual-design-elements)
+- [TableWorks Project Proposal](#tableworks-project-proposal)
+  - [Contents](#contents)
+  - [Executive Summary](#executive-summary)
+  - [Software Description](#software-description)
+    - [The client experience](#the-client-experience)
+  - [User Stories](#user-stories)
+  - [Functional Requirements](#functional-requirements)
+  - [Nonfunctional Requirements](#nonfunctional-requirements)
+  - [Data Model and Design](#data-model-and-design)
+    - [Core Entities](#core-entities)
+      - [User](#user)
+      - [Note](#note)
+      - [Project](#project)
+      - [ProjectMember](#projectmember)
+      - [Tag](#tag)
+      - [NoteTag](#notetag)
+      - [Folder](#folder)
+      - [Notification](#notification)
+      - [AuditLog](#auditlog)
+      - [UserPreferences](#userpreferences)
+    - [Database Design Principles](#database-design-principles)
+    - [Data Relationships Summary](#data-relationships-summary)
+  - [API Design](#api-design)
+    - [API Overview](#api-overview)
+    - [Authentication Endpoints](#authentication-endpoints)
+      - [POST /auth/register](#post-authregister)
+      - [POST /auth/login](#post-authlogin)
+      - [POST /auth/refresh](#post-authrefresh)
+      - [POST /auth/logout](#post-authlogout)
+    - [User Endpoints](#user-endpoints)
+      - [GET /users/me](#get-usersme)
+      - [PUT /users/me](#put-usersme)
+      - [GET /users/me/preferences](#get-usersmepreferences)
+      - [PUT /users/me/preferences](#put-usersmepreferences)
+    - [Note Endpoints](#note-endpoints)
+      - [GET /notes](#get-notes)
+      - [POST /notes](#post-notes)
+      - [GET /notes/:id](#get-notesid)
+      - [PUT /notes/:id](#put-notesid)
+      - [PATCH /notes/:id](#patch-notesid)
+      - [DELETE /notes/:id](#delete-notesid)
+      - [POST /notes/bulk](#post-notesbulk)
+    - [Project Endpoints](#project-endpoints)
+      - [GET /projects](#get-projects)
+      - [POST /projects](#post-projects)
+      - [GET /projects/:id](#get-projectsid)
+      - [PUT /projects/:id](#put-projectsid)
+      - [DELETE /projects/:id](#delete-projectsid)
+      - [POST /projects/:id/members](#post-projectsidmembers)
+      - [GET /projects/:id/members](#get-projectsidmembers)
+      - [PUT /projects/:id/members/:userId](#put-projectsidmembersuserid)
+      - [DELETE /projects/:id/members/:userId](#delete-projectsidmembersuserid)
+    - [Tag Endpoints](#tag-endpoints)
+      - [GET /tags](#get-tags)
+      - [POST /tags](#post-tags)
+      - [DELETE /tags/:id](#delete-tagsid)
+    - [Folder Endpoints](#folder-endpoints)
+      - [GET /folders](#get-folders)
+      - [POST /folders](#post-folders)
+      - [PUT /folders/:id](#put-foldersid)
+      - [DELETE /folders/:id](#delete-foldersid)
+    - [Notification Endpoints](#notification-endpoints)
+      - [GET /notifications](#get-notifications)
+      - [PUT /notifications/:id/read](#put-notificationsidread)
+      - [PUT /notifications/read-all](#put-notificationsread-all)
+      - [DELETE /notifications/:id](#delete-notificationsid)
+    - [Admin Endpoints](#admin-endpoints)
+      - [GET /admin/users](#get-adminusers)
+      - [GET /admin/users/:id](#get-adminusersid)
+      - [PUT /admin/users/:id/status](#put-adminusersidstatus)
+      - [DELETE /admin/users/:id](#delete-adminusersid)
+      - [GET /admin/notes](#get-adminnotes)
+      - [DELETE /admin/notes/:id](#delete-adminnotesid)
+      - [GET /admin/audit-logs](#get-adminaudit-logs)
+    - [Error Responses](#error-responses)
+    - [API Versioning](#api-versioning)
+  - [UI and UX Design](#ui-and-ux-design)
+    - [Design Philosophy](#design-philosophy)
+    - [Layout Structure](#layout-structure)
+    - [Key UI Components](#key-ui-components)
+    - [Navigation Patterns](#navigation-patterns)
+    - [Theme System](#theme-system)
+    - [Responsive Design](#responsive-design)
+    - [User Experience Flows](#user-experience-flows)
+    - [Accessibility Features](#accessibility-features)
+    - [Visual Design Elements](#visual-design-elements)
 
 ## Executive Summary
 
@@ -68,6 +122,8 @@ For detailed Functional Requirements (FR1-FR6), please refer to [Functional Requ
 For detailed Nonfunctional Requirements (NFR1-NFR10), please refer to [Nonfunctional Requirements](./ProjectRequirements.md#nonfunctional-requirements) in the Project Requirements document.
 
 ## Data Model and Design
+
+![UML Diagram](/Docs/Images/TableWorksUML.png)
 
 ### Core Entities
 
@@ -268,6 +324,8 @@ The UserPreferences entity stores user-specific settings and preferences.
 ### API Overview
 
 TableWorks uses a RESTful API architecture with JSON as the primary data format. All endpoints require authentication via JWT tokens (except registration and login). The API follows REST conventions with standard HTTP methods (GET, POST, PUT, DELETE, PATCH) and appropriate status codes.
+
+![UML Diagram](/Docs/Images/TableWorksAPI.png)
 
 **Base URL**: `/api/v1`
 
@@ -785,6 +843,8 @@ Delete a folder.
 **Response:** `200 OK`
 
 ### Notification Endpoints
+
+![UML Diagram](/Docs/Images/TableWorksAPISequence.png)
 
 #### GET /notifications
 Get all notifications for the current user.

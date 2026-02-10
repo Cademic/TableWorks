@@ -1,0 +1,45 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableWorks.API", "src\TableWorks.API\TableWorks.API.csproj", "{B6B88443-812F-4D49-9F15-B85F5B614EEE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableWorks.Core", "src\TableWorks.Core\TableWorks.Core.csproj", "{31E1B9B2-3392-4C78-90FD-B3D34AF3705A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableWorks.Application", "src\TableWorks.Application\TableWorks.Application.csproj", "{1664B29A-3DA8-4BEA-AB8D-C8E2D521A9AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableWorks.Infrastructure", "src\TableWorks.Infrastructure\TableWorks.Infrastructure.csproj", "{ECEF2161-B403-4E18-B0F4-7A2C2FCAA5A4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableWorks.Tests", "tests\TableWorks.Tests\TableWorks.Tests.csproj", "{D8D35737-7C6B-4D64-B16D-B179B2D53D52}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B6B88443-812F-4D49-9F15-B85F5B614EEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6B88443-812F-4D49-9F15-B85F5B614EEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6B88443-812F-4D49-9F15-B85F5B614EEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6B88443-812F-4D49-9F15-B85F5B614EEE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31E1B9B2-3392-4C78-90FD-B3D34AF3705A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31E1B9B2-3392-4C78-90FD-B3D34AF3705A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31E1B9B2-3392-4C78-90FD-B3D34AF3705A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31E1B9B2-3392-4C78-90FD-B3D34AF3705A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1664B29A-3DA8-4BEA-AB8D-C8E2D521A9AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1664B29A-3DA8-4BEA-AB8D-C8E2D521A9AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1664B29A-3DA8-4BEA-AB8D-C8E2D521A9AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1664B29A-3DA8-4BEA-AB8D-C8E2D521A9AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECEF2161-B403-4E18-B0F4-7A2C2FCAA5A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECEF2161-B403-4E18-B0F4-7A2C2FCAA5A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECEF2161-B403-4E18-B0F4-7A2C2FCAA5A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECEF2161-B403-4E18-B0F4-7A2C2FCAA5A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8D35737-7C6B-4D64-B16D-B179B2D53D52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8D35737-7C6B-4D64-B16D-B179B2D53D52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8D35737-7C6B-4D64-B16D-B179B2D53D52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8D35737-7C6B-4D64-B16D-B179B2D53D52}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

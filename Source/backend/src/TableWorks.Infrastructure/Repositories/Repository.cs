@@ -26,6 +26,11 @@ public class Repository<T> : IRepository<T>
         return await _dbSet.ToListAsync(cancellationToken);
     }
 
+    public IQueryable<T> Query()
+    {
+        return _dbSet.AsQueryable();
+    }
+
     public async Task AddAsync(T entity, CancellationToken cancellationToken = default)
     {
         await _dbSet.AddAsync(entity, cancellationToken);

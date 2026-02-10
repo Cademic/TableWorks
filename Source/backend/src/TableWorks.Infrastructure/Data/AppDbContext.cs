@@ -19,21 +19,37 @@ public sealed class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
+        // Enable uuid generation extension
+        modelBuilder.HasPostgresExtension("uuid-ossp");
+
+        // ----- User -----
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.HasIndex(x => x.Email).IsUnique();
             entity.HasIndex(x => x.Username).IsUnique();
         });
 
+        // ----- Note -----
         modelBuilder.Entity<Note>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            // Required indexes from proposal
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.UpdatedAt);
+            entity.HasIndex(x => x.FolderId);
+            entity.HasIndex(x => x.ProjectId);
+
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notes)
                 .HasForeignKey(x => x.UserId);
@@ -47,18 +63,32 @@ public sealed class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        // ----- Project -----
         modelBuilder.Entity<Project>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            // Required indexes from proposal
+            entity.HasIndex(x => x.OwnerId);
+            entity.HasIndex(x => x.StartDate);
+            entity.HasIndex(x => x.EndDate);
+            entity.HasIndex(x => x.Status);
+
             entity.HasOne(x => x.Owner)
                 .WithMany(x => x.OwnedProjects)
                 .HasForeignKey(x => x.OwnerId);
         });
 
+        // ----- ProjectMember -----
         modelBuilder.Entity<ProjectMember>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            // Composite unique index from proposal
             entity.HasIndex(x => new { x.ProjectId, x.UserId }).IsUnique();
+
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.Members)
                 .HasForeignKey(x => x.ProjectId);
@@ -67,12 +97,15 @@ public sealed class AppDbContext : DbContext
                 .HasForeignKey(x => x.UserId);
         });
 
+        // ----- Tag -----
         modelBuilder.Entity<Tag>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.HasIndex(x => x.Name).IsUnique();
         });
 
+        // ----- NoteTag -----
         modelBuilder.Entity<NoteTag>(entity =>
         {
             entity.HasKey(x => new { x.NoteId, x.TagId });
@@ -84,9 +117,12 @@ public sealed class AppDbContext : DbContext
                 .HasForeignKey(x => x.TagId);
         });
 
+        // ----- Folder -----
         modelBuilder.Entity<Folder>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Folders)
                 .HasForeignKey(x => x.UserId);
@@ -96,27 +132,67 @@ public sealed class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // ----- Notification -----
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            // Required indexes from proposal
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.IsRead);
+            entity.HasIndex(x => x.CreatedAt);
+
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notifications)
                 .HasForeignKey(x => x.UserId);
         });
 
+        // ----- AuditLog -----
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            // Required indexes from proposal
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.Timestamp);
+            entity.HasIndex(x => x.ActionType);
+
+            // JSONB for details column
+            entity.Property(x => x.DetailsJson).HasColumnType("jsonb");
+
             entity.HasOne(x => x.User)
                 .WithMany(x => x.AuditLogs)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        // ----- RefreshToken -----
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----- UserPreferences -----
         modelBuilder.Entity<UserPreferences>(entity =>
         {
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.HasIndex(x => x.UserId).IsUnique();
+
+            // JSONB for email notifications preferences
+            entity.Property(x => x.EmailNotificationsJson).HasColumnType("jsonb");
+
             entity.HasOne(x => x.User)
                 .WithOne(x => x.Preferences)
                 .HasForeignKey<UserPreferences>(x => x.UserId);

@@ -91,7 +91,7 @@
 
 ## Executive Summary
 
-TableWorks is a comprehensive web application designed to help users plan projects, create and manage notes, and organize their schedules efficiently. The platform provides a collaborative workspace where users can create accounts, manage lists in an intuitive table layout, and work together on projects with date/time constraints. With features like quick note-taking, advanced organization tools, and a modern light/dark mode interface, TableWorks aims to be a one-stop solution for personal and team productivity. The application is built with a React/TypeScript frontend and an ASP.NET backend, with plans for future expansion to desktop and iOS platforms.
+TableWorks is a comprehensive web application designed to help users plan projects, create and manage notes, and organize their schedules efficiently. The platform provides a collaborative workspace where users can create accounts, manage lists in an intuitive table layout, and work together on projects with date/time constraints. With features like quick note-taking, advanced organization tools, and a modern light/dark mode interface, TableWorks aims to be a one-stop solution for personal and team productivity. The application is built with a React/TypeScript frontend, an ASP.NET backend, and a PostgreSQL database, with plans for future expansion to desktop and iOS platforms.
 
 ## Software Description
 
@@ -294,8 +294,10 @@ The UserPreferences entity stores user-specific settings and preferences.
 
 ### Database Design Principles
 
+The application uses **PostgreSQL** as its relational database management system, chosen for its robustness, advanced feature set, excellent JSON support, and strong community ecosystem. The database is accessed via Entity Framework Core with the Npgsql PostgreSQL provider.
+
 - **Normalization**: Database follows 3NF (Third Normal Form) to minimize data redundancy
-- **Indexing**: Strategic indexes on frequently queried fields:
+- **Indexing**: Strategic indexes on frequently queried fields, leveraging PostgreSQL's B-tree and GIN index types:
   - User: `email`, `username`
   - Note: `userId`, `createdAt`, `updatedAt`, `folderId`, `projectId`
   - Project: `ownerId`, `startDate`, `endDate`, `status`
@@ -305,7 +307,8 @@ The UserPreferences entity stores user-specific settings and preferences.
 - **Foreign Keys**: All relationships enforced with foreign key constraints for referential integrity
 - **Soft Deletes**: Critical entities (User, Note, Project) support soft deletion with status flags
 - **Timestamps**: All entities include `createdAt` and `updatedAt` timestamps for audit trails
-- **JSON Fields**: Flexible data storage using JSON for preferences and metadata
+- **JSONB Fields**: Flexible data storage using PostgreSQL's native `jsonb` column type for preferences and metadata, enabling efficient querying and indexing of semi-structured data
+- **UUID Primary Keys**: All primary keys use PostgreSQL's native `uuid` type via `gen_random_uuid()` for globally unique, non-sequential identifiers
 
 ### Data Relationships Summary
 

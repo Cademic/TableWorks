@@ -1,0 +1,79 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Source/Backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Source/Backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  SOLUTION_PATH: Source/Backend/TableWorks.sln
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: tableworks_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tableworks_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION_PATH }} --no-restore --configuration Release
+
+      - name: Install EF tools
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Validate migrations
+        run: |
+          dotnet ef migrations list \
+            --project Source/Backend/src/TableWorks.Infrastructure/TableWorks.Infrastructure.csproj \
+            --startup-project Source/Backend/src/TableWorks.API/TableWorks.API.csproj \
+            --no-build \
+            --configuration Release
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"
+
+      - name: Apply migrations
+        run: |
+          dotnet ef database update \
+            --project Source/Backend/src/TableWorks.Infrastructure/TableWorks.Infrastructure.csproj \
+            --startup-project Source/Backend/src/TableWorks.API/TableWorks.API.csproj \
+            --no-build \
+            --configuration Release
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"
+
+      - name: Run tests
+        run: dotnet test ${{ env.SOLUTION_PATH }} --no-build --configuration Release --verbosity normal
+        env:
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"

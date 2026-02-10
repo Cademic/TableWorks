@@ -1,0 +1,253 @@
+using Microsoft.EntityFrameworkCore;
+using TableWorks.Application.DTOs.Common;
+using TableWorks.Application.DTOs.Notes;
+using TableWorks.Application.DTOs.Tags;
+using TableWorks.Application.Interfaces;
+using TableWorks.Core.Entities;
+using TableWorks.Core.Interfaces;
+
+namespace TableWorks.Application.Services;
+
+public sealed class NoteService : INoteService
+{
+    private readonly IRepository<Note> _noteRepo;
+    private readonly IRepository<NoteTag> _noteTagRepo;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public NoteService(
+        IRepository<Note> noteRepo,
+        IRepository<NoteTag> noteTagRepo,
+        IUnitOfWork unitOfWork)
+    {
+        _noteRepo = noteRepo;
+        _noteTagRepo = noteTagRepo;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<PaginatedResponse<NoteSummaryDto>> GetNotesAsync(Guid userId, NoteListQuery query, CancellationToken cancellationToken = default)
+    {
+        var q = _noteRepo.Query()
+            .Where(n => n.UserId == userId && !n.IsArchived)
+            .Include(n => n.NoteTags)
+                .ThenInclude(nt => nt.Tag)
+            .AsQueryable();
+
+        // Filters
+        if (query.FolderId.HasValue)
+            q = q.Where(n => n.FolderId == query.FolderId.Value);
+
+        if (query.ProjectId.HasValue)
+            q = q.Where(n => n.ProjectId == query.ProjectId.Value);
+
+        if (!string.IsNullOrWhiteSpace(query.TagIds))
+        {
+            var tagIdList = query.TagIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => Guid.TryParse(s.Trim(), out var g) ? g : (Guid?)null)
+                .Where(g => g.HasValue)
+                .Select(g => g!.Value)
+                .ToList();
+
+            if (tagIdList.Count > 0)
+                q = q.Where(n => n.NoteTags.Any(nt => tagIdList.Contains(nt.TagId)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+            q = q.Where(n => n.Title != null && n.Title.Contains(query.Search));
+
+        // Count before pagination
+        var total = await q.CountAsync(cancellationToken);
+
+        // Sorting
+        q = query.SortBy?.ToLowerInvariant() switch
+        {
+            "createdat" => query.SortOrder == "asc" ? q.OrderBy(n => n.CreatedAt) : q.OrderByDescending(n => n.CreatedAt),
+            "title" => query.SortOrder == "asc" ? q.OrderBy(n => n.Title) : q.OrderByDescending(n => n.Title),
+            _ => query.SortOrder == "asc" ? q.OrderBy(n => n.UpdatedAt) : q.OrderByDescending(n => n.UpdatedAt),
+        };
+
+        // Pagination
+        var notes = await q
+            .Skip((query.Page - 1) * query.Limit)
+            .Take(query.Limit)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        var items = notes.Select(MapToSummary).ToList();
+
+        return new PaginatedResponse<NoteSummaryDto>
+        {
+            Items = items,
+            Page = query.Page,
+            Limit = query.Limit,
+            Total = total
+        };
+    }
+
+    public async Task<NoteDetailDto> CreateNoteAsync(Guid userId, CreateNoteRequest request, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var note = new Note
+        {
+            UserId = userId,
+            Title = request.Title,
+            Content = request.Content,
+            FolderId = request.FolderId,
+            ProjectId = request.ProjectId,
+            CreatedAt = now,
+            UpdatedAt = now,
+            LastSavedAt = now
+        };
+
+        await _noteRepo.AddAsync(note, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Add tags
+        if (request.TagIds.Count > 0)
+        {
+            foreach (var tagId in request.TagIds)
+            {
+                await _noteTagRepo.AddAsync(new NoteTag { NoteId = note.Id, TagId = tagId }, cancellationToken);
+            }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return await GetNoteByIdAsync(userId, note.Id, cancellationToken);
+    }
+
+    public async Task<NoteDetailDto> GetNoteByIdAsync(Guid userId, Guid noteId, CancellationToken cancellationToken = default)
+    {
+        var note = await _noteRepo.Query()
+            .Include(n => n.NoteTags)
+                .ThenInclude(nt => nt.Tag)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Note not found.");
+
+        return MapToDetail(note);
+    }
+
+    public async Task UpdateNoteAsync(Guid userId, Guid noteId, UpdateNoteRequest request, CancellationToken cancellationToken = default)
+    {
+        var note = await _noteRepo.Query()
+            .Include(n => n.NoteTags)
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Note not found.");
+
+        note.Title = request.Title;
+        note.Content = request.Content;
+        note.FolderId = request.FolderId;
+        note.UpdatedAt = DateTime.UtcNow;
+        note.LastSavedAt = DateTime.UtcNow;
+        _noteRepo.Update(note);
+
+        // Replace tags
+        var existingTags = note.NoteTags.ToList();
+        foreach (var et in existingTags)
+            _noteTagRepo.Delete(et);
+
+        foreach (var tagId in request.TagIds)
+            await _noteTagRepo.AddAsync(new NoteTag { NoteId = noteId, TagId = tagId }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task PatchNoteContentAsync(Guid userId, Guid noteId, PatchNoteRequest request, CancellationToken cancellationToken = default)
+    {
+        var note = await _noteRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Note not found.");
+
+        note.Content = request.Content;
+        note.UpdatedAt = DateTime.UtcNow;
+        note.LastSavedAt = DateTime.UtcNow;
+        _noteRepo.Update(note);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteNoteAsync(Guid userId, Guid noteId, CancellationToken cancellationToken = default)
+    {
+        var note = await _noteRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Note not found.");
+
+        _noteRepo.Delete(note);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task BulkActionAsync(Guid userId, BulkNoteRequest request, CancellationToken cancellationToken = default)
+    {
+        var notes = await _noteRepo.Query()
+            .Include(n => n.NoteTags)
+            .Where(n => request.NoteIds.Contains(n.Id) && n.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        switch (request.Action)
+        {
+            case "delete":
+                foreach (var note in notes)
+                    _noteRepo.Delete(note);
+                break;
+
+            case "move":
+                foreach (var note in notes)
+                {
+                    note.FolderId = request.FolderId;
+                    note.UpdatedAt = DateTime.UtcNow;
+                    _noteRepo.Update(note);
+                }
+                break;
+
+            case "tag":
+                if (request.TagIds is not null)
+                {
+                    foreach (var note in notes)
+                    {
+                        foreach (var tagId in request.TagIds)
+                        {
+                            if (!note.NoteTags.Any(nt => nt.TagId == tagId))
+                            {
+                                await _noteTagRepo.AddAsync(new NoteTag { NoteId = note.Id, TagId = tagId }, cancellationToken);
+                            }
+                        }
+                    }
+                }
+                break;
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static NoteSummaryDto MapToSummary(Note note) => new()
+    {
+        Id = note.Id,
+        Title = note.Title,
+        FolderId = note.FolderId,
+        ProjectId = note.ProjectId,
+        Tags = note.NoteTags.Select(nt => new TagDto
+        {
+            Id = nt.Tag!.Id,
+            Name = nt.Tag.Name,
+            Color = nt.Tag.Color
+        }).ToList(),
+        CreatedAt = note.CreatedAt,
+        UpdatedAt = note.UpdatedAt
+    };
+
+    private static NoteDetailDto MapToDetail(Note note) => new()
+    {
+        Id = note.Id,
+        Title = note.Title,
+        Content = note.Content,
+        FolderId = note.FolderId,
+        ProjectId = note.ProjectId,
+        Tags = note.NoteTags.Select(nt => new TagDto
+        {
+            Id = nt.Tag!.Id,
+            Name = nt.Tag.Name,
+            Color = nt.Tag.Color
+        }).ToList(),
+        CreatedAt = note.CreatedAt,
+        UpdatedAt = note.UpdatedAt,
+        LastSavedAt = note.LastSavedAt
+    };
+}

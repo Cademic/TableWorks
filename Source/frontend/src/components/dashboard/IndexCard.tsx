@@ -1,0 +1,795 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import Draggable, { type DraggableEventHandler } from "react-draggable";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import UnderlineExt from "@tiptap/extension-underline";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
+import CharacterCount from "@tiptap/extension-character-count";
+import TextAlign from "@tiptap/extension-text-align";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TaskList } from "@tiptap/extension-task-list";
+import { TaskItem } from "@tiptap/extension-task-item";
+import { X, GripVertical } from "lucide-react";
+import type { IndexCardSummaryDto } from "../../types";
+import { FontSize } from "../../lib/tiptap-font-size";
+import { IndexCardToolbar } from "./IndexCardToolbar";
+
+interface IndexCardProps {
+  card: IndexCardSummaryDto;
+  isEditing: boolean;
+  zIndex?: number;
+  onDragStop: (id: string, x: number, y: number) => void;
+  onDelete: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onSave: (id: string, title: string, content: string) => void;
+  onResize: (id: string, width: number, height: number) => void;
+  onColorChange: (id: string, color: string) => void;
+  onRotationChange: (id: string, rotation: number) => void;
+  onPinMouseDown?: (cardId: string) => void;
+  onDrag?: (id: string, x: number, y: number) => void;
+  onBringToFront?: (id: string) => void;
+  /** True when any item on the board is being linked (used for pin hover styling) */
+  isLinking?: boolean;
+}
+
+const DEFAULT_WIDTH = 450;
+const DEFAULT_HEIGHT = 300;
+const MIN_WIDTH = 200;
+const MIN_HEIGHT = 160;
+const MAX_WIDTH = 800;
+const MAX_HEIGHT = 600;
+const MAX_CONTENT_LENGTH = 10000;
+const MAX_TITLE_LENGTH = 100;
+
+type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+const CURSOR_MAP: Record<ResizeDir, string> = {
+  n: "cursor-ns-resize",
+  s: "cursor-ns-resize",
+  e: "cursor-ew-resize",
+  w: "cursor-ew-resize",
+  ne: "cursor-nesw-resize",
+  sw: "cursor-nesw-resize",
+  nw: "cursor-nwse-resize",
+  se: "cursor-nwse-resize",
+};
+
+export const INDEX_CARD_COLORS: Record<string, { bg: string; headerBg: string; pin: string }> = {
+  white: {
+    bg: "bg-white dark:bg-gray-100",
+    headerBg: "bg-gray-50 dark:bg-gray-200",
+    pin: "bg-rose-500",
+  },
+  ivory: {
+    bg: "bg-amber-50 dark:bg-amber-100",
+    headerBg: "bg-amber-100 dark:bg-amber-200",
+    pin: "bg-teal-500",
+  },
+  sky: {
+    bg: "bg-sky-50 dark:bg-sky-100",
+    headerBg: "bg-sky-100 dark:bg-sky-200",
+    pin: "bg-orange-500",
+  },
+  rose: {
+    bg: "bg-rose-50 dark:bg-rose-100",
+    headerBg: "bg-rose-100 dark:bg-rose-200",
+    pin: "bg-cyan-500",
+  },
+  mint: {
+    bg: "bg-emerald-50 dark:bg-emerald-100",
+    headerBg: "bg-emerald-100 dark:bg-emerald-200",
+    pin: "bg-pink-500",
+  },
+  lavender: {
+    bg: "bg-violet-50 dark:bg-violet-100",
+    headerBg: "bg-violet-100 dark:bg-violet-200",
+    pin: "bg-amber-500",
+  },
+};
+
+function resolveCardColorKey(card: IndexCardSummaryDto): string {
+  if (card.color && INDEX_CARD_COLORS[card.color]) return card.color;
+  let hash = 0;
+  for (let i = 0; i < card.id.length; i++) {
+    hash = card.id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const keys = Object.keys(INDEX_CARD_COLORS);
+  return keys[Math.abs(hash) % keys.length];
+}
+
+export function IndexCard({
+  card,
+  isEditing,
+  zIndex = 0,
+  onDragStop,
+  onDelete,
+  onStartEdit,
+  onSave,
+  onResize,
+  onColorChange,
+  onRotationChange,
+  onPinMouseDown,
+  onDrag,
+  onBringToFront,
+  isLinking,
+}: IndexCardProps) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const colorKey = resolveCardColorKey(card);
+  const color = INDEX_CARD_COLORS[colorKey];
+
+  const [activeField, setActiveField] = useState<"title" | "content">("title");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [size, setSize] = useState({
+    width: card.width ?? DEFAULT_WIDTH,
+    height: card.height ?? DEFAULT_HEIGHT,
+  });
+  const [position, setPosition] = useState({
+    x: card.positionX ?? 20,
+    y: card.positionY ?? 20,
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  // --- TipTap editors ---
+  const sharedExtensions = [
+    StarterKit.configure({ heading: false }),
+    UnderlineExt,
+    TextStyle,
+    Color,
+    FontFamily,
+    FontSize,
+    TextAlign.configure({ types: ["paragraph"] }),
+  ];
+
+  const titleEditor = useEditor({
+    extensions: [
+      ...sharedExtensions,
+      CharacterCount.configure({ limit: MAX_TITLE_LENGTH }),
+    ],
+    content: card.title || "",
+    editable: isEditing,
+    editorProps: {
+      attributes: {
+        class:
+          "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
+      },
+    },
+    onFocus: () => setActiveField("title"),
+  });
+
+  const contentEditor = useEditor({
+    extensions: [
+      ...sharedExtensions,
+      CharacterCount.configure({ limit: MAX_CONTENT_LENGTH }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+    ],
+    content: card.content || "",
+    editable: isEditing,
+    editorProps: {
+      attributes: {
+        class:
+          "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[60px] break-words",
+      },
+    },
+    onFocus: () => setActiveField("content"),
+  });
+
+  const activeEditor =
+    activeField === "title" ? titleEditor : contentEditor;
+
+  // Toggle editable when isEditing changes
+  useEffect(() => {
+    titleEditor?.setEditable(isEditing);
+    contentEditor?.setEditable(isEditing);
+  }, [titleEditor, contentEditor, isEditing]);
+
+  // Sync title editor from props when NOT editing
+  useEffect(() => {
+    if (!isEditing && titleEditor && !titleEditor.isFocused) {
+      const currentHtml = titleEditor.getHTML();
+      if (currentHtml !== (card.title ?? "") && card.title !== undefined) {
+        titleEditor.commands.setContent(card.title || "", { emitUpdate: false });
+      }
+    }
+  }, [card.title, isEditing, titleEditor]);
+
+  // Sync content editor from props when NOT editing
+  useEffect(() => {
+    if (!isEditing && contentEditor && !contentEditor.isFocused) {
+      const currentHtml = contentEditor.getHTML();
+      if (currentHtml !== card.content && card.content !== undefined) {
+        contentEditor.commands.setContent(card.content || "", { emitUpdate: false });
+      }
+    }
+  }, [card.content, isEditing, contentEditor]);
+
+  // Keep stable refs for parent callbacks so resize handlers never go stale
+  const onResizeRef = useRef(onResize);
+  const onDragStopRef = useRef(onDragStop);
+  onResizeRef.current = onResize;
+  onDragStopRef.current = onDragStop;
+
+  // Sync size from props only when card prop values actually change and not resizing
+  useEffect(() => {
+    if (isResizing) return;
+    const w = card.width ?? DEFAULT_WIDTH;
+    const h = card.height ?? DEFAULT_HEIGHT;
+    setSize((prev) => {
+      if (prev.width === w && prev.height === h) return prev;
+      return { width: w, height: h };
+    });
+  }, [card.width, card.height, isResizing]);
+
+  // Sync position from props only when card prop values actually change and not resizing
+  useEffect(() => {
+    if (isResizing) return;
+    const x = card.positionX ?? 20;
+    const y = card.positionY ?? 20;
+    setPosition((prev) => {
+      if (prev.x === x && prev.y === y) return prev;
+      return { x, y };
+    });
+  }, [card.positionX, card.positionY, isResizing]);
+
+  // Track which field was clicked and the vertical ratio within it
+  const pendingClickRef = useRef<{
+    field: "title" | "content";
+    yRatio: number;
+  } | null>(null);
+
+  // When entering edit mode, place the cursor on the line the user clicked
+  useEffect(() => {
+    if (!isEditing || !titleEditor || !contentEditor) return;
+
+    const click = pendingClickRef.current;
+    pendingClickRef.current = null;
+
+    if (!click) {
+      contentEditor.commands.focus("end");
+      setActiveField("content");
+      return;
+    }
+
+    const editor = click.field === "title" ? titleEditor : contentEditor;
+    setActiveField(click.field);
+
+    requestAnimationFrame(() => {
+      const editorEl = editor.view.dom;
+      const rect = editorEl.getBoundingClientRect();
+      const targetY = rect.top + click.yRatio * rect.height;
+      const targetX = rect.left + rect.width / 2;
+
+      const pos = editor.view.posAtCoords({ left: targetX, top: targetY });
+      if (pos) {
+        editor.commands.focus();
+        editor.commands.setTextSelection(pos.pos);
+      } else {
+        editor.commands.focus("end");
+      }
+    });
+  }, [isEditing, titleEditor, contentEditor]);
+
+  // Auto-grow height based on content in read mode (skip during resize)
+  useEffect(() => {
+    if (isResizing) return;
+    if (!isEditing && contentRef.current) {
+      const contentHeight = contentRef.current.scrollHeight;
+      const totalNeeded = contentHeight + 60; // extra room for header band
+      const currentHeight = card.height ?? DEFAULT_HEIGHT;
+      if (totalNeeded > currentHeight) {
+        const parent = nodeRef.current?.parentElement;
+        const boardH = parent?.clientHeight ?? 9999;
+        const maxAvailable = boardH - (card.positionY ?? 20);
+        const clampedHeight = Math.min(totalNeeded, maxAvailable);
+        setSize((prev) => {
+          if (prev.height >= clampedHeight) return prev;
+          return { ...prev, height: clampedHeight };
+        });
+      }
+    }
+  }, [card.content, card.title, card.tags, isEditing, card.height, card.positionY, isResizing]);
+
+  const handleDragStop: DraggableEventHandler = (_e, data) => {
+    setPosition({ x: data.x, y: data.y });
+    onDragStop(card.id, data.x, data.y);
+  };
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      const relatedTarget = e.relatedTarget as Node | null;
+      if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
+        return;
+      }
+      if (isEditing && titleEditor && contentEditor) {
+        const titleHtml = titleEditor.getHTML();
+        const contentHtml = contentEditor.getHTML();
+        onSave(card.id, titleHtml, contentHtml);
+      }
+    },
+    [isEditing, titleEditor, contentEditor, card.id, onSave],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape" && titleEditor && contentEditor) {
+        const titleHtml = titleEditor.getHTML();
+        const contentHtml = contentEditor.getHTML();
+        onSave(card.id, titleHtml, contentHtml);
+      }
+    },
+    [titleEditor, contentEditor, card.id, onSave],
+  );
+
+  const handleCardColorChange = useCallback(
+    (newColor: string) => {
+      onColorChange(card.id, newColor);
+    },
+    [card.id, onColorChange],
+  );
+
+  const handleCardRotationChange = useCallback(
+    (newRotation: number) => {
+      onRotationChange(card.id, newRotation);
+    },
+    [card.id, onRotationChange],
+  );
+
+  // --- Resize logic ---
+  const resizeRef = useRef<{
+    dir: ResizeDir;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+    startPosX: number;
+    startPosY: number;
+    boardW: number;
+    boardH: number;
+  } | null>(null);
+
+  const listenersRef = useRef<{
+    move: (e: MouseEvent) => void;
+    up: (e: MouseEvent) => void;
+  } | null>(null);
+
+  function startResize(dir: ResizeDir) {
+    return (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (listenersRef.current) {
+        document.removeEventListener("mousemove", listenersRef.current.move);
+        document.removeEventListener("mouseup", listenersRef.current.up);
+      }
+
+      const parent = nodeRef.current?.parentElement;
+      const boardW = parent?.clientWidth ?? 9999;
+      const boardH = parent?.clientHeight ?? 9999;
+
+      resizeRef.current = {
+        dir,
+        startX: e.clientX,
+        startY: e.clientY,
+        startW: size.width,
+        startH: size.height,
+        startPosX: position.x,
+        startPosY: position.y,
+        boardW,
+        boardH,
+      };
+
+      setIsResizing(true);
+
+      function onMove(ev: MouseEvent) {
+        const rs = resizeRef.current;
+        if (!rs) return;
+
+        const dx = ev.clientX - rs.startX;
+        const dy = ev.clientY - rs.startY;
+
+        let newW = rs.startW;
+        let newH = rs.startH;
+        let newX = rs.startPosX;
+        let newY = rs.startPosY;
+
+        if (rs.dir === "e" || rs.dir === "ne" || rs.dir === "se") {
+          newW = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, rs.startW + dx));
+        }
+        if (rs.dir === "w" || rs.dir === "nw" || rs.dir === "sw") {
+          const proposed = rs.startW - dx;
+          if (proposed >= MIN_WIDTH && proposed <= MAX_WIDTH) {
+            newW = proposed;
+            newX = rs.startPosX + dx;
+          } else if (proposed < MIN_WIDTH) {
+            newW = MIN_WIDTH;
+            newX = rs.startPosX + (rs.startW - MIN_WIDTH);
+          } else {
+            newW = MAX_WIDTH;
+            newX = rs.startPosX + (rs.startW - MAX_WIDTH);
+          }
+        }
+        if (rs.dir === "s" || rs.dir === "se" || rs.dir === "sw") {
+          newH = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, rs.startH + dy));
+        }
+        if (rs.dir === "n" || rs.dir === "ne" || rs.dir === "nw") {
+          const proposed = rs.startH - dy;
+          if (proposed >= MIN_HEIGHT && proposed <= MAX_HEIGHT) {
+            newH = proposed;
+            newY = rs.startPosY + dy;
+          } else if (proposed < MIN_HEIGHT) {
+            newH = MIN_HEIGHT;
+            newY = rs.startPosY + (rs.startH - MIN_HEIGHT);
+          } else {
+            newH = MAX_HEIGHT;
+            newY = rs.startPosY + (rs.startH - MAX_HEIGHT);
+          }
+        }
+
+        // Clamp to board boundaries
+        if (newX < 0) {
+          newW += newX;
+          newX = 0;
+        }
+        if (newY < 0) {
+          newH += newY;
+          newY = 0;
+        }
+        if (newX + newW > rs.boardW) {
+          newW = rs.boardW - newX;
+        }
+        if (newY + newH > rs.boardH) {
+          newH = rs.boardH - newY;
+        }
+
+        newW = Math.max(MIN_WIDTH, newW);
+        newH = Math.max(MIN_HEIGHT, newH);
+
+        setSize({ width: newW, height: newH });
+        setPosition({ x: newX, y: newY });
+      }
+
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        listenersRef.current = null;
+        resizeRef.current = null;
+        setIsResizing(false);
+
+        setSize((finalSize) => {
+          const w = Math.round(finalSize.width);
+          const h = Math.round(finalSize.height);
+          setTimeout(() => onResizeRef.current(card.id, w, h), 0);
+          return finalSize;
+        });
+        setPosition((finalPos) => {
+          const x = Math.round(finalPos.x);
+          const y = Math.round(finalPos.y);
+          setTimeout(() => onDragStopRef.current(card.id, x, y), 0);
+          return finalPos;
+        });
+      }
+
+      listenersRef.current = { move: onMove, up: onUp };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    };
+  }
+
+  // Cleanup only on unmount
+  useEffect(() => {
+    return () => {
+      if (listenersRef.current) {
+        document.removeEventListener("mousemove", listenersRef.current.move);
+        document.removeEventListener("mouseup", listenersRef.current.up);
+        listenersRef.current = null;
+      }
+    };
+  }, []);
+
+  const edgeThickness = 6;
+
+  return (
+    <Draggable
+      nodeRef={nodeRef as React.RefObject<HTMLElement>}
+      position={position}
+      onStop={handleDragStop}
+      onDrag={(_e, data) => onDrag?.(card.id, data.x, data.y)}
+      handle=".index-card-handle"
+      bounds="parent"
+      disabled={isEditing || isResizing}
+    >
+      {/* Outer positioning wrapper */}
+      <div
+        ref={nodeRef}
+        className="absolute overflow-visible"
+        style={{
+          width: `${size.width}px`,
+          minHeight: `${size.height}px`,
+          zIndex,
+        }}
+        onMouseDown={() => onBringToFront?.(card.id)}
+      >
+        <div
+          className={[
+            "index-card relative overflow-visible rounded-md shadow-lg transition-shadow hover:shadow-xl",
+            isEditing ? "cursor-default ring-2 ring-primary/40" : "cursor-pointer",
+            color.bg,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          style={{
+            width: "100%",
+            minHeight: `${size.height}px`,
+            transformOrigin: "center center",
+            rotate: isEditing ? "0deg" : `${card.rotation ?? 0}deg`,
+          }}
+          onClick={(e) => {
+            if (!isEditing) {
+              const target = e.target as HTMLElement;
+              const titleEl = target.closest("[data-field='title']") as HTMLElement | null;
+              const contentEl = target.closest("[data-field='content']") as HTMLElement | null;
+
+              if (titleEl) {
+                const rect = titleEl.getBoundingClientRect();
+                const yRatio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+                pendingClickRef.current = { field: "title", yRatio: Math.max(0, Math.min(1, yRatio)) };
+              } else if (contentEl) {
+                const rect = contentEl.getBoundingClientRect();
+                const yRatio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+                pendingClickRef.current = { field: "content", yRatio: Math.max(0, Math.min(1, yRatio)) };
+              } else {
+                pendingClickRef.current = { field: "content", yRatio: 1 };
+              }
+              onStartEdit(card.id);
+            }
+          }}
+        >
+          {/* Pin */}
+          <div
+            data-pin-note-id={card.id}
+            className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 group/pin"
+            onMouseDown={(e) => {
+              if (!onPinMouseDown) return;
+              e.stopPropagation();
+              e.preventDefault();
+              onPinMouseDown(card.id);
+            }}
+          >
+            <div className="absolute -inset-2" />
+            <div
+              className={[
+                "h-4 w-4 rounded-full shadow-md border-2 border-white/60 transition-transform duration-150",
+                color.pin,
+                onPinMouseDown ? "cursor-pointer group-hover/pin:scale-150" : "",
+                isLinking ? "animate-pulse group-hover/pin:scale-150 group-hover/pin:ring-2 group-hover/pin:ring-red-400" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            />
+          </div>
+
+          {/* Header band with drag handle + delete + red rule line */}
+          <div className={`rounded-t-md ${color.headerBg}`}>
+            <div className="index-card-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing">
+              <GripVertical className="h-3.5 w-3.5 text-black/20" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const stripHtml = (html: string) =>
+                    html.replace(/<[^>]*>/g, "").trim();
+                  const hasContent =
+                    !!(card.content && stripHtml(card.content).length > 0);
+                  if (hasContent) {
+                    setShowDeleteConfirm(true);
+                  } else {
+                    onDelete(card.id);
+                  }
+                }}
+                className="rounded p-0.5 text-black/30 transition-colors hover:bg-black/10 hover:text-black/60"
+                aria-label="Delete index card"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Title area inside header */}
+            {isEditing ? (
+              <div className="px-3 pb-1" onBlur={handleBlur} onKeyDown={handleKeyDown}>
+                <div className="tiptap-editor-area tiptap-title-area">
+                  <EditorContent editor={titleEditor} />
+                </div>
+                <div className="flex justify-end -mt-0.5 mb-0.5">
+                  <span
+                    className={`text-[10px] ${
+                      (titleEditor?.storage.characterCount?.characters() ?? 0) >=
+                      MAX_TITLE_LENGTH
+                        ? "text-red-600 font-semibold"
+                        : "text-gray-500/60"
+                    }`}
+                  >
+                    {titleEditor?.storage.characterCount?.characters() ?? 0}/{MAX_TITLE_LENGTH}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="px-3 pb-1">
+                {card.title ? (
+                  <div
+                    data-field="title"
+                    className="note-rich-content break-words text-sm font-semibold text-gray-800"
+                    dangerouslySetInnerHTML={{ __html: card.title }}
+                  />
+                ) : (
+                  <p data-field="title" className="text-sm font-semibold text-gray-500/50">Untitled</p>
+                )}
+              </div>
+            )}
+
+            {/* Red rule line */}
+            <div className="index-card-header-rule" />
+          </div>
+
+          {/* Slide-out toolbar (visible in edit mode) */}
+          <div
+            className={[
+              "overflow-hidden transition-all duration-200",
+              isEditing ? "max-h-[250px] opacity-100" : "max-h-0 opacity-0",
+            ].join(" ")}
+          >
+            <IndexCardToolbar
+              editor={activeEditor}
+              cardColor={colorKey}
+              onCardColorChange={handleCardColorChange}
+              cardRotation={card.rotation ?? 0}
+              onCardRotationChange={handleCardRotationChange}
+            />
+          </div>
+
+          {/* Content area with ruled lines */}
+          <div className="overflow-hidden index-card-ruled">
+            {isEditing ? (
+              <div className="px-3 pb-4 pt-2 space-y-1.5" onBlur={handleBlur} onKeyDown={handleKeyDown}>
+                <div
+                  className="tiptap-editor-area index-card-content"
+                  style={{ minHeight: `${Math.max(80, size.height - 160)}px` }}
+                >
+                  <EditorContent editor={contentEditor} />
+                </div>
+
+                <div className="flex justify-end">
+                  <span
+                    className={`text-[10px] ${
+                      (contentEditor?.storage.characterCount?.characters() ?? 0) >=
+                      MAX_CONTENT_LENGTH
+                        ? "text-red-600 font-semibold"
+                        : "text-gray-500/60"
+                    }`}
+                  >
+                    {contentEditor?.storage.characterCount?.characters() ?? 0}/{MAX_CONTENT_LENGTH}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div
+                ref={contentRef}
+                className="px-3 pb-4 pt-2"
+              >
+                {card.content && (
+                  <div
+                    data-field="content"
+                    className="note-rich-content index-card-content break-words text-xs text-gray-600"
+                    dangerouslySetInnerHTML={{ __html: card.content }}
+                  />
+                )}
+                {card.tags.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {card.tags.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag.id}
+                        className="inline-block rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700"
+                      >
+                        {tag.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Edge resize handles */}
+          <div
+            className={`absolute left-2 right-2 top-0 ${CURSOR_MAP.n}`}
+            style={{ height: edgeThickness }}
+            onMouseDown={startResize("n")}
+          />
+          <div
+            className={`absolute left-2 right-2 bottom-0 ${CURSOR_MAP.s}`}
+            style={{ height: edgeThickness }}
+            onMouseDown={startResize("s")}
+          />
+          <div
+            className={`absolute top-2 bottom-2 left-0 ${CURSOR_MAP.w}`}
+            style={{ width: edgeThickness }}
+            onMouseDown={startResize("w")}
+          />
+          <div
+            className={`absolute top-2 bottom-2 right-0 ${CURSOR_MAP.e}`}
+            style={{ width: edgeThickness }}
+            onMouseDown={startResize("e")}
+          />
+
+          {/* Corner resize handles */}
+          <div
+            className={`absolute top-0 left-0 h-3 w-3 ${CURSOR_MAP.nw}`}
+            onMouseDown={startResize("nw")}
+          />
+          <div
+            className={`absolute top-0 right-0 h-3 w-3 ${CURSOR_MAP.ne}`}
+            onMouseDown={startResize("ne")}
+          />
+          <div
+            className={`absolute bottom-0 left-0 h-3 w-3 ${CURSOR_MAP.sw}`}
+            onMouseDown={startResize("sw")}
+          />
+          <div
+            className={`absolute bottom-0 right-0 h-3 w-3 ${CURSOR_MAP.se}`}
+            onMouseDown={startResize("se")}
+          />
+
+          {/* Delete confirmation overlay */}
+          {showDeleteConfirm && (
+            <div
+              className="absolute inset-0 z-30 flex items-center justify-center rounded-md bg-black/40 backdrop-blur-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mx-4 rounded-lg bg-white p-4 shadow-xl">
+                <p className="mb-3 text-sm font-medium text-gray-800">
+                  Delete this index card?
+                </p>
+                <p className="mb-4 text-xs text-gray-500">
+                  This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDeleteConfirm(false);
+                    }}
+                    className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDeleteConfirm(false);
+                      onDelete(card.id);
+                    }}
+                    className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>{/* end inner rotated div */}
+      </div>{/* end outer positioning div */}
+    </Draggable>
+  );
+}

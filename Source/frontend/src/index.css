@@ -149,3 +149,253 @@ body {
 .note-rich-content em {
   font-style: italic;
 }
+
+/* ========================================
+   Index Card Styles
+   ======================================== */
+
+/*
+ * Ruled lines — applied as a bottom border on each block element so the
+ * line always sits beneath the tallest content on that row, regardless
+ * of font size.
+ */
+.index-card-ruled p,
+.index-card-ruled li,
+.index-card-ruled h1,
+.index-card-ruled h2,
+.index-card-ruled h3,
+.index-card-ruled h4,
+.index-card-ruled blockquote {
+  border-bottom: 1px solid rgba(147, 197, 253, 0.35);
+  padding-bottom: 3px;
+  margin-bottom: 3px;
+  min-height: 1.4em;
+}
+
+/* Spacing after tables */
+.index-card-ruled table {
+  margin-bottom: 6px;
+}
+
+/* Remove ruled lines from elements inside lists (bullet, ordered, task) */
+.index-card-ruled ul li,
+.index-card-ruled ol li {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* Remove ruled lines from paragraphs inside list items */
+.index-card-ruled li p {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* No ruled line on list blocks themselves */
+
+/* Remove ruled lines from elements inside table cells */
+.index-card-ruled td p,
+.index-card-ruled td li,
+.index-card-ruled td h1,
+.index-card-ruled td h2,
+.index-card-ruled td h3,
+.index-card-ruled td h4,
+.index-card-ruled td blockquote,
+.index-card-ruled th p,
+.index-card-ruled th li,
+.index-card-ruled th h1,
+.index-card-ruled th h2,
+.index-card-ruled th h3,
+.index-card-ruled th h4,
+.index-card-ruled th blockquote {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* Horizontal rule should replace, not stack with, the line */
+.index-card-ruled hr {
+  border-top: 1px solid rgba(147, 197, 253, 0.5);
+  margin: 4px 0;
+}
+
+/* Red header rule separator */
+.index-card-header-rule {
+  border-bottom: 2px solid rgba(248, 113, 113, 0.6);
+}
+
+/* Subtle paper shadow for index cards */
+.index-card {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ---- Table styles inside index cards ---- */
+.index-card-content .tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.index-card-content .tiptap table td,
+.index-card-content .tiptap table th {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 4px 8px;
+  vertical-align: top;
+  min-width: 40px;
+  font-size: 0.75rem;
+  position: relative;
+}
+
+.index-card-content .tiptap table th {
+  background-color: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.index-card-content .tiptap table .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.15);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.index-card-content .tiptap .tableWrapper {
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+
+.index-card-content .tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: rgba(59, 130, 246, 0.5);
+  pointer-events: none;
+}
+
+/* ---- Task list / checklist styles ---- */
+.index-card-content .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25em 0;
+}
+
+.index-card-content .tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.15em 0;
+}
+
+.index-card-content .tiptap ul[data-type="taskList"] li label {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.index-card-content .tiptap ul[data-type="taskList"] li label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.index-card-content .tiptap ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.index-card-content .tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* ---- Bullet & ordered list styles ---- */
+.index-card-content .tiptap ul {
+  list-style-type: disc;
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.index-card-content .tiptap ol {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.index-card-content .tiptap li {
+  margin: 0.1em 0;
+}
+
+/* Override for task lists (don't add disc) */
+.index-card-content .tiptap ul[data-type="taskList"] {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+/* ---- Horizontal rule ---- */
+.index-card-content .tiptap hr {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  margin: 0.5em 0;
+}
+
+/* ---- Read-mode rich content for index cards ---- */
+.note-rich-content.index-card-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.note-rich-content.index-card-content td,
+.note-rich-content.index-card-content th {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+.note-rich-content.index-card-content th {
+  background-color: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.note-rich-content.index-card-content ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.note-rich-content.index-card-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.note-rich-content.index-card-content ul[data-type="taskList"] li label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+}
+
+.note-rich-content.index-card-content ul {
+  list-style-type: disc;
+  padding-left: 1.25em;
+}
+
+.note-rich-content.index-card-content ol {
+  list-style-type: decimal;
+  padding-left: 1.25em;
+}
+
+.note-rich-content.index-card-content hr {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  margin: 0.5em 0;
+}

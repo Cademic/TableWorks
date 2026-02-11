@@ -152,7 +152,7 @@ export function RedStringLayer({
   return (
     <svg
       ref={svgRef}
-      className="pointer-events-none absolute inset-0 z-[5]"
+      className="pointer-events-none absolute inset-0 z-[9999]"
       style={{ width: "100%", height: "100%" }}
     >
       {/* Established connections */}

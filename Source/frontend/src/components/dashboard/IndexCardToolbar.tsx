@@ -9,17 +9,24 @@ import {
   Palette,
   Check,
   RotateCw,
+  Table,
+  ListChecks,
+  List,
+  ListOrdered,
+  Minus,
+  Plus,
+  Trash2,
   AlignLeft,
   AlignCenter,
   AlignRight,
 } from "lucide-react";
 
-interface NoteToolbarProps {
+interface IndexCardToolbarProps {
   editor: Editor | null;
-  noteColor: string;
-  onNoteColorChange: (color: string) => void;
-  noteRotation: number;
-  onNoteRotationChange: (rotation: number) => void;
+  cardColor: string;
+  onCardColorChange: (color: string) => void;
+  cardRotation: number;
+  onCardRotationChange: (rotation: number) => void;
 }
 
 const ROTATION_PRESETS = [-10, -5, -3, 0, 3, 5, 10];
@@ -44,13 +51,13 @@ const TEXT_COLORS = [
   { label: "Purple", value: "#9333ea" },
 ];
 
-const NOTE_COLOR_SWATCHES = [
-  { key: "yellow", swatch: "bg-yellow-300" },
-  { key: "pink", swatch: "bg-pink-300" },
-  { key: "blue", swatch: "bg-blue-300" },
-  { key: "green", swatch: "bg-green-300" },
-  { key: "orange", swatch: "bg-orange-300" },
-  { key: "purple", swatch: "bg-purple-300" },
+const CARD_COLOR_SWATCHES = [
+  { key: "white", swatch: "bg-white border-gray-300" },
+  { key: "ivory", swatch: "bg-amber-100" },
+  { key: "sky", swatch: "bg-sky-100" },
+  { key: "rose", swatch: "bg-rose-100" },
+  { key: "mint", swatch: "bg-emerald-100" },
+  { key: "lavender", swatch: "bg-violet-100" },
 ];
 
 function ToolbarButton({
@@ -58,15 +65,18 @@ function ToolbarButton({
   onClick,
   title,
   children,
+  disabled,
 }: {
   isActive?: boolean;
   onClick: () => void;
   title: string;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onMouseDown={(e) => {
         e.preventDefault();
         onClick();
@@ -74,9 +84,11 @@ function ToolbarButton({
       title={title}
       className={[
         "flex h-6 w-6 items-center justify-center rounded transition-colors",
-        isActive
-          ? "bg-black/20 text-gray-900"
-          : "text-gray-600 hover:bg-black/10 hover:text-gray-800",
+        disabled
+          ? "cursor-not-allowed text-gray-300"
+          : isActive
+            ? "bg-black/20 text-gray-900"
+            : "text-gray-600 hover:bg-black/10 hover:text-gray-800",
       ].join(" ")}
     >
       {children}
@@ -136,7 +148,6 @@ function FontSizeInput({ editor }: { editor: Editor }) {
     );
   }
 
-  // Determine select value: match a preset or show "custom"
   const selectValue = FONT_SIZE_PRESETS.includes(currentNum)
     ? String(currentNum)
     : "custom";
@@ -169,13 +180,13 @@ function FontSizeInput({ editor }: { editor: Editor }) {
   );
 }
 
-export function NoteToolbar({
+export function IndexCardToolbar({
   editor,
-  noteColor,
-  onNoteColorChange,
-  noteRotation,
-  onNoteRotationChange,
-}: NoteToolbarProps) {
+  cardColor,
+  onCardColorChange,
+  cardRotation,
+  onCardRotationChange,
+}: IndexCardToolbarProps) {
   const setFontFamily = useCallback(
     (value: string) => {
       editor?.chain().focus().setFontFamily(value).run();
@@ -186,6 +197,11 @@ export function NoteToolbar({
   if (!editor) return null;
 
   const currentColor = editor.getAttributes("textStyle").color ?? "#1f2937";
+  const isInsideTable =
+    editor.isActive("table") ||
+    editor.isActive("tableRow") ||
+    editor.isActive("tableCell") ||
+    editor.isActive("tableHeader");
 
   return (
     <div className="space-y-1.5 border-b border-black/10 px-2 pb-2 pt-1">
@@ -295,29 +311,29 @@ export function NoteToolbar({
         </div>
       </div>
 
-      {/* Row 2: Note color */}
+      {/* Row 2: Card color */}
       <div className="flex items-center gap-1">
         <Palette className="mr-0.5 h-3 w-3 text-gray-500" />
-        <span className="text-[10px] text-gray-500">Note:</span>
-        {NOTE_COLOR_SWATCHES.map((c) => (
+        <span className="text-[10px] text-gray-500">Card:</span>
+        {CARD_COLOR_SWATCHES.map((c) => (
           <button
             key={c.key}
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onNoteColorChange(c.key);
+              onCardColorChange(c.key);
             }}
             title={c.key}
             className={[
               "relative flex h-5 w-5 items-center justify-center rounded-full border transition-transform",
               c.swatch,
-              noteColor === c.key
+              cardColor === c.key
                 ? "scale-110 border-gray-800 ring-1 ring-gray-400"
                 : "border-black/20 hover:scale-110",
             ].join(" ")}
           >
-            {noteColor === c.key && (
+            {cardColor === c.key && (
               <Check className="h-3 w-3 text-gray-800" strokeWidth={3} />
             )}
           </button>
@@ -335,12 +351,12 @@ export function NoteToolbar({
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onNoteRotationChange(deg);
+              onCardRotationChange(deg);
             }}
             title={`${deg}°`}
             className={[
               "flex h-5 min-w-[28px] items-center justify-center rounded border px-1 text-[10px] font-medium transition-colors",
-              noteRotation === deg
+              cardRotation === deg
                 ? "border-gray-800 bg-black/15 text-gray-900"
                 : "border-black/10 bg-white/50 text-gray-600 hover:bg-black/10",
             ].join(" ")}
@@ -348,6 +364,108 @@ export function NoteToolbar({
             {deg === 0 ? "0°" : `${deg > 0 ? "+" : ""}${deg}°`}
           </button>
         ))}
+      </div>
+
+      {/* Row 4: Content blocks — Table, Task List, Bullet List, Ordered List, Horizontal Rule */}
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="text-[10px] text-gray-500 mr-0.5">Insert:</span>
+
+        <ToolbarButton
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run()
+          }
+          title="Insert Table (3×3)"
+        >
+          <Table className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <ToolbarButton
+          isActive={editor.isActive("taskList")}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          title="Toggle Task List"
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <ToolbarButton
+          isActive={editor.isActive("bulletList")}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          title="Toggle Bullet List"
+        >
+          <List className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <ToolbarButton
+          isActive={editor.isActive("orderedList")}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          title="Toggle Ordered List"
+        >
+          <ListOrdered className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <ToolbarButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          title="Insert Horizontal Rule"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        {/* Table-specific controls (visible when cursor is inside a table) */}
+        {isInsideTable && (
+          <>
+            <div className="mx-0.5 h-4 w-px bg-black/10" />
+            <span className="text-[10px] text-gray-500 mr-0.5">Table:</span>
+
+            <ToolbarButton
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+              title="Add Row"
+            >
+              <span className="flex items-center gap-px text-[9px] font-bold">
+                <Plus className="h-2.5 w-2.5" />R
+              </span>
+            </ToolbarButton>
+
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteRow().run()}
+              title="Delete Row"
+            >
+              <span className="flex items-center gap-px text-[9px] font-bold">
+                <Trash2 className="h-2.5 w-2.5" />R
+              </span>
+            </ToolbarButton>
+
+            <ToolbarButton
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+              title="Add Column"
+            >
+              <span className="flex items-center gap-px text-[9px] font-bold">
+                <Plus className="h-2.5 w-2.5" />C
+              </span>
+            </ToolbarButton>
+
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+              title="Delete Column"
+            >
+              <span className="flex items-center gap-px text-[9px] font-bold">
+                <Trash2 className="h-2.5 w-2.5" />C
+              </span>
+            </ToolbarButton>
+
+            <ToolbarButton
+              onClick={() => editor.chain().focus().deleteTable().run()}
+              title="Delete Table"
+            >
+              <span className="flex items-center gap-px text-[9px] font-bold text-red-500">
+                <Trash2 className="h-2.5 w-2.5" />
+              </span>
+            </ToolbarButton>
+          </>
+        )}
       </div>
     </div>
   );

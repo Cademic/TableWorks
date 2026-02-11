@@ -7,6 +7,7 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import CharacterCount from "@tiptap/extension-character-count";
+import TextAlign from "@tiptap/extension-text-align";
 import { X, GripVertical } from "lucide-react";
 import type { NoteSummaryDto } from "../../types";
 import { FontSize } from "../../lib/tiptap-font-size";
@@ -15,6 +16,7 @@ import { NoteToolbar } from "./NoteToolbar";
 interface StickyNoteProps {
   note: NoteSummaryDto;
   isEditing: boolean;
+  zIndex?: number;
   onDragStop: (id: string, x: number, y: number) => void;
   onDelete: (id: string) => void;
   onStartEdit: (id: string) => void;
@@ -24,6 +26,7 @@ interface StickyNoteProps {
   onRotationChange: (id: string, rotation: number) => void;
   onPinMouseDown?: (noteId: string) => void;
   onDrag?: (id: string, x: number, y: number) => void;
+  onBringToFront?: (id: string) => void;
   /** True when any note on the board is being linked (used for pin hover styling) */
   isLinking?: boolean;
 }
@@ -70,6 +73,7 @@ function resolveNoteColorKey(note: NoteSummaryDto): string {
 export function StickyNote({
   note,
   isEditing,
+  zIndex = 0,
   onDragStop,
   onDelete,
   onStartEdit,
@@ -79,6 +83,7 @@ export function StickyNote({
   onRotationChange,
   onPinMouseDown,
   onDrag,
+  onBringToFront,
   isLinking,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -106,6 +111,7 @@ export function StickyNote({
     Color,
     FontFamily,
     FontSize,
+    TextAlign.configure({ types: ["paragraph"] }),
   ];
 
   const titleEditor = useEditor({
@@ -476,7 +482,9 @@ export function StickyNote({
         style={{
           width: `${size.width}px`,
           minHeight: `${size.height}px`,
+          zIndex,
         }}
+        onMouseDown={() => onBringToFront?.(note.id)}
       >
         <div
           className={[
@@ -546,7 +554,11 @@ export function StickyNote({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              const hasContent = !!(note.title || note.content);
+              // Strip HTML to check if there's actual text content
+              const stripHtml = (html: string) =>
+                html.replace(/<[^>]*>/g, "").trim();
+              const hasContent =
+                !!(note.content && stripHtml(note.content).length > 0);
               if (hasContent) {
                 setShowDeleteConfirm(true);
               } else {

@@ -1,4 +1,4 @@
-# TableWorks – Implementation Summary
+# TableWorks – Dashboard Implementation Summary
 
 This document provides a comprehensive overview of all features implemented across the frontend and backend during the current development session.
 

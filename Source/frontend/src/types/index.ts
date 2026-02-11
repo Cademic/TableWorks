@@ -88,3 +88,11 @@ export interface PaginatedResponse<T> {
   total: number;
   totalPages: number;
 }
+
+// --- Note Connections ---
+
+export interface NoteConnection {
+  id: string;
+  fromNoteId: string;
+  toNoteId: string;
+}

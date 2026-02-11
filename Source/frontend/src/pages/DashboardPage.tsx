@@ -1,15 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { CorkBoard } from "../components/dashboard/CorkBoard";
 import { StickyNote } from "../components/dashboard/StickyNote";
+import { RedStringLayer } from "../components/dashboard/RedStringLayer";
 import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
-import type { NoteSummaryDto } from "../types";
+import type { NoteSummaryDto, NoteConnection } from "../types";
+
+let nextConnectionId = 1;
 
 export function DashboardPage() {
   const [notes, setNotes] = useState<NoteSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  // --- Red-string linking state ---
+  const [connections, setConnections] = useState<NoteConnection[]>([]);
+  const [linkingFrom, setLinkingFrom] = useState<string | null>(null);
+  const [linkMousePos, setLinkMousePos] = useState<{ x: number; y: number } | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const linkingFromRef = useRef<string | null>(null);
+
+  // Keep ref in sync so document listeners can read latest value
+  linkingFromRef.current = linkingFrom;
 
   const fetchNotes = useCallback(async () => {
     try {
@@ -123,6 +136,10 @@ export function DashboardPage() {
     if (editingNoteId === id) {
       setEditingNoteId(null);
     }
+    // Remove any connections involving the deleted note
+    setConnections((prev) =>
+      prev.filter((c) => c.fromNoteId !== id && c.toNoteId !== id),
+    );
 
     try {
       await deleteNote(id);
@@ -130,6 +147,74 @@ export function DashboardPage() {
       fetchNotes();
     }
   }
+
+  // --- Red-string linking handlers ---
+
+  function handlePinMouseDown(noteId: string) {
+    setLinkingFrom(noteId);
+    setLinkMousePos(null);
+  }
+
+  function handleDeleteConnection(id: string) {
+    setConnections((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  // Document-level mousemove / mouseup while linking
+  useEffect(() => {
+    if (!linkingFrom) return;
+
+    function onMouseMove(e: MouseEvent) {
+      if (!boardRef.current) return;
+      const rect = boardRef.current.getBoundingClientRect();
+      setLinkMousePos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+
+    function onMouseUp(e: MouseEvent) {
+      const sourceId = linkingFromRef.current;
+      if (!sourceId) {
+        setLinkingFrom(null);
+        setLinkMousePos(null);
+        return;
+      }
+
+      // Check if mouse was released over a pin
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const pinEl = target?.closest("[data-pin-note-id]") as HTMLElement | null;
+      const targetNoteId = pinEl?.getAttribute("data-pin-note-id");
+
+      if (targetNoteId && targetNoteId !== sourceId) {
+        // Prevent duplicate connections between the same pair of notes
+        setConnections((prev) => {
+          const isDuplicate = prev.some(
+            (c) =>
+              (c.fromNoteId === sourceId && c.toNoteId === targetNoteId) ||
+              (c.fromNoteId === targetNoteId && c.toNoteId === sourceId),
+          );
+          if (isDuplicate) return prev;
+          const newConn: NoteConnection = {
+            id: `conn-${nextConnectionId++}`,
+            fromNoteId: sourceId,
+            toNoteId: targetNoteId,
+          };
+          return [...prev, newConn];
+        });
+      }
+
+      setLinkingFrom(null);
+      setLinkMousePos(null);
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [linkingFrom]);
 
   if (isLoading) {
     return (
@@ -161,7 +246,15 @@ export function DashboardPage() {
 
   return (
     <div className="relative h-full">
-      <CorkBoard>
+      <CorkBoard boardRef={boardRef}>
+        <RedStringLayer
+          connections={connections}
+          linkingFrom={linkingFrom}
+          mousePos={linkMousePos}
+          boardRef={boardRef}
+          onDeleteConnection={handleDeleteConnection}
+        />
+
         {notes.map((note) => (
           <StickyNote
             key={note.id}
@@ -174,6 +267,8 @@ export function DashboardPage() {
             onResize={handleResize}
             onColorChange={handleColorChange}
             onRotationChange={handleRotationChange}
+            onPinMouseDown={handlePinMouseDown}
+            isLinking={linkingFrom !== null}
           />
         ))}
 

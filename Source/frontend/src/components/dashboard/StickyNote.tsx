@@ -22,6 +22,10 @@ interface StickyNoteProps {
   onResize: (id: string, width: number, height: number) => void;
   onColorChange: (id: string, color: string) => void;
   onRotationChange: (id: string, rotation: number) => void;
+  onPinMouseDown?: (noteId: string) => void;
+  onDrag?: (id: string, x: number, y: number) => void;
+  /** True when any note on the board is being linked (used for pin hover styling) */
+  isLinking?: boolean;
 }
 
 const DEFAULT_SIZE = 270;
@@ -73,6 +77,9 @@ export function StickyNote({
   onResize,
   onColorChange,
   onRotationChange,
+  onPinMouseDown,
+  onDrag,
+  isLinking,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -456,6 +463,7 @@ export function StickyNote({
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
       position={position}
       onStop={handleDragStop}
+      onDrag={(_e, data) => onDrag?.(note.id, data.x, data.y)}
       handle=".sticky-handle"
       bounds="parent"
       disabled={isEditing || isResizing}
@@ -506,10 +514,28 @@ export function StickyNote({
             }
           }}
         >
-        {/* Pin */}
-        <div className="absolute -top-2 left-1/2 z-10 -translate-x-1/2">
+        {/* Pin – interactive for red-string linking */}
+        <div
+          data-pin-note-id={note.id}
+          className="absolute -top-2 left-1/2 z-10 -translate-x-1/2 group/pin"
+          onMouseDown={(e) => {
+            if (!onPinMouseDown) return;
+            e.stopPropagation();
+            e.preventDefault();
+            onPinMouseDown(note.id);
+          }}
+        >
+          {/* Larger invisible hit-area */}
+          <div className="absolute -inset-2" />
           <div
-            className={`h-4 w-4 rounded-full ${color.pin} shadow-md border-2 border-white/60`}
+            className={[
+              "h-4 w-4 rounded-full shadow-md border-2 border-white/60 transition-transform duration-150",
+              color.pin,
+              onPinMouseDown ? "cursor-pointer group-hover/pin:scale-150" : "",
+              isLinking ? "animate-pulse group-hover/pin:scale-150 group-hover/pin:ring-2 group-hover/pin:ring-red-400" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
         </div>
 

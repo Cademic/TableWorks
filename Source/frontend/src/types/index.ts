@@ -89,8 +89,21 @@ export interface PaginatedResponse<T> {
   totalPages: number;
 }
 
-// --- Note Connections ---
+// --- Board Connections ---
 
+export interface BoardConnectionDto {
+  id: string;
+  fromItemId: string;
+  toItemId: string;
+  createdAt: string;
+}
+
+export interface CreateBoardConnectionRequest {
+  fromItemId: string;
+  toItemId: string;
+}
+
+/** @deprecated Use BoardConnectionDto instead */
 export interface NoteConnection {
   id: string;
   fromNoteId: string;

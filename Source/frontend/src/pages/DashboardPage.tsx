@@ -11,9 +11,13 @@ import {
   patchIndexCard,
   deleteIndexCard,
 } from "../api/index-cards";
-import type { NoteSummaryDto, IndexCardSummaryDto, NoteConnection } from "../types";
+import {
+  getConnections,
+  createConnection,
+  deleteConnection,
+} from "../api/connections";
+import type { NoteSummaryDto, IndexCardSummaryDto, BoardConnectionDto } from "../types";
 
-let nextConnectionId = 1;
 let nextTempCardId = 1;
 
 export function DashboardPage() {
@@ -35,15 +39,17 @@ export function DashboardPage() {
   }
 
   // --- Red-string linking state ---
-  const [connections, setConnections] = useState<NoteConnection[]>([]);
+  const [connections, setConnections] = useState<BoardConnectionDto[]>([]);
   const [linkingFrom, setLinkingFrom] = useState<string | null>(null);
   const [linkMousePos, setLinkMousePos] = useState<{ x: number; y: number } | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const linkingFromRef = useRef<string | null>(null);
+  const connectionsRef = useRef(connections);
   const addMenuRef = useRef<HTMLDivElement>(null);
 
-  // Keep ref in sync so document listeners can read latest value
+  // Keep refs in sync so document listeners can read latest value
   linkingFromRef.current = linkingFrom;
+  connectionsRef.current = connections;
 
   // Close add menu when clicking outside
   useEffect(() => {
@@ -60,9 +66,10 @@ export function DashboardPage() {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const [notesRes, cardsRes] = await Promise.allSettled([
+      const [notesRes, cardsRes, connsRes] = await Promise.allSettled([
         getNotes({ limit: 100 }),
         getIndexCards({ limit: 100 }),
+        getConnections(),
       ]);
 
       if (notesRes.status === "fulfilled") {
@@ -71,9 +78,12 @@ export function DashboardPage() {
       if (cardsRes.status === "fulfilled") {
         setIndexCards(cardsRes.value.items);
       }
+      if (connsRes.status === "fulfilled") {
+        setConnections(connsRes.value);
+      }
 
-      // Only show error if both failed
-      if (notesRes.status === "rejected" && cardsRes.status === "rejected") {
+      // Only show error if all failed
+      if (notesRes.status === "rejected" && cardsRes.status === "rejected" && connsRes.status === "rejected") {
         setError("Failed to load board items.");
       }
     } finally {
@@ -203,7 +213,7 @@ export function DashboardPage() {
       setEditingNoteId(null);
     }
     setConnections((prev) =>
-      prev.filter((c) => c.fromNoteId !== id && c.toNoteId !== id),
+      prev.filter((c) => c.fromItemId !== id && c.toItemId !== id),
     );
 
     try {
@@ -343,7 +353,7 @@ export function DashboardPage() {
       setEditingCardId(null);
     }
     setConnections((prev) =>
-      prev.filter((c) => c.fromNoteId !== id && c.toNoteId !== id),
+      prev.filter((c) => c.fromItemId !== id && c.toItemId !== id),
     );
 
     try {
@@ -421,8 +431,13 @@ export function DashboardPage() {
     setLinkMousePos(null);
   }
 
-  function handleDeleteConnection(id: string) {
+  async function handleDeleteConnection(id: string) {
     setConnections((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await deleteConnection(id);
+    } catch {
+      // Silently fail – connection already removed from UI
+    }
   }
 
   // Document-level mousemove / mouseup while linking
@@ -451,20 +466,22 @@ export function DashboardPage() {
       const targetNoteId = pinEl?.getAttribute("data-pin-note-id");
 
       if (targetNoteId && targetNoteId !== sourceId) {
-        setConnections((prev) => {
-          const isDuplicate = prev.some(
-            (c) =>
-              (c.fromNoteId === sourceId && c.toNoteId === targetNoteId) ||
-              (c.fromNoteId === targetNoteId && c.toNoteId === sourceId),
-          );
-          if (isDuplicate) return prev;
-          const newConn: NoteConnection = {
-            id: `conn-${nextConnectionId++}`,
-            fromNoteId: sourceId,
-            toNoteId: targetNoteId,
-          };
-          return [...prev, newConn];
-        });
+        // Check for duplicate locally before creating
+        const isDuplicate = connectionsRef.current.some(
+          (c) =>
+            (c.fromItemId === sourceId && c.toItemId === targetNoteId) ||
+            (c.fromItemId === targetNoteId && c.toItemId === sourceId),
+        );
+        if (!isDuplicate) {
+          // Create via API, then add to state
+          createConnection({ fromItemId: sourceId, toItemId: targetNoteId })
+            .then((created) => {
+              setConnections((prev) => [...prev, created]);
+            })
+            .catch(() => {
+              // Silently fail
+            });
+        }
       }
 
       setLinkingFrom(null);

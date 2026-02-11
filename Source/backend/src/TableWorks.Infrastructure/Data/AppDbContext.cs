@@ -22,6 +22,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<IndexCard> IndexCards => Set<IndexCard>();
     public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
+    public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -218,6 +219,23 @@ public sealed class AppDbContext : DbContext
 
             entity.HasOne(x => x.User)
                 .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----- BoardConnection -----
+        modelBuilder.Entity<BoardConnection>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.FromItemId).IsRequired();
+            entity.Property(x => x.ToItemId).IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.BoardConnections)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

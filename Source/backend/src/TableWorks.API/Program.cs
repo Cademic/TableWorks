@@ -169,6 +169,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<INoteService, NoteService>();
 builder.Services.AddScoped<IIndexCardService, IndexCardService>();
+builder.Services.AddScoped<IBoardConnectionService, BoardConnectionService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IFolderService, FolderService>();

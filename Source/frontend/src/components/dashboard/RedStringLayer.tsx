@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import type { NoteConnection } from "../../types";
+import type { BoardConnectionDto } from "../../types";
 
 interface PinPosition {
   x: number;
@@ -8,7 +8,7 @@ interface PinPosition {
 }
 
 interface RedStringLayerProps {
-  connections: NoteConnection[];
+  connections: BoardConnectionDto[];
   linkingFrom: string | null;
   mousePos: { x: number; y: number } | null;
   boardRef: React.RefObject<HTMLDivElement | null>;
@@ -56,7 +56,7 @@ export function RedStringLayer({
   onDeleteConnection,
 }: RedStringLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [hoveredConnection, setHoveredConnection] = useState<string | null>(null);
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
 
   // Store latest props in refs so the rAF loop can read them without deps.
   const connectionsRef = useRef(connections);
@@ -65,6 +65,26 @@ export function RedStringLayer({
   connectionsRef.current = connections;
   linkingFromRef.current = linkingFrom;
   mousePosRef.current = mousePos;
+
+  // Deselect when clicking anywhere outside a string
+  useEffect(() => {
+    if (!selectedConnection) return;
+    function onClickAway(e: MouseEvent) {
+      const target = e.target as Element | null;
+      // If the click is on the SVG hit-area or the delete button, let those handlers run
+      if (target?.closest("[data-conn-hit]") || target?.closest("[data-delete-btn]")) return;
+      setSelectedConnection(null);
+    }
+    document.addEventListener("mousedown", onClickAway);
+    return () => document.removeEventListener("mousedown", onClickAway);
+  }, [selectedConnection]);
+
+  // Clear selection if the selected connection was removed
+  useEffect(() => {
+    if (selectedConnection && !connections.find((c) => c.id === selectedConnection)) {
+      setSelectedConnection(null);
+    }
+  }, [connections, selectedConnection]);
 
   // Persistent rAF loop that reads pin positions from the DOM every frame and
   // writes directly to SVG path `d` attributes. This avoids React re-renders
@@ -87,8 +107,8 @@ export function RedStringLayer({
 
       // Update established connection paths
       for (const conn of conns) {
-        const from = pins.get(conn.fromNoteId);
-        const to = pins.get(conn.toNoteId);
+        const from = pins.get(conn.fromItemId);
+        const to = pins.get(conn.toItemId);
         // Each connection has two paths: hit-area and visible (data-conn-id)
         const visible = svg.querySelector<SVGPathElement>(
           `[data-conn-visible="${conn.id}"]`,
@@ -127,17 +147,16 @@ export function RedStringLayer({
   // Nothing to render
   if (connections.length === 0 && !linkingFrom) return null;
 
-  // For the hover delete button, compute positions from pinPositions once on
-  // hover (not every frame) so the button is positioned correctly.
-  const hoveredConn = hoveredConnection
-    ? connections.find((c) => c.id === hoveredConnection)
+  // For the selected string's delete button, compute position from pin positions.
+  const selectedConn = selectedConnection
+    ? connections.find((c) => c.id === selectedConnection)
     : null;
 
   let deleteButtonPos: { x: number; y: number; droop: number } | null = null;
-  if (hoveredConn && boardRef.current) {
+  if (selectedConn && boardRef.current) {
     const pins = readPinPositions(boardRef.current);
-    const from = pins.get(hoveredConn.fromNoteId);
-    const to = pins.get(hoveredConn.toNoteId);
+    const from = pins.get(selectedConn.fromItemId);
+    const to = pins.get(selectedConn.toItemId);
     if (from && to) {
       const dist = Math.abs(to.x - from.x);
       const droop = DROOP_PX * Math.min(1, dist / 300);
@@ -155,46 +174,59 @@ export function RedStringLayer({
       className="pointer-events-none absolute inset-0 z-[9999]"
       style={{ width: "100%", height: "100%" }}
     >
+      {/* Drop shadow filter for the string */}
+      <defs>
+        <filter id="string-shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000000" floodOpacity="0.35" />
+        </filter>
+      </defs>
+
       {/* Established connections */}
       {connections.map((conn) => {
-        const isHovered = hoveredConnection === conn.id;
+        const isSelected = selectedConnection === conn.id;
         return (
           <g key={conn.id}>
-            {/* Invisible wider hit-area */}
+            {/* Invisible wider hit-area for click selection */}
             <path
               data-conn-hit={conn.id}
               d="M 0 0"
               fill="none"
               stroke="transparent"
-              strokeWidth={14}
-              className="pointer-events-stroke cursor-pointer"
-              onMouseEnter={() => setHoveredConnection(conn.id)}
-              onMouseLeave={() => setHoveredConnection(null)}
-              onClick={() => onDeleteConnection(conn.id)}
+              strokeWidth={16}
+              style={{ pointerEvents: "stroke", cursor: "pointer" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedConnection(isSelected ? null : conn.id);
+              }}
             />
             {/* Visible string */}
             <path
               data-conn-visible={conn.id}
               d="M 0 0"
               fill="none"
-              stroke={STRING_COLOR}
-              strokeWidth={isHovered ? 3 : 2}
+              stroke={isSelected ? "#ef4444" : STRING_COLOR}
+              strokeWidth={isSelected ? 3.5 : 2}
               strokeLinecap="round"
-              opacity={isHovered ? 1 : 0.85}
+              opacity={isSelected ? 1 : 0.85}
+              filter="url(#string-shadow)"
             />
-            {/* Delete icon on hover */}
-            {isHovered && deleteButtonPos && (
+            {/* Delete button on selected string */}
+            {isSelected && deleteButtonPos && (
               <foreignObject
-                x={deleteButtonPos.x - 10}
-                y={deleteButtonPos.y + deleteButtonPos.droop - 10}
-                width={20}
-                height={20}
-                className="pointer-events-auto cursor-pointer"
-                onClick={() => onDeleteConnection(conn.id)}
+                x={deleteButtonPos.x - 12}
+                y={deleteButtonPos.y + deleteButtonPos.droop - 12}
+                width={24}
+                height={24}
+                className="pointer-events-auto"
               >
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 shadow-md">
-                  <X className="h-3 w-3 text-white" />
-                </div>
+                <button
+                  data-delete-btn=""
+                  type="button"
+                  onClick={() => onDeleteConnection(conn.id)}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 shadow-lg transition-transform hover:scale-110 hover:bg-red-700 focus:outline-none"
+                >
+                  <X className="h-3.5 w-3.5 text-white" />
+                </button>
               </foreignObject>
             )}
           </g>

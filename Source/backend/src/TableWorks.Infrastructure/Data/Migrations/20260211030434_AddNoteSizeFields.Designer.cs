@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TableWorks.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TableWorks.Infrastructure.Data;
 namespace TableWorks.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260211030434_AddNoteSizeFields")]
+    partial class AddNoteSizeFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -103,9 +106,6 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
-                    b.Property<string>("Color")
-                        .HasColumnType("text");
-
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
@@ -133,9 +133,6 @@ namespace TableWorks.Infrastructure.Data.Migrations
 
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
-
-                    b.Property<double?>("Rotation")
-                        .HasColumnType("double precision");
 
                     b.Property<string>("Title")
                         .HasColumnType("text");

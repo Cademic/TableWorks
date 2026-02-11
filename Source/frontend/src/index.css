@@ -31,3 +31,121 @@ body,
 body {
   @apply bg-background text-foreground antialiased;
 }
+
+/* Cork Board Styles */
+.corkboard-frame {
+  border: 12px solid #6b4226;
+  border-image: linear-gradient(
+    135deg,
+    #8b5e3c 0%,
+    #6b4226 20%,
+    #4a2e18 40%,
+    #6b4226 60%,
+    #8b5e3c 80%,
+    #6b4226 100%
+  ) 12;
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.corkboard-surface {
+  background-color: #c4a265;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(139, 94, 60, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(139, 94, 60, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(180, 140, 80, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 20% 70%, rgba(100, 60, 30, 0.1) 0%, transparent 30%),
+    radial-gradient(circle at 80% 30%, rgba(200, 170, 100, 0.12) 0%, transparent 35%),
+    radial-gradient(circle at 60% 10%, rgba(100, 60, 30, 0.08) 0%, transparent 25%),
+    radial-gradient(circle at 30% 90%, rgba(180, 140, 80, 0.1) 0%, transparent 30%);
+}
+
+.dark .corkboard-frame {
+  border-color: #4a3020;
+  border-image: linear-gradient(
+    135deg,
+    #5a3a24 0%,
+    #4a3020 20%,
+    #3a2018 40%,
+    #4a3020 60%,
+    #5a3a24 80%,
+    #4a3020 100%
+  ) 12;
+  box-shadow:
+    inset 0 0 20px rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dark .corkboard-surface {
+  background-color: #8a6e3e;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(100, 60, 30, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(100, 60, 30, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(140, 100, 50, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 20% 70%, rgba(60, 30, 10, 0.15) 0%, transparent 30%),
+    radial-gradient(circle at 80% 30%, rgba(160, 130, 70, 0.15) 0%, transparent 35%),
+    radial-gradient(circle at 60% 10%, rgba(60, 30, 10, 0.1) 0%, transparent 25%),
+    radial-gradient(circle at 30% 90%, rgba(140, 100, 50, 0.12) 0%, transparent 30%);
+}
+
+/* TipTap editor styles */
+.tiptap-editor-area {
+  overflow: hidden;
+}
+
+.tiptap-editor-area .tiptap {
+  outline: none;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+}
+
+.tiptap-editor-area .tiptap p {
+  margin: 0.15em 0;
+  overflow-wrap: anywhere;
+}
+
+.tiptap-title-area .tiptap {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.tiptap-title-area .tiptap p.is-editor-empty:first-child::before {
+  content: "Untitled";
+  color: rgba(107, 114, 128, 0.5);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* Rich content in read mode */
+.note-rich-content {
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.note-rich-content p {
+  margin: 0.15em 0;
+  overflow-wrap: anywhere;
+}
+
+.note-rich-content u {
+  text-decoration: underline;
+}
+
+.note-rich-content s {
+  text-decoration: line-through;
+}
+
+.note-rich-content strong {
+  font-weight: 700;
+}
+
+.note-rich-content em {
+  font-style: italic;
+}

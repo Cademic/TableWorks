@@ -1,23 +1,32 @@
-import { Menu } from "lucide-react";
+import { Moon, Sun, Monitor } from "lucide-react";
+import { useThemeContext } from "../../context/ThemeContext";
 
-interface NavbarProps {
-  onMenuClick: () => void;
-}
+export function Navbar() {
+  const { themeMode, setThemeMode } = useThemeContext();
 
-export function Navbar({ onMenuClick }: NavbarProps) {
+  function cycleTheme() {
+    const modes: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
+    const currentIndex = modes.indexOf(themeMode);
+    const nextMode = modes[(currentIndex + 1) % modes.length];
+    setThemeMode(nextMode);
+  }
+
+  const ThemeIcon = themeMode === "dark" ? Moon : themeMode === "light" ? Sun : Monitor;
+
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-surface">
-      <div className="mx-auto flex h-14 w-full max-w-screen-2xl items-center justify-between px-4">
+    <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-6">
+      <h2 className="text-sm font-semibold text-foreground">Dashboard</h2>
+
+      <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onMenuClick}
-          className="inline-flex items-center gap-2 rounded-md border border-border px-2 py-1 text-sm hover:bg-background"
-          aria-label="Toggle sidebar"
+          onClick={cycleTheme}
+          title={`Theme: ${themeMode}`}
+          className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-foreground/60 transition-colors hover:bg-background hover:text-foreground"
+          aria-label={`Switch theme (current: ${themeMode})`}
         >
-          <Menu className="h-4 w-4" />
-          <span>Menu</span>
+          <ThemeIcon className="h-4 w-4" />
         </button>
-        <span className="text-sm font-semibold tracking-wide">TableWorks</span>
       </div>
     </header>
   );

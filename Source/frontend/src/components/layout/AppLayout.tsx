@@ -11,11 +11,11 @@ export function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Navbar onMenuClick={handleToggleSidebar} />
-      <div className="mx-auto flex w-full max-w-screen-2xl">
-        <Sidebar isOpen={isSidebarOpen} />
-        <main className="min-h-[calc(100vh-3.5rem)] flex-1 p-4">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+      <Sidebar isOpen={isSidebarOpen} onToggle={handleToggleSidebar} />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Navbar />
+        <main className="flex-1 overflow-auto p-4">
           <Outlet />
         </main>
       </div>

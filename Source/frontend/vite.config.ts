@@ -5,6 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     sourcemap: true,
@@ -12,7 +18,16 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ["react", "react-dom", "react-router-dom"],
-          vendor: ["axios", "lucide-react"],
+          tiptap: [
+            "@tiptap/react",
+            "@tiptap/starter-kit",
+            "@tiptap/extension-character-count",
+            "@tiptap/extension-color",
+            "@tiptap/extension-font-family",
+            "@tiptap/extension-text-style",
+            "@tiptap/extension-underline",
+          ],
+          vendor: ["axios", "lucide-react", "react-draggable"],
         },
       },
     },

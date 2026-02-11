@@ -93,6 +93,12 @@ public sealed class NoteService : INoteService
             Content = request.Content,
             FolderId = request.FolderId,
             ProjectId = request.ProjectId,
+            PositionX = request.PositionX,
+            PositionY = request.PositionY,
+            Width = request.Width,
+            Height = request.Height,
+            Color = request.Color,
+            Rotation = request.Rotation,
             CreatedAt = now,
             UpdatedAt = now,
             LastSavedAt = now
@@ -136,6 +142,12 @@ public sealed class NoteService : INoteService
         note.Title = request.Title;
         note.Content = request.Content;
         note.FolderId = request.FolderId;
+        note.PositionX = request.PositionX;
+        note.PositionY = request.PositionY;
+        note.Width = request.Width;
+        note.Height = request.Height;
+        note.Color = request.Color;
+        note.Rotation = request.Rotation;
         note.UpdatedAt = DateTime.UtcNow;
         note.LastSavedAt = DateTime.UtcNow;
         _noteRepo.Update(note);
@@ -157,7 +169,22 @@ public sealed class NoteService : INoteService
             .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
 
-        note.Content = request.Content;
+        if (request.PatchTitle)
+            note.Title = request.Title;
+        if (request.Content is not null)
+            note.Content = request.Content;
+        if (request.PositionX.HasValue)
+            note.PositionX = request.PositionX;
+        if (request.PositionY.HasValue)
+            note.PositionY = request.PositionY;
+        if (request.Width.HasValue)
+            note.Width = request.Width;
+        if (request.Height.HasValue)
+            note.Height = request.Height;
+        if (request.Color is not null)
+            note.Color = request.Color;
+        if (request.Rotation.HasValue)
+            note.Rotation = request.Rotation;
         note.UpdatedAt = DateTime.UtcNow;
         note.LastSavedAt = DateTime.UtcNow;
         _noteRepo.Update(note);
@@ -221,6 +248,7 @@ public sealed class NoteService : INoteService
     {
         Id = note.Id,
         Title = note.Title,
+        Content = note.Content,
         FolderId = note.FolderId,
         ProjectId = note.ProjectId,
         Tags = note.NoteTags.Select(nt => new TagDto
@@ -230,7 +258,13 @@ public sealed class NoteService : INoteService
             Color = nt.Tag.Color
         }).ToList(),
         CreatedAt = note.CreatedAt,
-        UpdatedAt = note.UpdatedAt
+        UpdatedAt = note.UpdatedAt,
+        PositionX = note.PositionX,
+        PositionY = note.PositionY,
+        Width = note.Width,
+        Height = note.Height,
+        Color = note.Color,
+        Rotation = note.Rotation
     };
 
     private static NoteDetailDto MapToDetail(Note note) => new()
@@ -248,6 +282,12 @@ public sealed class NoteService : INoteService
         }).ToList(),
         CreatedAt = note.CreatedAt,
         UpdatedAt = note.UpdatedAt,
-        LastSavedAt = note.LastSavedAt
+        LastSavedAt = note.LastSavedAt,
+        PositionX = note.PositionX,
+        PositionY = note.PositionY,
+        Width = note.Width,
+        Height = note.Height,
+        Color = note.Color,
+        Rotation = note.Rotation
     };
 }

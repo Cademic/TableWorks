@@ -12,6 +12,12 @@ public sealed class Note
     public DateTime UpdatedAt { get; set; }
     public DateTime? LastSavedAt { get; set; }
     public bool IsArchived { get; set; }
+    public double? PositionX { get; set; }
+    public double? PositionY { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+    public string? Color { get; set; }
+    public double? Rotation { get; set; }
 
     public User? User { get; set; }
     public Folder? Folder { get; set; }

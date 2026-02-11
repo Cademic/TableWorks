@@ -13,4 +13,10 @@ public sealed class NoteDetailDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime? LastSavedAt { get; set; }
+    public double? PositionX { get; set; }
+    public double? PositionY { get; set; }
+    public double? Width { get; set; }
+    public double? Height { get; set; }
+    public string? Color { get; set; }
+    public double? Rotation { get; set; }
 }

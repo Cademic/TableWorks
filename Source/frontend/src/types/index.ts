@@ -1,101 +1,90 @@
-export interface User {
-  id: string;
+// --- Auth DTOs ---
+
+export interface AuthResponse {
+  userId: string;
   username: string;
   email: string;
-  passwordHash: string;
-  role: string;
-  createdAt: string;
-  lastLoginAt: string | null;
-  isActive: boolean;
+  token: string;
+  refreshToken: string;
+  expiresIn: number;
 }
 
-export interface Note {
-  id: string;
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface AuthUser {
   userId: string;
+  username: string;
+  email: string;
+}
+
+// --- Note DTOs ---
+
+interface NoteTagDto {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export interface NoteSummaryDto {
+  id: string;
   title: string | null;
   content: string;
   folderId: string | null;
   projectId: string | null;
+  tags: NoteTagDto[];
   createdAt: string;
   updatedAt: string;
-  lastSavedAt: string | null;
-  isArchived: boolean;
-}
-
-export interface Project {
-  id: string;
-  ownerId: string;
-  name: string;
-  description: string | null;
-  startDate: string;
-  endDate: string;
-  deadline: string | null;
-  status: string;
-  progress: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProjectMember {
-  id: string;
-  projectId: string;
-  userId: string;
-  role: string;
-  joinedAt: string;
-  invitedByUserId: string | null;
-}
-
-export interface Tag {
-  id: string;
-  name: string;
+  positionX: number | null;
+  positionY: number | null;
+  width: number | null;
+  height: number | null;
   color: string | null;
-  createdAt: string;
+  rotation: number | null;
 }
 
-export interface NoteTag {
-  noteId: string;
-  tagId: string;
-  createdAt: string;
+export interface NoteDetailDto extends NoteSummaryDto {
+  lastSavedAt: string | null;
 }
 
-export interface Folder {
-  id: string;
-  userId: string;
-  name: string;
-  parentFolderId: string | null;
-  createdAt: string;
-  updatedAt: string;
+export interface CreateNoteRequest {
+  title?: string;
+  content: string;
+  folderId?: string;
+  projectId?: string;
+  tagIds?: string[];
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  color?: string;
+  rotation?: number;
 }
 
-export interface Notification {
-  id: string;
-  userId: string;
-  type: string;
-  title: string;
-  message: string;
-  relatedEntityType: string | null;
-  relatedEntityId: string | null;
-  isRead: boolean;
-  createdAt: string;
+export interface PatchNoteRequest {
+  title?: string | null;
+  patchTitle?: boolean;
+  content?: string;
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  color?: string;
+  rotation?: number;
 }
 
-export interface AuditLog {
-  id: string;
-  userId: string | null;
-  actionType: string;
-  entityType: string;
-  entityId: string | null;
-  detailsJson: string | null;
-  ipAddress: string | null;
-  timestamp: string;
-}
-
-export interface UserPreferences {
-  id: string;
-  userId: string;
-  theme: "light" | "dark" | "system";
-  emailNotificationsJson: string | null;
-  autoSaveInterval: number;
-  defaultView: string;
-  updatedAt: string;
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }

@@ -1,0 +1,716 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import Draggable, { type DraggableEventHandler } from "react-draggable";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import UnderlineExt from "@tiptap/extension-underline";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
+import CharacterCount from "@tiptap/extension-character-count";
+import { X, GripVertical } from "lucide-react";
+import type { NoteSummaryDto } from "../../types";
+import { FontSize } from "../../lib/tiptap-font-size";
+import { NoteToolbar } from "./NoteToolbar";
+
+interface StickyNoteProps {
+  note: NoteSummaryDto;
+  isEditing: boolean;
+  onDragStop: (id: string, x: number, y: number) => void;
+  onDelete: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onSave: (id: string, title: string, content: string) => void;
+  onResize: (id: string, width: number, height: number) => void;
+  onColorChange: (id: string, color: string) => void;
+  onRotationChange: (id: string, rotation: number) => void;
+}
+
+const DEFAULT_SIZE = 270;
+const MIN_SIZE = 120;
+const MAX_WIDTH = 600;
+const MAX_HEIGHT = 600;
+const MAX_CONTENT_LENGTH = 1000;
+const MAX_TITLE_LENGTH = 100;
+
+type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+const CURSOR_MAP: Record<ResizeDir, string> = {
+  n: "cursor-ns-resize",
+  s: "cursor-ns-resize",
+  e: "cursor-ew-resize",
+  w: "cursor-ew-resize",
+  ne: "cursor-nesw-resize",
+  sw: "cursor-nesw-resize",
+  nw: "cursor-nwse-resize",
+  se: "cursor-nwse-resize",
+};
+
+export const NOTE_COLORS: Record<string, { bg: string; pin: string }> = {
+  yellow: { bg: "bg-yellow-200 dark:bg-yellow-300", pin: "bg-red-500" },
+  pink: { bg: "bg-pink-200 dark:bg-pink-300", pin: "bg-blue-500" },
+  blue: { bg: "bg-blue-200 dark:bg-blue-300", pin: "bg-yellow-500" },
+  green: { bg: "bg-green-200 dark:bg-green-300", pin: "bg-red-500" },
+  orange: { bg: "bg-orange-200 dark:bg-orange-300", pin: "bg-blue-500" },
+  purple: { bg: "bg-purple-200 dark:bg-purple-300", pin: "bg-yellow-500" },
+};
+
+function resolveNoteColorKey(note: NoteSummaryDto): string {
+  if (note.color && NOTE_COLORS[note.color]) return note.color;
+  let hash = 0;
+  for (let i = 0; i < note.id.length; i++) {
+    hash = note.id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const keys = Object.keys(NOTE_COLORS);
+  return keys[Math.abs(hash) % keys.length];
+}
+
+export function StickyNote({
+  note,
+  isEditing,
+  onDragStop,
+  onDelete,
+  onStartEdit,
+  onSave,
+  onResize,
+  onColorChange,
+  onRotationChange,
+}: StickyNoteProps) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const colorKey = resolveNoteColorKey(note);
+  const color = NOTE_COLORS[colorKey];
+
+  const [activeField, setActiveField] = useState<"title" | "content">("title");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [size, setSize] = useState({
+    width: note.width ?? DEFAULT_SIZE,
+    height: note.height ?? DEFAULT_SIZE,
+  });
+  const [position, setPosition] = useState({
+    x: note.positionX ?? 20,
+    y: note.positionY ?? 20,
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  // --- TipTap editors ---
+  const sharedExtensions = [
+    StarterKit.configure({ heading: false }),
+    UnderlineExt,
+    TextStyle,
+    Color,
+    FontFamily,
+    FontSize,
+  ];
+
+  const titleEditor = useEditor({
+    extensions: [
+      ...sharedExtensions,
+      CharacterCount.configure({ limit: MAX_TITLE_LENGTH }),
+    ],
+    content: note.title || "",
+    editable: isEditing,
+    editorProps: {
+      attributes: {
+        class:
+          "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
+      },
+    },
+    onFocus: () => setActiveField("title"),
+  });
+
+  const contentEditor = useEditor({
+    extensions: [
+      ...sharedExtensions,
+      CharacterCount.configure({ limit: MAX_CONTENT_LENGTH }),
+    ],
+    content: note.content || "",
+    editable: isEditing,
+    editorProps: {
+      attributes: {
+        class:
+          "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[40px] break-words",
+      },
+    },
+    onFocus: () => setActiveField("content"),
+  });
+
+  const activeEditor =
+    activeField === "title" ? titleEditor : contentEditor;
+
+  // Toggle editable when isEditing changes
+  useEffect(() => {
+    titleEditor?.setEditable(isEditing);
+    contentEditor?.setEditable(isEditing);
+  }, [titleEditor, contentEditor, isEditing]);
+
+  // Sync title editor from props when NOT editing
+  useEffect(() => {
+    if (!isEditing && titleEditor && !titleEditor.isFocused) {
+      const currentHtml = titleEditor.getHTML();
+      if (currentHtml !== (note.title ?? "") && note.title !== undefined) {
+        titleEditor.commands.setContent(note.title || "", { emitUpdate: false });
+      }
+    }
+  }, [note.title, isEditing, titleEditor]);
+
+  // Sync content editor from props when NOT editing
+  useEffect(() => {
+    if (!isEditing && contentEditor && !contentEditor.isFocused) {
+      const currentHtml = contentEditor.getHTML();
+      if (currentHtml !== note.content && note.content !== undefined) {
+        contentEditor.commands.setContent(note.content || "", { emitUpdate: false });
+      }
+    }
+  }, [note.content, isEditing, contentEditor]);
+
+  // Keep stable refs for parent callbacks so resize handlers never go stale
+  const onResizeRef = useRef(onResize);
+  const onDragStopRef = useRef(onDragStop);
+  onResizeRef.current = onResize;
+  onDragStopRef.current = onDragStop;
+
+  // Sync size from props only when note prop values actually change and not resizing
+  useEffect(() => {
+    if (isResizing) return;
+    const w = note.width ?? DEFAULT_SIZE;
+    const h = note.height ?? DEFAULT_SIZE;
+    setSize((prev) => {
+      if (prev.width === w && prev.height === h) return prev;
+      return { width: w, height: h };
+    });
+  }, [note.width, note.height, isResizing]);
+
+  // Sync position from props only when note prop values actually change and not resizing
+  useEffect(() => {
+    if (isResizing) return;
+    const x = note.positionX ?? 20;
+    const y = note.positionY ?? 20;
+    setPosition((prev) => {
+      if (prev.x === x && prev.y === y) return prev;
+      return { x, y };
+    });
+  }, [note.positionX, note.positionY, isResizing]);
+
+  // Track which field was clicked and the vertical ratio within it
+  const pendingClickRef = useRef<{
+    field: "title" | "content";
+    yRatio: number; // 0..1 representing where in the field the click landed
+  } | null>(null);
+
+  // When entering edit mode, place the cursor on the line the user clicked
+  useEffect(() => {
+    if (!isEditing || !titleEditor || !contentEditor) return;
+
+    const click = pendingClickRef.current;
+    pendingClickRef.current = null;
+
+    if (!click) {
+      contentEditor.commands.focus("end");
+      setActiveField("content");
+      return;
+    }
+
+    const editor = click.field === "title" ? titleEditor : contentEditor;
+    setActiveField(click.field);
+
+    // Wait a tick for the editor DOM to be fully laid out
+    requestAnimationFrame(() => {
+      const editorEl = editor.view.dom;
+      const rect = editorEl.getBoundingClientRect();
+
+      // Map the yRatio to a viewport Y coordinate within the editor
+      const targetY = rect.top + click.yRatio * rect.height;
+      // Use the horizontal center of the editor for the X
+      const targetX = rect.left + rect.width / 2;
+
+      const pos = editor.view.posAtCoords({ left: targetX, top: targetY });
+      if (pos) {
+        editor.commands.focus();
+        editor.commands.setTextSelection(pos.pos);
+      } else {
+        editor.commands.focus("end");
+      }
+    });
+  }, [isEditing, titleEditor, contentEditor]);
+
+  // Auto-grow height based on content in read mode (skip during resize)
+  useEffect(() => {
+    if (isResizing) return;
+    if (!isEditing && contentRef.current) {
+      const contentHeight = contentRef.current.scrollHeight;
+      const totalNeeded = contentHeight + 40;
+      const currentHeight = note.height ?? DEFAULT_SIZE;
+      if (totalNeeded > currentHeight) {
+        const parent = nodeRef.current?.parentElement;
+        const boardH = parent?.clientHeight ?? 9999;
+        const maxAvailable = boardH - (note.positionY ?? 20);
+        const clampedHeight = Math.min(totalNeeded, maxAvailable);
+        setSize((prev) => {
+          if (prev.height >= clampedHeight) return prev;
+          return { ...prev, height: clampedHeight };
+        });
+      }
+    }
+  }, [note.content, note.title, note.tags, isEditing, note.height, note.positionY, isResizing]);
+
+  const handleDragStop: DraggableEventHandler = (_e, data) => {
+    setPosition({ x: data.x, y: data.y });
+    onDragStop(note.id, data.x, data.y);
+  };
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent) => {
+      const relatedTarget = e.relatedTarget as Node | null;
+      if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
+        return;
+      }
+      if (isEditing && titleEditor && contentEditor) {
+        const titleHtml = titleEditor.getHTML();
+        const contentHtml = contentEditor.getHTML();
+        onSave(note.id, titleHtml, contentHtml);
+      }
+    },
+    [isEditing, titleEditor, contentEditor, note.id, onSave],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape" && titleEditor && contentEditor) {
+        const titleHtml = titleEditor.getHTML();
+        const contentHtml = contentEditor.getHTML();
+        onSave(note.id, titleHtml, contentHtml);
+      }
+    },
+    [titleEditor, contentEditor, note.id, onSave],
+  );
+
+  const handleNoteColorChange = useCallback(
+    (newColor: string) => {
+      onColorChange(note.id, newColor);
+    },
+    [note.id, onColorChange],
+  );
+
+  const handleNoteRotationChange = useCallback(
+    (newRotation: number) => {
+      onRotationChange(note.id, newRotation);
+    },
+    [note.id, onRotationChange],
+  );
+
+  // --- Resize logic using a single stable ref for all mutable state ---
+  const resizeRef = useRef<{
+    dir: ResizeDir;
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+    startPosX: number;
+    startPosY: number;
+    boardW: number;
+    boardH: number;
+  } | null>(null);
+
+  const listenersRef = useRef<{
+    move: (e: MouseEvent) => void;
+    up: (e: MouseEvent) => void;
+  } | null>(null);
+
+  function startResize(dir: ResizeDir) {
+    return (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      if (listenersRef.current) {
+        document.removeEventListener("mousemove", listenersRef.current.move);
+        document.removeEventListener("mouseup", listenersRef.current.up);
+      }
+
+      const parent = nodeRef.current?.parentElement;
+      const boardW = parent?.clientWidth ?? 9999;
+      const boardH = parent?.clientHeight ?? 9999;
+
+      resizeRef.current = {
+        dir,
+        startX: e.clientX,
+        startY: e.clientY,
+        startW: size.width,
+        startH: size.height,
+        startPosX: position.x,
+        startPosY: position.y,
+        boardW,
+        boardH,
+      };
+
+      setIsResizing(true);
+
+      function onMove(ev: MouseEvent) {
+        const rs = resizeRef.current;
+        if (!rs) return;
+
+        const dx = ev.clientX - rs.startX;
+        const dy = ev.clientY - rs.startY;
+
+        let newW = rs.startW;
+        let newH = rs.startH;
+        let newX = rs.startPosX;
+        let newY = rs.startPosY;
+
+        if (rs.dir === "e" || rs.dir === "ne" || rs.dir === "se") {
+          newW = Math.min(MAX_WIDTH, Math.max(MIN_SIZE, rs.startW + dx));
+        }
+        if (rs.dir === "w" || rs.dir === "nw" || rs.dir === "sw") {
+          const proposed = rs.startW - dx;
+          if (proposed >= MIN_SIZE && proposed <= MAX_WIDTH) {
+            newW = proposed;
+            newX = rs.startPosX + dx;
+          } else if (proposed < MIN_SIZE) {
+            newW = MIN_SIZE;
+            newX = rs.startPosX + (rs.startW - MIN_SIZE);
+          } else {
+            newW = MAX_WIDTH;
+            newX = rs.startPosX + (rs.startW - MAX_WIDTH);
+          }
+        }
+        if (rs.dir === "s" || rs.dir === "se" || rs.dir === "sw") {
+          newH = Math.min(MAX_HEIGHT, Math.max(MIN_SIZE, rs.startH + dy));
+        }
+        if (rs.dir === "n" || rs.dir === "ne" || rs.dir === "nw") {
+          const proposed = rs.startH - dy;
+          if (proposed >= MIN_SIZE && proposed <= MAX_HEIGHT) {
+            newH = proposed;
+            newY = rs.startPosY + dy;
+          } else if (proposed < MIN_SIZE) {
+            newH = MIN_SIZE;
+            newY = rs.startPosY + (rs.startH - MIN_SIZE);
+          } else {
+            newH = MAX_HEIGHT;
+            newY = rs.startPosY + (rs.startH - MAX_HEIGHT);
+          }
+        }
+
+        // Clamp to board boundaries
+        if (newX < 0) {
+          newW += newX;
+          newX = 0;
+        }
+        if (newY < 0) {
+          newH += newY;
+          newY = 0;
+        }
+        if (newX + newW > rs.boardW) {
+          newW = rs.boardW - newX;
+        }
+        if (newY + newH > rs.boardH) {
+          newH = rs.boardH - newY;
+        }
+
+        newW = Math.max(MIN_SIZE, newW);
+        newH = Math.max(MIN_SIZE, newH);
+
+        setSize({ width: newW, height: newH });
+        setPosition({ x: newX, y: newY });
+      }
+
+      function onUp() {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        listenersRef.current = null;
+        resizeRef.current = null;
+        setIsResizing(false);
+
+        setSize((finalSize) => {
+          const w = Math.round(finalSize.width);
+          const h = Math.round(finalSize.height);
+          setTimeout(() => onResizeRef.current(note.id, w, h), 0);
+          return finalSize;
+        });
+        setPosition((finalPos) => {
+          const x = Math.round(finalPos.x);
+          const y = Math.round(finalPos.y);
+          setTimeout(() => onDragStopRef.current(note.id, x, y), 0);
+          return finalPos;
+        });
+      }
+
+      listenersRef.current = { move: onMove, up: onUp };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    };
+  }
+
+  // Cleanup only on unmount
+  useEffect(() => {
+    return () => {
+      if (listenersRef.current) {
+        document.removeEventListener("mousemove", listenersRef.current.move);
+        document.removeEventListener("mouseup", listenersRef.current.up);
+        listenersRef.current = null;
+      }
+    };
+  }, []);
+
+  const edgeThickness = 6;
+
+  return (
+    <Draggable
+      nodeRef={nodeRef as React.RefObject<HTMLElement>}
+      position={position}
+      onStop={handleDragStop}
+      handle=".sticky-handle"
+      bounds="parent"
+      disabled={isEditing || isResizing}
+    >
+      {/* Outer positioning wrapper – react-draggable applies translate here.
+           Rotation lives on the inner div so translate and rotate don't interact. */}
+      <div
+        ref={nodeRef}
+        className="absolute overflow-visible"
+        style={{
+          width: `${size.width}px`,
+          minHeight: `${size.height}px`,
+        }}
+      >
+        <div
+          className={[
+            "relative overflow-visible rounded shadow-lg transition-shadow hover:shadow-xl",
+            isEditing ? "cursor-default ring-2 ring-primary/40" : "cursor-pointer",
+            color.bg,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          style={{
+            width: "100%",
+            minHeight: `${size.height}px`,
+            transformOrigin: "center center",
+            rotate: isEditing ? "0deg" : `${note.rotation ?? 0}deg`,
+          }}
+          onClick={(e) => {
+            if (!isEditing) {
+              const target = e.target as HTMLElement;
+              const titleEl = target.closest("[data-field='title']") as HTMLElement | null;
+              const contentEl = target.closest("[data-field='content']") as HTMLElement | null;
+
+              if (titleEl) {
+                const rect = titleEl.getBoundingClientRect();
+                const yRatio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+                pendingClickRef.current = { field: "title", yRatio: Math.max(0, Math.min(1, yRatio)) };
+              } else if (contentEl) {
+                const rect = contentEl.getBoundingClientRect();
+                const yRatio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0;
+                pendingClickRef.current = { field: "content", yRatio: Math.max(0, Math.min(1, yRatio)) };
+              } else {
+                // Clicked outside title/content - focus content at end
+                pendingClickRef.current = { field: "content", yRatio: 1 };
+              }
+              onStartEdit(note.id);
+            }
+          }}
+        >
+        {/* Pin */}
+        <div className="absolute -top-2 left-1/2 z-10 -translate-x-1/2">
+          <div
+            className={`h-4 w-4 rounded-full ${color.pin} shadow-md border-2 border-white/60`}
+          />
+        </div>
+
+        {/* Drag handle + delete */}
+        <div className="sticky-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing">
+          <GripVertical className="h-3.5 w-3.5 text-black/20" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const hasContent = !!(note.title || note.content);
+              if (hasContent) {
+                setShowDeleteConfirm(true);
+              } else {
+                onDelete(note.id);
+              }
+            }}
+            className="rounded p-0.5 text-black/30 transition-colors hover:bg-black/10 hover:text-black/60"
+            aria-label="Delete note"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Slide-out toolbar (visible in edit mode) */}
+        <div
+          className={[
+            "overflow-hidden transition-all duration-200",
+            isEditing ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0",
+          ].join(" ")}
+        >
+          <NoteToolbar
+            editor={activeEditor}
+            noteColor={colorKey}
+            onNoteColorChange={handleNoteColorChange}
+            noteRotation={note.rotation ?? 0}
+            onNoteRotationChange={handleNoteRotationChange}
+          />
+        </div>
+
+        {/* Content area */}
+        <div className="overflow-hidden">
+          {isEditing ? (
+            <div className="px-3 pb-4 space-y-1.5" onBlur={handleBlur} onKeyDown={handleKeyDown}>
+              {/* Title rich text editor */}
+              <div className="tiptap-editor-area tiptap-title-area">
+                <EditorContent editor={titleEditor} />
+              </div>
+              <div className="flex justify-end -mt-0.5 mb-0.5">
+                <span
+                  className={`text-[10px] ${
+                    (titleEditor?.storage.characterCount?.characters() ?? 0) >=
+                    MAX_TITLE_LENGTH
+                      ? "text-red-600 font-semibold"
+                      : "text-gray-500/60"
+                  }`}
+                >
+                  {titleEditor?.storage.characterCount?.characters() ?? 0}/{MAX_TITLE_LENGTH}
+                </span>
+              </div>
+
+              {/* Content rich text editor */}
+              <div
+                className="tiptap-editor-area"
+                style={{ minHeight: `${Math.max(60, size.height - 120)}px` }}
+              >
+                <EditorContent editor={contentEditor} />
+              </div>
+
+              <div className="flex justify-end">
+                <span
+                  className={`text-[10px] ${
+                    (contentEditor?.storage.characterCount?.characters() ?? 0) >=
+                    MAX_CONTENT_LENGTH
+                      ? "text-red-600 font-semibold"
+                      : "text-gray-500/60"
+                  }`}
+                >
+                  {contentEditor?.storage.characterCount?.characters() ?? 0}/{MAX_CONTENT_LENGTH}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={contentRef}
+              className="px-3 pb-4"
+            >
+              {note.title ? (
+                <div
+                  data-field="title"
+                  className="note-rich-content mb-1 break-words text-sm font-semibold text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: note.title }}
+                />
+              ) : (
+                <p data-field="title" className="mb-1 text-sm font-semibold text-gray-500/50">Untitled</p>
+              )}
+              {note.content && (
+                <div
+                  data-field="content"
+                  className="note-rich-content break-words text-xs text-gray-600"
+                  dangerouslySetInnerHTML={{ __html: note.content }}
+                />
+              )}
+              {note.tags.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {note.tags.slice(0, 3).map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="inline-block rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] font-medium text-gray-700"
+                    >
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Edge resize handles */}
+        <div
+          className={`absolute left-2 right-2 top-0 ${CURSOR_MAP.n}`}
+          style={{ height: edgeThickness }}
+          onMouseDown={startResize("n")}
+        />
+        <div
+          className={`absolute left-2 right-2 bottom-0 ${CURSOR_MAP.s}`}
+          style={{ height: edgeThickness }}
+          onMouseDown={startResize("s")}
+        />
+        <div
+          className={`absolute top-2 bottom-2 left-0 ${CURSOR_MAP.w}`}
+          style={{ width: edgeThickness }}
+          onMouseDown={startResize("w")}
+        />
+        <div
+          className={`absolute top-2 bottom-2 right-0 ${CURSOR_MAP.e}`}
+          style={{ width: edgeThickness }}
+          onMouseDown={startResize("e")}
+        />
+
+        {/* Corner resize handles */}
+        <div
+          className={`absolute top-0 left-0 h-3 w-3 ${CURSOR_MAP.nw}`}
+          onMouseDown={startResize("nw")}
+        />
+        <div
+          className={`absolute top-0 right-0 h-3 w-3 ${CURSOR_MAP.ne}`}
+          onMouseDown={startResize("ne")}
+        />
+        <div
+          className={`absolute bottom-0 left-0 h-3 w-3 ${CURSOR_MAP.sw}`}
+          onMouseDown={startResize("sw")}
+        />
+        <div
+          className={`absolute bottom-0 right-0 h-3 w-3 ${CURSOR_MAP.se}`}
+          onMouseDown={startResize("se")}
+        />
+
+        {/* Delete confirmation overlay */}
+        {showDeleteConfirm && (
+          <div
+            className="absolute inset-0 z-30 flex items-center justify-center rounded bg-black/40 backdrop-blur-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-4 rounded-lg bg-white p-4 shadow-xl">
+              <p className="mb-3 text-sm font-medium text-gray-800">
+                Delete this note?
+              </p>
+              <p className="mb-4 text-xs text-gray-500">
+                This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(false);
+                  }}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteConfirm(false);
+                    onDelete(note.id);
+                  }}
+                  className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        </div>{/* end inner rotated div */}
+      </div>{/* end outer positioning div */}
+    </Draggable>
+  );
+}

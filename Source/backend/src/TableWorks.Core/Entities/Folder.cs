@@ -13,4 +13,5 @@ public sealed class Folder
     public Folder? ParentFolder { get; set; }
     public ICollection<Folder> ChildFolders { get; set; } = new List<Folder>();
     public ICollection<Note> Notes { get; set; } = new List<Note>();
+    public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
 }

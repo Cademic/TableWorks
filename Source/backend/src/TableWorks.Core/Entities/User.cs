@@ -13,6 +13,7 @@ public sealed class User
 
     public UserPreferences? Preferences { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
+    public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
     public ICollection<Project> OwnedProjects { get; set; } = new List<Project>();
     public ICollection<ProjectMember> ProjectMemberships { get; set; } = new List<ProjectMember>();
     public ICollection<Folder> Folders { get; set; } = new List<Folder>();

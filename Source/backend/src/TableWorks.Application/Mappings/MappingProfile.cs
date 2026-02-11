@@ -1,6 +1,7 @@
 using AutoMapper;
 using TableWorks.Application.DTOs.Admin;
 using TableWorks.Application.DTOs.Folders;
+using TableWorks.Application.DTOs.IndexCards;
 using TableWorks.Application.DTOs.Notes;
 using TableWorks.Application.DTOs.Notifications;
 using TableWorks.Application.DTOs.Projects;
@@ -44,6 +45,25 @@ public sealed class MappingProfile : Profile
 
         CreateMap<Note, AdminNoteDto>()
             .ForMember(d => d.Username, opt => opt.MapFrom(s => s.User != null ? s.User.Username : string.Empty));
+
+        // IndexCard -> DTOs
+        CreateMap<IndexCard, IndexCardSummaryDto>()
+            .ForMember(d => d.Tags, opt => opt.MapFrom(s =>
+                s.IndexCardTags.Select(ct => new TagDto
+                {
+                    Id = ct.Tag!.Id,
+                    Name = ct.Tag.Name,
+                    Color = ct.Tag.Color
+                })));
+
+        CreateMap<IndexCard, IndexCardDetailDto>()
+            .ForMember(d => d.Tags, opt => opt.MapFrom(s =>
+                s.IndexCardTags.Select(ct => new TagDto
+                {
+                    Id = ct.Tag!.Id,
+                    Name = ct.Tag.Name,
+                    Color = ct.Tag.Color
+                })));
 
         // Project -> DTOs
         CreateMap<Project, ProjectSummaryDto>()

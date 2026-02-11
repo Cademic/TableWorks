@@ -20,6 +20,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<IndexCard> IndexCards => Set<IndexCard>();
+    public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -114,6 +116,43 @@ public sealed class AppDbContext : DbContext
                 .HasForeignKey(x => x.NoteId);
             entity.HasOne(x => x.Tag)
                 .WithMany(x => x.NoteTags)
+                .HasForeignKey(x => x.TagId);
+        });
+
+        // ----- IndexCard -----
+        modelBuilder.Entity<IndexCard>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.UpdatedAt);
+            entity.HasIndex(x => x.FolderId);
+            entity.HasIndex(x => x.ProjectId);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.IndexCards)
+                .HasForeignKey(x => x.UserId);
+            entity.HasOne(x => x.Folder)
+                .WithMany(x => x.IndexCards)
+                .HasForeignKey(x => x.FolderId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Project)
+                .WithMany(x => x.IndexCards)
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----- IndexCardTag -----
+        modelBuilder.Entity<IndexCardTag>(entity =>
+        {
+            entity.HasKey(x => new { x.IndexCardId, x.TagId });
+            entity.HasOne(x => x.IndexCard)
+                .WithMany(x => x.IndexCardTags)
+                .HasForeignKey(x => x.IndexCardId);
+            entity.HasOne(x => x.Tag)
+                .WithMany(x => x.IndexCardTags)
                 .HasForeignKey(x => x.TagId);
         });
 

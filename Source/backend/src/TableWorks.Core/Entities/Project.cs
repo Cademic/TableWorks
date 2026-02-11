@@ -16,5 +16,6 @@ public sealed class Project
 
     public User? Owner { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
+    public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
     public ICollection<ProjectMember> Members { get; set; } = new List<ProjectMember>();
 }

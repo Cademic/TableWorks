@@ -8,4 +8,5 @@ public sealed class Tag
     public DateTime CreatedAt { get; set; }
 
     public ICollection<NoteTag> NoteTags { get; set; } = new List<NoteTag>();
+    public ICollection<IndexCardTag> IndexCardTags { get; set; } = new List<IndexCardTag>();
 }

@@ -1,4 +1,4 @@
-import { LayoutDashboard, StickyNote, FolderOpen, Settings, LogOut, ChevronLeft, ChevronRight, CreditCard } from "lucide-react";
+import { LayoutDashboard, StickyNote, FolderOpen, Settings, LogOut, ChevronLeft, ChevronRight, CreditCard, PenTool, Calendar } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -9,14 +9,18 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/notes", icon: StickyNote, label: "Notes" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
+  { to: "/calendars", icon: Calendar, label: "Calendars" },
+  { to: "/chalkboards", icon: PenTool, label: "Chalk Boards" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
+
+  // Board tools should only show when viewing a board
+  const isOnBoardPage = location.pathname.startsWith("/boards/");
 
   function isActive(path: string) {
     if (path === "/") return location.pathname === "/";
@@ -65,50 +69,51 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         })}
       </nav>
 
-      {/* Board Tools — draggable items */}
-      <div className="border-t border-border p-3">
-        {isOpen && (
-          <span className="mb-1 block px-3 text-[10px] font-semibold uppercase tracking-wider text-foreground/40">
-            Board Tools
-          </span>
-        )}
-        <div className="flex flex-col gap-1">
-          {[
-            { type: "sticky-note", icon: StickyNote, label: "Sticky Note", color: "text-yellow-500" },
-            { type: "index-card", icon: CreditCard, label: "Index Card", color: "text-sky-500" },
-          ].map((tool) => (
-            <div
-              key={tool.type}
-              draggable="true"
-              onDragStart={(e) => {
-                e.dataTransfer.setData("application/board-item-type", tool.type);
-                e.dataTransfer.effectAllowed = "copy";
+      {/* Board Tools — draggable items (only visible on board pages) */}
+      {isOnBoardPage && (
+        <div className="border-t border-border p-3">
+          {isOpen && (
+            <span className="mb-1 block px-3 text-[10px] font-semibold uppercase tracking-wider text-foreground/40">
+              Board Tools
+            </span>
+          )}
+          <div className="flex flex-col gap-1">
+            {[
+              { type: "sticky-note", icon: StickyNote, label: "Sticky Note", color: "text-yellow-500" },
+              { type: "index-card", icon: CreditCard, label: "Index Card", color: "text-sky-500" },
+            ].map((tool) => (
+              <div
+                key={tool.type}
+                draggable="true"
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/board-item-type", tool.type);
+                  e.dataTransfer.effectAllowed = "copy";
 
-                // Use just the icon as the drag image
-                const iconEl = e.currentTarget.querySelector("svg");
-                if (iconEl) {
-                  e.dataTransfer.setDragImage(iconEl, 12, 12);
-                }
-              }}
-              onClick={() => {
-                document.dispatchEvent(
-                  new CustomEvent("board-tool-click", { detail: { type: tool.type } }),
-                );
-              }}
-              title={tool.label}
-              className={[
-                "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-background hover:text-foreground",
-                !isOpen && "justify-center",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
-              <tool.icon className={`h-5 w-5 flex-shrink-0 ${tool.color}`} />
-              {isOpen && <span>{tool.label}</span>}
-            </div>
-          ))}
+                  const iconEl = e.currentTarget.querySelector("svg");
+                  if (iconEl) {
+                    e.dataTransfer.setDragImage(iconEl, 12, 12);
+                  }
+                }}
+                onClick={() => {
+                  document.dispatchEvent(
+                    new CustomEvent("board-tool-click", { detail: { type: tool.type } }),
+                  );
+                }}
+                title={tool.label}
+                className={[
+                  "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/70 transition-colors hover:bg-background hover:text-foreground",
+                  !isOpen && "justify-center",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <tool.icon className={`h-5 w-5 flex-shrink-0 ${tool.color}`} />
+                {isOpen && <span>{tool.label}</span>}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* User section */}
       <div className="border-t border-border p-3">

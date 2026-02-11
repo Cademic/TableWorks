@@ -35,6 +35,7 @@ interface IndexCardProps {
   onBringToFront?: (id: string) => void;
   /** True when any item on the board is being linked (used for pin hover styling) */
   isLinking?: boolean;
+  zoom?: number;
 }
 
 const DEFAULT_WIDTH = 450;
@@ -117,6 +118,7 @@ export function IndexCard({
   onDrag,
   onBringToFront,
   isLinking,
+  zoom = 1,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -394,8 +396,8 @@ export function IndexCard({
         const rs = resizeRef.current;
         if (!rs) return;
 
-        const dx = ev.clientX - rs.startX;
-        const dy = ev.clientY - rs.startY;
+        const dx = (ev.clientX - rs.startX) / zoom;
+        const dy = (ev.clientY - rs.startY) / zoom;
 
         let newW = rs.startW;
         let newH = rs.startH;
@@ -433,22 +435,6 @@ export function IndexCard({
             newH = MAX_HEIGHT;
             newY = rs.startPosY + (rs.startH - MAX_HEIGHT);
           }
-        }
-
-        // Clamp to board boundaries
-        if (newX < 0) {
-          newW += newX;
-          newX = 0;
-        }
-        if (newY < 0) {
-          newH += newY;
-          newY = 0;
-        }
-        if (newX + newW > rs.boardW) {
-          newW = rs.boardW - newX;
-        }
-        if (newY + newH > rs.boardH) {
-          newH = rs.boardH - newY;
         }
 
         newW = Math.max(MIN_WIDTH, newW);
@@ -505,7 +491,7 @@ export function IndexCard({
       onStop={handleDragStop}
       onDrag={(_e, data) => onDrag?.(card.id, data.x, data.y)}
       handle=".index-card-handle"
-      bounds="parent"
+      scale={zoom}
       disabled={isEditing || isResizing}
     >
       {/* Outer positioning wrapper */}

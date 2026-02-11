@@ -33,6 +33,9 @@ public sealed class NoteService : INoteService
             .AsQueryable();
 
         // Filters
+        if (query.BoardId.HasValue)
+            q = q.Where(n => n.BoardId == query.BoardId.Value);
+
         if (query.FolderId.HasValue)
             q = q.Where(n => n.FolderId == query.FolderId.Value);
 
@@ -93,6 +96,7 @@ public sealed class NoteService : INoteService
             Content = request.Content,
             FolderId = request.FolderId,
             ProjectId = request.ProjectId,
+            BoardId = request.BoardId,
             PositionX = request.PositionX,
             PositionY = request.PositionY,
             Width = request.Width,

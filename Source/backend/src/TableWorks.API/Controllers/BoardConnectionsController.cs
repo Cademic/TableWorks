@@ -23,9 +23,9 @@ public sealed class BoardConnectionsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<BoardConnectionDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetConnections(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetConnections([FromQuery] Guid? boardId, CancellationToken cancellationToken)
     {
-        var result = await _connectionService.GetConnectionsAsync(_currentUserService.UserId, cancellationToken);
+        var result = await _connectionService.GetConnectionsAsync(_currentUserService.UserId, boardId, cancellationToken);
         return Ok(result);
     }
 

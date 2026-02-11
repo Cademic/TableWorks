@@ -6,6 +6,7 @@ public sealed class CreateIndexCardRequest
     public string Content { get; set; } = string.Empty;
     public Guid? FolderId { get; set; }
     public Guid? ProjectId { get; set; }
+    public Guid? BoardId { get; set; }
     public List<Guid> TagIds { get; set; } = new();
     public double? PositionX { get; set; }
     public double? PositionY { get; set; }

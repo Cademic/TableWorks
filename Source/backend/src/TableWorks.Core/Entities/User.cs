@@ -20,4 +20,5 @@ public sealed class User
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<BoardConnection> BoardConnections { get; set; } = new List<BoardConnection>();
+    public ICollection<Board> Boards { get; set; } = new List<Board>();
 }

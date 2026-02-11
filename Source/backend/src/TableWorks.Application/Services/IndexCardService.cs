@@ -33,6 +33,9 @@ public sealed class IndexCardService : IIndexCardService
             .AsQueryable();
 
         // Filters
+        if (query.BoardId.HasValue)
+            q = q.Where(c => c.BoardId == query.BoardId.Value);
+
         if (query.FolderId.HasValue)
             q = q.Where(c => c.FolderId == query.FolderId.Value);
 
@@ -93,6 +96,7 @@ public sealed class IndexCardService : IIndexCardService
             Content = request.Content,
             FolderId = request.FolderId,
             ProjectId = request.ProjectId,
+            BoardId = request.BoardId,
             PositionX = request.PositionX,
             PositionY = request.PositionY,
             Width = request.Width,

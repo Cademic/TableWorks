@@ -17,10 +17,15 @@ public sealed class BoardConnectionService : IBoardConnectionService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<BoardConnectionDto>> GetConnectionsAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardConnectionDto>> GetConnectionsAsync(Guid userId, Guid? boardId = null, CancellationToken cancellationToken = default)
     {
-        var connections = await _connRepo.Query()
-            .Where(c => c.UserId == userId)
+        var q = _connRepo.Query()
+            .Where(c => c.UserId == userId);
+
+        if (boardId.HasValue)
+            q = q.Where(c => c.BoardId == boardId.Value);
+
+        var connections = await q
             .OrderBy(c => c.CreatedAt)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -36,6 +41,7 @@ public sealed class BoardConnectionService : IBoardConnectionService
             UserId = userId,
             FromItemId = request.FromItemId,
             ToItemId = request.ToItemId,
+            BoardId = request.BoardId,
             CreatedAt = now
         };
 

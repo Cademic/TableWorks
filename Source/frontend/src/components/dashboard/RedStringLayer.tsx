@@ -13,6 +13,7 @@ interface RedStringLayerProps {
   mousePos: { x: number; y: number } | null;
   boardRef: React.RefObject<HTMLDivElement | null>;
   onDeleteConnection: (id: string) => void;
+  zoom?: number;
 }
 
 /** Droop amount (px) for the catenary curve control point */
@@ -32,7 +33,7 @@ function buildCatenaryPath(from: PinPosition, to: PinPosition): string {
  * Read the centre position of every pin on the board, relative to the board
  * container. Returns a Map keyed by note ID.
  */
-function readPinPositions(boardEl: HTMLDivElement): Map<string, PinPosition> {
+function readPinPositions(boardEl: HTMLDivElement, zoom = 1): Map<string, PinPosition> {
   const map = new Map<string, PinPosition>();
   const boardRect = boardEl.getBoundingClientRect();
   const pins = boardEl.querySelectorAll<HTMLElement>("[data-pin-note-id]");
@@ -40,9 +41,10 @@ function readPinPositions(boardEl: HTMLDivElement): Map<string, PinPosition> {
     const noteId = pin.getAttribute("data-pin-note-id");
     if (!noteId) return;
     const r = pin.getBoundingClientRect();
+    // getBoundingClientRect returns screen-space coords; divide by zoom to get canvas-space
     map.set(noteId, {
-      x: r.left + r.width / 2 - boardRect.left,
-      y: r.top + r.height / 2 - boardRect.top,
+      x: (r.left + r.width / 2 - boardRect.left) / zoom,
+      y: (r.top + r.height / 2 - boardRect.top) / zoom,
     });
   });
   return map;
@@ -54,6 +56,7 @@ export function RedStringLayer({
   mousePos,
   boardRef,
   onDeleteConnection,
+  zoom = 1,
 }: RedStringLayerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null);
@@ -62,9 +65,11 @@ export function RedStringLayer({
   const connectionsRef = useRef(connections);
   const linkingFromRef = useRef(linkingFrom);
   const mousePosRef = useRef(mousePos);
+  const zoomRef = useRef(zoom);
   connectionsRef.current = connections;
   linkingFromRef.current = linkingFrom;
   mousePosRef.current = mousePos;
+  zoomRef.current = zoom;
 
   // Deselect when clicking anywhere outside a string
   useEffect(() => {
@@ -100,7 +105,7 @@ export function RedStringLayer({
         return;
       }
 
-      const pins = readPinPositions(board);
+      const pins = readPinPositions(board, zoomRef.current);
       const conns = connectionsRef.current;
       const linking = linkingFromRef.current;
       const mouse = mousePosRef.current;
@@ -154,7 +159,7 @@ export function RedStringLayer({
 
   let deleteButtonPos: { x: number; y: number; droop: number } | null = null;
   if (selectedConn && boardRef.current) {
-    const pins = readPinPositions(boardRef.current);
+    const pins = readPinPositions(boardRef.current, zoom);
     const from = pins.get(selectedConn.fromItemId);
     const to = pins.get(selectedConn.toItemId);
     if (from && to) {

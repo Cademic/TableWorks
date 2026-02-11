@@ -64,12 +64,53 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("BoardType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BoardType");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Boards");
+                });
+
             modelBuilder.Entity("TableWorks.Core.Entities.BoardConnection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -86,6 +127,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
 
                     b.HasIndex("UserId");
 
@@ -131,6 +174,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
@@ -178,6 +224,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("double precision");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
 
                     b.HasIndex("CreatedAt");
 
@@ -214,6 +262,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
@@ -261,6 +312,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasColumnType("double precision");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BoardId");
 
                     b.HasIndex("CreatedAt");
 
@@ -572,13 +625,31 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+                {
+                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                        .WithMany("Boards")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TableWorks.Core.Entities.BoardConnection", b =>
                 {
+                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                        .WithMany("BoardConnections")
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TableWorks.Core.Entities.User", "User")
                         .WithMany("BoardConnections")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Board");
 
                     b.Navigation("User");
                 });
@@ -603,6 +674,11 @@ namespace TableWorks.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TableWorks.Core.Entities.IndexCard", b =>
                 {
+                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                        .WithMany("IndexCards")
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TableWorks.Core.Entities.Folder", "Folder")
                         .WithMany("IndexCards")
                         .HasForeignKey("FolderId")
@@ -618,6 +694,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Board");
 
                     b.Navigation("Folder");
 
@@ -647,6 +725,11 @@ namespace TableWorks.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TableWorks.Core.Entities.Note", b =>
                 {
+                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                        .WithMany("Notes")
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("TableWorks.Core.Entities.Folder", "Folder")
                         .WithMany("Notes")
                         .HasForeignKey("FolderId")
@@ -662,6 +745,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Board");
 
                     b.Navigation("Folder");
 
@@ -752,6 +837,15 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+                {
+                    b.Navigation("BoardConnections");
+
+                    b.Navigation("IndexCards");
+
+                    b.Navigation("Notes");
+                });
+
             modelBuilder.Entity("TableWorks.Core.Entities.Folder", b =>
                 {
                     b.Navigation("ChildFolders");
@@ -792,6 +886,8 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("AuditLogs");
 
                     b.Navigation("BoardConnections");
+
+                    b.Navigation("Boards");
 
                     b.Navigation("Folders");
 

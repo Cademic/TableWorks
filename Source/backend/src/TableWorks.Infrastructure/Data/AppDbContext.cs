@@ -23,6 +23,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<IndexCard> IndexCards => Set<IndexCard>();
     public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
     public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
+    public DbSet<Board> Boards => Set<Board>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +41,21 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.Username).IsUnique();
         });
 
+        // ----- Board -----
+        modelBuilder.Entity<Board>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.BoardType);
+            entity.HasIndex(x => x.CreatedAt);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.Boards)
+                .HasForeignKey(x => x.UserId);
+        });
+
         // ----- Note -----
         modelBuilder.Entity<Note>(entity =>
         {
@@ -52,6 +68,7 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.UpdatedAt);
             entity.HasIndex(x => x.FolderId);
             entity.HasIndex(x => x.ProjectId);
+            entity.HasIndex(x => x.BoardId);
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notes)
@@ -63,6 +80,10 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.Notes)
                 .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Board)
+                .WithMany(x => x.Notes)
+                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -131,6 +152,7 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.UpdatedAt);
             entity.HasIndex(x => x.FolderId);
             entity.HasIndex(x => x.ProjectId);
+            entity.HasIndex(x => x.BoardId);
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.IndexCards)
@@ -142,6 +164,10 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.Project)
                 .WithMany(x => x.IndexCards)
                 .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Board)
+                .WithMany(x => x.IndexCards)
+                .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -230,6 +256,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
 
             entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.BoardId);
 
             entity.Property(x => x.FromItemId).IsRequired();
             entity.Property(x => x.ToItemId).IsRequired();
@@ -238,6 +265,10 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.BoardConnections)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Board)
+                .WithMany(x => x.BoardConnections)
+                .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ----- UserPreferences -----

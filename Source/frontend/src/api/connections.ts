@@ -1,8 +1,8 @@
 import type { BoardConnectionDto, CreateBoardConnectionRequest } from "../types";
 import { apiClient } from "./client";
 
-export async function getConnections(): Promise<BoardConnectionDto[]> {
-  const response = await apiClient.get<BoardConnectionDto[]>("/board-connections");
+export async function getConnections(params?: Record<string, string>): Promise<BoardConnectionDto[]> {
+  const response = await apiClient.get<BoardConnectionDto[]>("/board-connections", { params });
   return response.data;
 }
 

@@ -18,9 +18,11 @@ public sealed class IndexCard
     public double? Height { get; set; }
     public string? Color { get; set; }
     public double? Rotation { get; set; }
+    public Guid? BoardId { get; set; }
 
     public User? User { get; set; }
     public Folder? Folder { get; set; }
     public Project? Project { get; set; }
+    public Board? Board { get; set; }
     public ICollection<IndexCardTag> IndexCardTags { get; set; } = new List<IndexCardTag>();
 }

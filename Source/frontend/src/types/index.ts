@@ -26,6 +26,30 @@ export interface AuthUser {
   email: string;
 }
 
+// --- Board DTOs ---
+
+export interface BoardSummaryDto {
+  id: string;
+  name: string;
+  description: string | null;
+  boardType: string;
+  createdAt: string;
+  updatedAt: string;
+  noteCount: number;
+  indexCardCount: number;
+}
+
+export interface CreateBoardRequest {
+  name: string;
+  description?: string;
+  boardType: string;
+}
+
+export interface UpdateBoardRequest {
+  name: string;
+  description?: string;
+}
+
 // --- Note DTOs ---
 
 export interface NoteTagDto {
@@ -60,6 +84,7 @@ export interface CreateNoteRequest {
   content: string;
   folderId?: string;
   projectId?: string;
+  boardId?: string;
   tagIds?: string[];
   positionX?: number;
   positionY?: number;
@@ -101,6 +126,7 @@ export interface BoardConnectionDto {
 export interface CreateBoardConnectionRequest {
   fromItemId: string;
   toItemId: string;
+  boardId?: string;
 }
 
 /** @deprecated Use BoardConnectionDto instead */
@@ -138,6 +164,7 @@ export interface CreateIndexCardRequest {
   content: string;
   folderId?: string;
   projectId?: string;
+  boardId?: string;
   tagIds?: string[];
   positionX?: number;
   positionY?: number;

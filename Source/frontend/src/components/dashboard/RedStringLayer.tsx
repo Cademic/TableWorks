@@ -177,7 +177,9 @@ export function RedStringLayer({
     <svg
       ref={svgRef}
       className="pointer-events-none absolute inset-0 z-[9999]"
-      style={{ width: "100%", height: "100%" }}
+      width="100%"
+      height="100%"
+      overflow="visible"
     >
       {/* Drop shadow filter for the string */}
       <defs>

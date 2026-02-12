@@ -34,6 +34,18 @@ body {
 
 /* Cork Board Styles */
 .corkboard-frame {
+  position: relative;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Decorative frame border rendered as a non-layout overlay so it doesn't
+   clip the viewport or reduce the visible area for canvas content. */
+.corkboard-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   border: 12px solid #6b4226;
   border-image: linear-gradient(
     135deg,
@@ -44,10 +56,9 @@ body {
     #8b5e3c 80%,
     #6b4226 100%
   ) 12;
-  box-shadow:
-    inset 0 0 20px rgba(0, 0, 0, 0.15),
-    0 4px 16px rgba(0, 0, 0, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.15);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  z-index: 15;
 }
 
 .corkboard-surface {
@@ -63,6 +74,12 @@ body {
 }
 
 .dark .corkboard-frame {
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dark .corkboard-frame::after {
   border-color: #4a3020;
   border-image: linear-gradient(
     135deg,
@@ -73,10 +90,7 @@ body {
     #5a3a24 80%,
     #4a3020 100%
   ) 12;
-  box-shadow:
-    inset 0 0 20px rgba(0, 0, 0, 0.3),
-    0 4px 16px rgba(0, 0, 0, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
 .dark .corkboard-surface {
@@ -398,4 +412,302 @@ body {
   border: none;
   border-top: 1px solid rgba(0, 0, 0, 0.15);
   margin: 0.5em 0;
+}
+
+/* ========================================
+   Dashboard — Stationery Theme
+   ======================================== */
+
+/* ---- Notepad welcome card ---- */
+.notepad-card {
+  position: relative;
+  background: linear-gradient(180deg, #fffef7 0%, #fffdf2 100%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
+}
+
+.dark .notepad-card {
+  background: linear-gradient(180deg, hsl(220, 18%, 16%) 0%, hsl(220, 18%, 14%) 100%);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Spiral binding dots along the top of the notepad */
+.notepad-spiral-strip {
+  height: 14px;
+  background-image: radial-gradient(
+    circle at center,
+    rgba(0, 0, 0, 0.1) 3px,
+    transparent 3.5px
+  );
+  background-size: 24px 14px;
+  background-repeat: repeat-x;
+  background-position: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dark .notepad-spiral-strip {
+  background-image: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.08) 3px,
+    transparent 3.5px
+  );
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Notepad body — ruled lines + red margin line */
+.notepad-body {
+  background-image: repeating-linear-gradient(
+    transparent 0px,
+    transparent 27px,
+    rgba(147, 197, 253, 0.2) 27px,
+    rgba(147, 197, 253, 0.2) 28px
+  );
+  background-position: 0 -4px;
+}
+
+.notepad-body::before {
+  content: "";
+  position: absolute;
+  left: 44px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(248, 113, 113, 0.25);
+  pointer-events: none;
+}
+
+.dark .notepad-body {
+  background-image: repeating-linear-gradient(
+    transparent 0px,
+    transparent 27px,
+    rgba(147, 197, 253, 0.07) 27px,
+    rgba(147, 197, 253, 0.07) 28px
+  );
+}
+
+.dark .notepad-body::before {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Subtle ruled line accent for notepad text */
+.notepad-ruled-line {
+  border-bottom: 1px solid rgba(147, 197, 253, 0.35);
+}
+
+.dark .notepad-ruled-line {
+  border-bottom-color: rgba(147, 197, 253, 0.12);
+}
+
+/* ---- Paper cards (board cards) ---- */
+.paper-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fefdfb 100%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.dark .paper-card {
+  background: linear-gradient(180deg, hsl(220, 18%, 17%) 0%, hsl(220, 18%, 15%) 100%);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.paper-card:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.07),
+    0 8px 24px rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.dark .paper-card:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ---- Stat sticky notes ---- */
+.stat-sticky {
+  position: relative;
+  border-radius: 3px;
+  box-shadow:
+    1px 2px 4px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-sticky:hover {
+  box-shadow:
+    2px 4px 8px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* Folded corner on sticky notes */
+.stat-sticky::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.03) 50%);
+  border-radius: 0 0 3px 0;
+  pointer-events: none;
+}
+
+.dark .stat-sticky {
+  box-shadow:
+    1px 2px 4px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.dark .stat-sticky:hover {
+  box-shadow:
+    2px 4px 8px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.dark .stat-sticky::after {
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.1) 50%);
+}
+
+/* ---- Coming soon card subtle pattern ---- */
+.coming-soon-card {
+  position: relative;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0px,
+    transparent 8px,
+    rgba(0, 0, 0, 0.008) 8px,
+    rgba(0, 0, 0, 0.008) 16px
+  );
+}
+
+.dark .coming-soon-card {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0px,
+    transparent 8px,
+    rgba(255, 255, 255, 0.008) 8px,
+    rgba(255, 255, 255, 0.008) 16px
+  );
+}
+
+/* ========================================
+   Navbar — Stationery Shelf
+   ======================================== */
+
+.navbar-surface {
+  background: linear-gradient(180deg, #fdfcfa 0%, #f8f7f5 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.dark .navbar-surface {
+  background: linear-gradient(180deg, hsl(220, 18%, 15%) 0%, hsl(220, 18%, 13%) 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Theme segmented control — paper tab strip */
+.theme-segment {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  background: rgba(0, 0, 0, 0.02);
+  padding: 2px;
+  gap: 1px;
+}
+
+.dark .theme-segment {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-segment-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 5px 8px;
+  transition: all 0.15s ease;
+  color: hsl(var(--color-foreground) / 0.35);
+}
+
+.theme-segment-btn:hover {
+  color: hsl(var(--color-foreground) / 0.6);
+}
+
+.theme-segment-btn.active {
+  background: hsl(var(--color-surface));
+  color: hsl(var(--color-foreground));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.dark .theme-segment-btn.active {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* ========================================
+   Sidebar — Notebook Spine
+   ======================================== */
+
+.sidebar-surface {
+  background: linear-gradient(90deg, #f4f2ee 0%, #faf9f7 100%);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 1px 0 4px rgba(0, 0, 0, 0.02);
+}
+
+.dark .sidebar-surface {
+  background: linear-gradient(90deg, hsl(220, 18%, 11%) 0%, hsl(220, 18%, 14%) 100%);
+  border-right-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 1px 0 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Brand header — notebook cover feel */
+.sidebar-brand {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.015) 0%, transparent 100%);
+}
+
+.dark .sidebar-brand {
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0%, transparent 100%);
+}
+
+/* Active nav item — warm left-accent tab */
+.sidebar-nav-active {
+  position: relative;
+  box-shadow: inset 3px 0 0 0 #d97706;
+}
+
+.dark .sidebar-nav-active {
+  box-shadow: inset 3px 0 0 0 #b45309;
+}
+
+/* Board tool swatch — subtle colored indicator */
+.sidebar-tool-swatch {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+  opacity: 0.6;
 }

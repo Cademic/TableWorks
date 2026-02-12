@@ -7,21 +7,27 @@ interface BoardCardProps {
   onDelete: (id: string) => void;
 }
 
-const BOARD_TYPE_CONFIG: Record<string, { icon: typeof StickyNote; label: string; gradient: string }> = {
+const BOARD_TYPE_CONFIG: Record<
+  string,
+  { icon: typeof StickyNote; label: string; tapeColor: string; iconBg: string }
+> = {
   NoteBoard: {
     icon: ClipboardList,
     label: "Note Board",
-    gradient: "from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30",
+    tapeColor: "bg-amber-400/60 dark:bg-amber-500/40",
+    iconBg: "bg-amber-100/80 dark:bg-amber-900/30",
   },
   ChalkBoard: {
     icon: PenTool,
     label: "Chalk Board",
-    gradient: "from-slate-50 to-gray-100 dark:from-slate-950/30 dark:to-gray-950/30",
+    tapeColor: "bg-slate-400/60 dark:bg-slate-500/40",
+    iconBg: "bg-slate-100/80 dark:bg-slate-900/30",
   },
   Calendar: {
     icon: Calendar,
     label: "Calendar",
-    gradient: "from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30",
+    tapeColor: "bg-sky-400/60 dark:bg-sky-500/40",
+    iconBg: "bg-sky-100/80 dark:bg-sky-900/30",
   },
 };
 
@@ -44,22 +50,21 @@ export function BoardCard({ board, onDelete }: BoardCardProps) {
   const navigate = useNavigate();
   const config = BOARD_TYPE_CONFIG[board.boardType] ?? BOARD_TYPE_CONFIG.NoteBoard;
   const Icon = config.icon;
-  const itemCount = board.noteCount + board.indexCardCount;
 
   return (
     <button
       type="button"
       onClick={() => navigate(`/boards/${board.id}`)}
-      className={[
-        "group relative flex flex-col rounded-xl border border-border bg-gradient-to-br p-5 text-left transition-all duration-200",
-        "hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5",
-        "focus:outline-none focus:ring-2 focus:ring-primary/20",
-        config.gradient,
-      ].join(" ")}
+      className="paper-card group relative flex flex-col rounded-lg p-5 pt-7 text-left transition-all duration-200 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
     >
+      {/* Colored tape strip at top */}
+      <div
+        className={`absolute inset-x-0 top-0 h-1.5 rounded-t-lg ${config.tapeColor}`}
+      />
+
       {/* Delete button */}
       <div
-        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute right-3 top-3 z-10 opacity-0 transition-opacity group-hover:opacity-100"
         onClick={(e) => {
           e.stopPropagation();
           onDelete(board.id);
@@ -74,28 +79,30 @@ export function BoardCard({ board, onDelete }: BoardCardProps) {
         tabIndex={0}
         title="Delete board"
       >
-        <Trash2 className="h-4 w-4 text-foreground/40 hover:text-red-500 transition-colors" />
+        <Trash2 className="h-4 w-4 text-foreground/40 transition-colors hover:text-red-500" />
       </div>
 
       {/* Icon */}
-      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/60 dark:bg-white/10 shadow-sm">
-        <Icon className="h-5 w-5 text-foreground/70" />
+      <div
+        className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${config.iconBg}`}
+      >
+        <Icon className="h-5 w-5 text-foreground/60" />
       </div>
 
       {/* Name */}
-      <h3 className="mb-1 text-sm font-semibold text-foreground truncate pr-6">
+      <h3 className="mb-1 truncate pr-6 text-sm font-semibold text-foreground">
         {board.name}
       </h3>
 
       {/* Description */}
       {board.description && (
-        <p className="mb-3 text-xs text-foreground/50 line-clamp-2">
+        <p className="mb-3 line-clamp-2 text-xs text-foreground/50">
           {board.description}
         </p>
       )}
 
-      {/* Footer */}
-      <div className="mt-auto flex items-center gap-3 pt-3 text-xs text-foreground/40">
+      {/* Footer — ruled-line separator */}
+      <div className="mt-auto flex items-center gap-3 border-t border-blue-200/25 pt-3 text-xs text-foreground/40 dark:border-blue-300/10">
         <span className="flex items-center gap-1">
           <StickyNote className="h-3 w-3" />
           {board.noteCount}
@@ -104,9 +111,7 @@ export function BoardCard({ board, onDelete }: BoardCardProps) {
           <CreditCard className="h-3 w-3" />
           {board.indexCardCount}
         </span>
-        <span className="ml-auto">
-          {formatRelativeDate(board.updatedAt)}
-        </span>
+        <span className="ml-auto">{formatRelativeDate(board.updatedAt)}</span>
       </div>
     </button>
   );

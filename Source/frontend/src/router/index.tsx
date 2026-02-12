@@ -5,6 +5,7 @@ import { DashboardPage } from "../pages/DashboardPage";
 import { NoteBoardPage } from "../pages/NoteBoardPage";
 import { ChalkBoardPage } from "../pages/ChalkBoardPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
+import { ProjectDetailPage } from "../pages/ProjectDetailPage";
 import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -27,6 +28,7 @@ export function AppRouter() {
             <Route path="/boards/:boardId" element={<NoteBoardPage />} />
             <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/calendars" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />
             <Route path="/settings" element={<SettingsPage />} />

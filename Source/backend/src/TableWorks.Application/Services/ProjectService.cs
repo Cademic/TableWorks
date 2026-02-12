@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TableWorks.Application.DTOs.Boards;
 using TableWorks.Application.DTOs.Notes;
 using TableWorks.Application.DTOs.Projects;
 using TableWorks.Application.DTOs.Tags;
@@ -30,7 +31,9 @@ public sealed class ProjectService : IProjectService
     public async Task<IReadOnlyList<ProjectSummaryDto>> GetProjectsAsync(Guid userId, ProjectListQuery query, CancellationToken cancellationToken = default)
     {
         var q = _projectRepo.Query()
+            .Include(p => p.Owner)
             .Include(p => p.Members)
+            .Include(p => p.Boards)
             .Where(p => p.OwnerId == userId || p.Members.Any(m => m.UserId == userId))
             .AsQueryable();
 
@@ -58,22 +61,36 @@ public sealed class ProjectService : IProjectService
             Status = p.Status,
             Progress = p.Progress,
             OwnerId = p.OwnerId,
+            OwnerUsername = p.Owner?.Username ?? string.Empty,
+            UserRole = p.OwnerId == userId ? "Owner" : (p.Members.FirstOrDefault(m => m.UserId == userId)?.Role ?? "Viewer"),
             MemberCount = p.Members.Count,
+            BoardCount = p.Boards.Count,
             CreatedAt = p.CreatedAt
         }).ToList();
     }
 
     public async Task<ProjectDetailDto> CreateProjectAsync(Guid userId, CreateProjectRequest request, CancellationToken cancellationToken = default)
     {
+        var nameExists = await _projectRepo.Query()
+            .AnyAsync(p => p.OwnerId == userId && p.Name == request.Name, cancellationToken);
+        if (nameExists)
+            throw new InvalidOperationException($"You already have a project named \"{request.Name}\".");
+
         var now = DateTime.UtcNow;
         var project = new Project
         {
             OwnerId = userId,
             Name = request.Name,
             Description = request.Description,
-            StartDate = request.StartDate,
-            EndDate = request.EndDate,
-            Deadline = request.Deadline,
+            StartDate = request.StartDate.HasValue
+                ? DateTime.SpecifyKind(request.StartDate.Value, DateTimeKind.Utc)
+                : null,
+            EndDate = request.EndDate.HasValue
+                ? DateTime.SpecifyKind(request.EndDate.Value, DateTimeKind.Utc)
+                : null,
+            Deadline = request.Deadline.HasValue
+                ? DateTime.SpecifyKind(request.Deadline.Value, DateTimeKind.Utc)
+                : null,
             Status = "Active",
             Progress = 0,
             CreatedAt = now,
@@ -89,7 +106,9 @@ public sealed class ProjectService : IProjectService
     public async Task<ProjectDetailDto> GetProjectByIdAsync(Guid userId, Guid projectId, CancellationToken cancellationToken = default)
     {
         var project = await _projectRepo.Query()
+            .Include(p => p.Owner)
             .Include(p => p.Members).ThenInclude(m => m.User)
+            .Include(p => p.Boards)
             .Include(p => p.Notes).ThenInclude(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
@@ -97,6 +116,10 @@ public sealed class ProjectService : IProjectService
 
         if (project.OwnerId != userId && !project.Members.Any(m => m.UserId == userId))
             throw new UnauthorizedAccessException("Access denied.");
+
+        var userRole = project.OwnerId == userId
+            ? "Owner"
+            : (project.Members.FirstOrDefault(m => m.UserId == userId)?.Role ?? "Viewer");
 
         return new ProjectDetailDto
         {
@@ -109,6 +132,8 @@ public sealed class ProjectService : IProjectService
             Status = project.Status,
             Progress = project.Progress,
             OwnerId = project.OwnerId,
+            OwnerUsername = project.Owner?.Username ?? string.Empty,
+            UserRole = userRole,
             CreatedAt = project.CreatedAt,
             Members = project.Members.Select(m => new ProjectMemberDto
             {
@@ -117,6 +142,16 @@ public sealed class ProjectService : IProjectService
                 Email = m.User?.Email ?? string.Empty,
                 Role = m.Role,
                 JoinedAt = m.JoinedAt
+            }).ToList(),
+            Boards = project.Boards.Select(b => new BoardSummaryDto
+            {
+                Id = b.Id,
+                Name = b.Name,
+                Description = b.Description,
+                BoardType = b.BoardType,
+                ProjectId = b.ProjectId,
+                CreatedAt = b.CreatedAt,
+                UpdatedAt = b.UpdatedAt
             }).ToList(),
             Notes = project.Notes.Select(n => new NoteSummaryDto
             {
@@ -144,9 +179,15 @@ public sealed class ProjectService : IProjectService
 
         project.Name = request.Name;
         project.Description = request.Description;
-        project.StartDate = request.StartDate;
-        project.EndDate = request.EndDate;
-        project.Deadline = request.Deadline;
+        project.StartDate = request.StartDate.HasValue
+            ? DateTime.SpecifyKind(request.StartDate.Value, DateTimeKind.Utc)
+            : null;
+        project.EndDate = request.EndDate.HasValue
+            ? DateTime.SpecifyKind(request.EndDate.Value, DateTimeKind.Utc)
+            : null;
+        project.Deadline = request.Deadline.HasValue
+            ? DateTime.SpecifyKind(request.Deadline.Value, DateTimeKind.Utc)
+            : null;
         project.Status = request.Status;
         project.Progress = request.Progress;
         project.UpdatedAt = DateTime.UtcNow;

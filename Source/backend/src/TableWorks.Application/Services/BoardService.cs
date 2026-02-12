@@ -13,6 +13,8 @@ public sealed class BoardService : IBoardService
     private readonly IRepository<Note> _noteRepo;
     private readonly IRepository<IndexCard> _indexCardRepo;
     private readonly IRepository<BoardConnection> _connectionRepo;
+    private readonly IRepository<Project> _projectRepo;
+    private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public BoardService(
@@ -20,12 +22,16 @@ public sealed class BoardService : IBoardService
         IRepository<Note> noteRepo,
         IRepository<IndexCard> indexCardRepo,
         IRepository<BoardConnection> connectionRepo,
+        IRepository<Project> projectRepo,
+        IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork)
     {
         _boardRepo = boardRepo;
         _noteRepo = noteRepo;
         _indexCardRepo = indexCardRepo;
         _connectionRepo = connectionRepo;
+        _projectRepo = projectRepo;
+        _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
     }
 
@@ -37,6 +43,9 @@ public sealed class BoardService : IBoardService
 
         if (!string.IsNullOrWhiteSpace(query.BoardType))
             q = q.Where(b => b.BoardType == query.BoardType);
+
+        if (query.ProjectId.HasValue)
+            q = q.Where(b => b.ProjectId == query.ProjectId.Value);
 
         var total = await q.CountAsync(cancellationToken);
 
@@ -56,6 +65,7 @@ public sealed class BoardService : IBoardService
                 Name = b.Name,
                 Description = b.Description,
                 BoardType = b.BoardType,
+                ProjectId = b.ProjectId,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt,
                 NoteCount = b.Notes.Count(n => !n.IsArchived),
@@ -75,14 +85,16 @@ public sealed class BoardService : IBoardService
 
     public async Task<BoardSummaryDto> GetBoardByIdAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default)
     {
+        // First try direct ownership
         var board = await _boardRepo.Query()
-            .Where(b => b.Id == boardId && b.UserId == userId)
+            .Where(b => b.Id == boardId)
             .Select(b => new BoardSummaryDto
             {
                 Id = b.Id,
                 Name = b.Name,
                 Description = b.Description,
                 BoardType = b.BoardType,
+                ProjectId = b.ProjectId,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt,
                 NoteCount = b.Notes.Count(n => !n.IsArchived),
@@ -92,15 +104,52 @@ public sealed class BoardService : IBoardService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("Board not found.");
 
+        // Check access: direct owner OR project member
+        var rawBoard = await _boardRepo.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == boardId, cancellationToken);
+
+        if (rawBoard!.UserId != userId)
+        {
+            if (rawBoard.ProjectId.HasValue)
+            {
+                var role = await GetProjectRoleAsync(userId, rawBoard.ProjectId.Value, cancellationToken);
+                if (role is null)
+                    throw new KeyNotFoundException("Board not found.");
+            }
+            else
+            {
+                throw new KeyNotFoundException("Board not found.");
+            }
+        }
+
         return board;
     }
 
     public async Task<BoardSummaryDto> CreateBoardAsync(Guid userId, CreateBoardRequest request, CancellationToken cancellationToken = default)
     {
+        // If creating in a project, verify the user has Editor or Owner access
+        if (request.ProjectId.HasValue)
+        {
+            var role = await GetProjectRoleAsync(userId, request.ProjectId.Value, cancellationToken);
+            if (role is null || role == "Viewer")
+                throw new UnauthorizedAccessException("You do not have permission to create boards in this project.");
+        }
+
+        // Check for duplicate name within same user and board type
+        var nameExists = await _boardRepo.Query()
+            .AnyAsync(b => b.UserId == userId && b.BoardType == request.BoardType && b.Name == request.Name, cancellationToken);
+        if (nameExists)
+        {
+            var typeLabel = request.BoardType == "NoteBoard" ? "note board" : request.BoardType == "ChalkBoard" ? "chalk board" : "board";
+            throw new InvalidOperationException($"You already have a {typeLabel} named \"{request.Name}\".");
+        }
+
         var now = DateTime.UtcNow;
         var board = new Board
         {
             UserId = userId,
+            ProjectId = request.ProjectId,
             Name = request.Name,
             Description = request.Description,
             BoardType = request.BoardType,
@@ -117,8 +166,10 @@ public sealed class BoardService : IBoardService
     public async Task UpdateBoardAsync(Guid userId, Guid boardId, UpdateBoardRequest request, CancellationToken cancellationToken = default)
     {
         var board = await _boardRepo.Query()
-            .FirstOrDefaultAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(b => b.Id == boardId, cancellationToken)
             ?? throw new KeyNotFoundException("Board not found.");
+
+        await EnsureWriteAccessAsync(userId, board, cancellationToken);
 
         board.Name = request.Name;
         board.Description = request.Description;
@@ -131,8 +182,10 @@ public sealed class BoardService : IBoardService
     public async Task DeleteBoardAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default)
     {
         var board = await _boardRepo.Query()
-            .FirstOrDefaultAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(b => b.Id == boardId, cancellationToken)
             ?? throw new KeyNotFoundException("Board not found.");
+
+        await EnsureWriteAccessAsync(userId, board, cancellationToken);
 
         // Delete all items associated with this board
         var notes = await _noteRepo.Query()
@@ -155,5 +208,71 @@ public sealed class BoardService : IBoardService
 
         _boardRepo.Delete(board);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddBoardToProjectAsync(Guid userId, Guid projectId, Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var role = await GetProjectRoleAsync(userId, projectId, cancellationToken);
+        if (role is null || role == "Viewer")
+            throw new UnauthorizedAccessException("You do not have permission to add boards to this project.");
+
+        var board = await _boardRepo.Query()
+            .FirstOrDefaultAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Board not found or you are not the board owner.");
+
+        board.ProjectId = projectId;
+        board.UpdatedAt = DateTime.UtcNow;
+
+        _boardRepo.Update(board);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveBoardFromProjectAsync(Guid userId, Guid projectId, Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var role = await GetProjectRoleAsync(userId, projectId, cancellationToken);
+        if (role is null || role == "Viewer")
+            throw new UnauthorizedAccessException("You do not have permission to remove boards from this project.");
+
+        var board = await _boardRepo.Query()
+            .FirstOrDefaultAsync(b => b.Id == boardId && b.ProjectId == projectId, cancellationToken)
+            ?? throw new KeyNotFoundException("Board not found in this project.");
+
+        board.ProjectId = null;
+        board.UpdatedAt = DateTime.UtcNow;
+
+        _boardRepo.Update(board);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns the user's effective role in a project: "Owner", "Editor", "Viewer", or null (no access).
+    /// </summary>
+    public async Task<string?> GetProjectRoleAsync(Guid userId, Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepo.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+
+        if (project is null) return null;
+        if (project.OwnerId == userId) return "Owner";
+
+        var member = await _memberRepo.Query()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken);
+
+        return member?.Role;
+    }
+
+    private async Task EnsureWriteAccessAsync(Guid userId, Board board, CancellationToken cancellationToken)
+    {
+        if (board.UserId == userId) return;
+
+        if (board.ProjectId.HasValue)
+        {
+            var role = await GetProjectRoleAsync(userId, board.ProjectId.Value, cancellationToken);
+            if (role is "Owner" or "Editor") return;
+        }
+
+        throw new UnauthorizedAccessException("You do not have permission to modify this board.");
     }
 }

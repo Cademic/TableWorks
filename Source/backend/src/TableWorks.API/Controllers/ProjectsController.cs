@@ -13,11 +13,13 @@ namespace TableWorks.API.Controllers;
 public sealed class ProjectsController : ControllerBase
 {
     private readonly IProjectService _projectService;
+    private readonly IBoardService _boardService;
     private readonly ICurrentUserService _currentUserService;
 
-    public ProjectsController(IProjectService projectService, ICurrentUserService currentUserService)
+    public ProjectsController(IProjectService projectService, IBoardService boardService, ICurrentUserService currentUserService)
     {
         _projectService = projectService;
+        _boardService = boardService;
         _currentUserService = currentUserService;
     }
 
@@ -97,6 +99,24 @@ public sealed class ProjectsController : ControllerBase
     public async Task<IActionResult> RemoveMember(Guid id, Guid userId, CancellationToken cancellationToken)
     {
         await _projectService.RemoveMemberAsync(_currentUserService.UserId, id, userId, cancellationToken);
+        return Ok();
+    }
+
+    [HttpPost("{id:guid}/boards/{boardId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddBoardToProject(Guid id, Guid boardId, CancellationToken cancellationToken)
+    {
+        await _boardService.AddBoardToProjectAsync(_currentUserService.UserId, id, boardId, cancellationToken);
+        return Ok();
+    }
+
+    [HttpDelete("{id:guid}/boards/{boardId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveBoardFromProject(Guid id, Guid boardId, CancellationToken cancellationToken)
+    {
+        await _boardService.RemoveBoardFromProjectAsync(_currentUserService.UserId, id, boardId, cancellationToken);
         return Ok();
     }
 }

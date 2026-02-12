@@ -33,6 +33,7 @@ export interface BoardSummaryDto {
   name: string;
   description: string | null;
   boardType: string;
+  projectId: string | null;
   createdAt: string;
   updatedAt: string;
   noteCount: number;
@@ -43,6 +44,7 @@ export interface CreateBoardRequest {
   name: string;
   description?: string;
   boardType: string;
+  projectId?: string;
 }
 
 export interface UpdateBoardRequest {
@@ -198,4 +200,76 @@ export interface DrawingDto {
 
 export interface SaveDrawingRequest {
   canvasJson: string;
+}
+
+// --- Project DTOs ---
+
+export interface ProjectSummaryDto {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  deadline: string | null;
+  status: string;
+  progress: number;
+  ownerId: string;
+  ownerUsername: string;
+  userRole: string;
+  memberCount: number;
+  boardCount: number;
+  createdAt: string;
+}
+
+export interface ProjectMemberDto {
+  userId: string;
+  username: string;
+  email: string;
+  role: string;
+  joinedAt: string;
+}
+
+export interface ProjectDetailDto {
+  id: string;
+  name: string;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  deadline: string | null;
+  status: string;
+  progress: number;
+  ownerId: string;
+  ownerUsername: string;
+  userRole: string;
+  createdAt: string;
+  members: ProjectMemberDto[];
+  boards: BoardSummaryDto[];
+  notes: NoteSummaryDto[];
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  deadline?: string;
+}
+
+export interface UpdateProjectRequest {
+  name: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  deadline?: string;
+  status: string;
+  progress: number;
+}
+
+export interface AddMemberRequest {
+  email: string;
+  role: string;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: string;
 }

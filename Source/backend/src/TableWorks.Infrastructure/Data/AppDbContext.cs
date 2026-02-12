@@ -51,10 +51,16 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.UserId);
             entity.HasIndex(x => x.BoardType);
             entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.ProjectId);
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Boards)
                 .HasForeignKey(x => x.UserId);
+
+            entity.HasOne(x => x.Project)
+                .WithMany(x => x.Boards)
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ----- Note -----

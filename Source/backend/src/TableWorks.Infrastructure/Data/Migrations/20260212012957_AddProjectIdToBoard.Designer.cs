@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TableWorks.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TableWorks.Infrastructure.Data;
 namespace TableWorks.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260212012957_AddProjectIdToBoard")]
+    partial class AddProjectIdToBoard
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -445,7 +448,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("EndDate")
+                    b.Property<DateTime>("EndDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Name")
@@ -458,7 +461,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Property<int>("Progress")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("StartDate")
+                    b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")

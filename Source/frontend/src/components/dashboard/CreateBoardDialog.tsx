@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { X, ClipboardList, PenTool, Calendar } from "lucide-react";
+import { X, ClipboardList, PenTool } from "lucide-react";
 
 interface CreateBoardDialogProps {
   isOpen: boolean;
+  error?: string | null;
   onClose: () => void;
   onCreate: (name: string, description: string, boardType: string) => void;
   defaultBoardType?: string;
@@ -11,10 +12,9 @@ interface CreateBoardDialogProps {
 const BOARD_TYPES = [
   { value: "NoteBoard", label: "Note Board", icon: ClipboardList, description: "Pin sticky notes and index cards" },
   { value: "ChalkBoard", label: "Chalk Board", icon: PenTool, description: "Freehand drawing canvas" },
-  { value: "Calendar", label: "Calendar", icon: Calendar, description: "Schedule events and tasks", isDisabled: true },
 ];
 
-export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType = "NoteBoard" }: CreateBoardDialogProps) {
+export function CreateBoardDialog({ isOpen, error, onClose, onCreate, defaultBoardType = "NoteBoard" }: CreateBoardDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [boardType, setBoardType] = useState(defaultBoardType);
@@ -23,6 +23,9 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType 
     e.preventDefault();
     if (!name.trim()) return;
     onCreate(name.trim(), description.trim(), boardType);
+  }
+
+  function handleClose() {
     setName("");
     setDescription("");
     setBoardType(defaultBoardType);
@@ -36,7 +39,7 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType 
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleClose}
         onKeyDown={() => {}}
         role="presentation"
       />
@@ -46,7 +49,7 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType 
         {/* Close button */}
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 rounded-lg p-1 text-foreground/50 hover:text-foreground hover:bg-background transition-colors"
         >
           <X className="h-5 w-5" />
@@ -54,29 +57,32 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType 
 
         <h2 className="text-lg font-semibold text-foreground mb-4">Create New Board</h2>
 
+        {/* Error message */}
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Board type selector */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-foreground/60">Board Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {BOARD_TYPES.map((type) => (
                 <button
                   key={type.value}
                   type="button"
-                  onClick={() => !type.isDisabled && setBoardType(type.value)}
-                  disabled={type.isDisabled}
+                  onClick={() => setBoardType(type.value)}
                   className={[
                     "flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs transition-all",
                     boardType === type.value
                       ? "border-primary bg-primary/5 text-primary"
-                      : type.isDisabled
-                      ? "border-border/50 text-foreground/30 cursor-not-allowed"
                       : "border-border text-foreground/60 hover:border-foreground/30",
                   ].join(" ")}
                 >
                   <type.icon className="h-5 w-5" />
                   <span className="font-medium">{type.label}</span>
-                  {type.isDisabled && <span className="text-[10px]">Coming Soon</span>}
                 </button>
               ))}
             </div>
@@ -119,7 +125,7 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-background transition-colors"
             >
               Cancel

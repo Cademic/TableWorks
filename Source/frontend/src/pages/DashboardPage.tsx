@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import {
   Plus,
@@ -12,13 +12,17 @@ import {
   CreditCard,
   Clock,
   PencilLine,
+  ArrowRight,
 } from "lucide-react";
+import axios from "axios";
 import { getBoards, createBoard, deleteBoard } from "../api/boards";
+import { getProjects } from "../api/projects";
 import { BoardCard } from "../components/dashboard/BoardCard";
+import { ProjectCard } from "../components/projects/ProjectCard";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import { useAuth } from "../context/AuthContext";
-import type { BoardSummaryDto } from "../types";
+import type { BoardSummaryDto, ProjectSummaryDto } from "../types";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -44,18 +48,25 @@ function formatShortDate(dateStr: string): string {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { closeBoard } = useOutletContext<AppLayoutContext>();
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
+  const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createBoardError, setCreateBoardError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BoardSummaryDto | null>(null);
 
   const fetchBoards = useCallback(async () => {
     try {
       setError(null);
-      const result = await getBoards({ limit: 100 });
-      setBoards(result.items);
+      const [boardResult, projectResult] = await Promise.all([
+        getBoards({ limit: 100 }),
+        getProjects({ status: "Active" }).catch(() => [] as ProjectSummaryDto[]),
+      ]);
+      setBoards(boardResult.items);
+      setActiveProjects(projectResult);
     } catch {
       setError("Failed to load boards.");
     } finally {
@@ -69,14 +80,21 @@ export function DashboardPage() {
 
   async function handleCreate(name: string, description: string, boardType: string) {
     try {
+      setCreateBoardError(null);
       const created = await createBoard({
         name,
         description: description || undefined,
         boardType,
       });
       setBoards((prev) => [created, ...prev]);
-    } catch {
-      // Silently fail
+      setIsCreateOpen(false);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setCreateBoardError(err.response.data?.message ?? "A board with that name already exists.");
+      } else {
+        setCreateBoardError("Failed to create board. Please try again.");
+        console.error("Failed to create board:", err);
+      }
     }
   }
 
@@ -207,6 +225,68 @@ export function DashboardPage() {
           />
         </div>
 
+        {/* ── Calendars ─────────────────────────────────── */}
+        <NotebookSection
+          icon={Calendar}
+          title="Calendars"
+          count={calendars.length}
+          accentColor="sky"
+          badge="Coming Soon"
+        >
+          <ComingSoonCard
+            description="Plan your schedule with events, deadlines, and milestone tracking."
+            icon={Calendar}
+          />
+        </NotebookSection>
+
+        {/* ── Active Projects ────────────────────────────── */}
+        <NotebookSection
+          icon={FolderOpen}
+          title="Projects"
+          count={activeProjects.length}
+          accentColor="violet"
+        >
+          {activeProjects.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-14">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5">
+                <FolderOpen className="h-5 w-5 text-foreground/30" />
+              </div>
+              <p className="mb-4 text-sm text-foreground/40">
+                No active projects yet
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/projects")}
+                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create your first project
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {activeProjects.slice(0, 3).map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => navigate("/projects")}
+                  className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-violet-400 hover:text-violet-600 hover:shadow-sm dark:hover:text-violet-400"
+                >
+                  View All Projects
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </>
+          )}
+        </NotebookSection>
+
         {/* ── Note Boards ───────────────────────────────── */}
         <NotebookSection
           icon={ClipboardList}
@@ -227,20 +307,6 @@ export function DashboardPage() {
               ))}
             </div>
           )}
-        </NotebookSection>
-
-        {/* ── Projects ──────────────────────────────────── */}
-        <NotebookSection
-          icon={FolderOpen}
-          title="Projects"
-          count={0}
-          accentColor="violet"
-          badge="Coming Soon"
-        >
-          <ComingSoonCard
-            description="Organize your work into projects with folders, tags, and collaboration."
-            icon={FolderOpen}
-          />
         </NotebookSection>
 
         {/* ── Chalk Boards ──────────────────────────────── */}
@@ -264,25 +330,12 @@ export function DashboardPage() {
             </div>
           )}
         </NotebookSection>
-
-        {/* ── Calendars ─────────────────────────────────── */}
-        <NotebookSection
-          icon={Calendar}
-          title="Calendars"
-          count={calendars.length}
-          accentColor="sky"
-          badge="Coming Soon"
-        >
-          <ComingSoonCard
-            description="Plan your schedule with events, deadlines, and milestone tracking."
-            icon={Calendar}
-          />
-        </NotebookSection>
       </div>
 
       <CreateBoardDialog
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        error={createBoardError}
+        onClose={() => { setIsCreateOpen(false); setCreateBoardError(null); }}
         onCreate={handleCreate}
       />
 

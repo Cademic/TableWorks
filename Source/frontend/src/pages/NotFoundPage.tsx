@@ -7,7 +7,7 @@ export function NotFoundPage() {
       <p className="text-sm text-foreground/80">
         The route does not exist in the current scaffold.
       </p>
-      <Link className="inline-flex rounded bg-primary px-3 py-2 text-primary-foreground" to="/">
+      <Link className="inline-flex rounded bg-primary px-3 py-2 text-primary-foreground" to="/dashboard">
         Back to dashboard
       </Link>
     </section>

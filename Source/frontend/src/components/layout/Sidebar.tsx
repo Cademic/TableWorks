@@ -25,7 +25,7 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/calendar", icon: Calendar, label: "Calendar" },
   { to: "/settings", icon: Settings, label: "Settings" },
@@ -69,7 +69,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
   const isOnAnyBoardPage = isOnBoardPage || isOnChalkBoardPage;
 
   function isActive(path: string) {
-    if (path === "/") return location.pathname === "/";
+    if (path === "/dashboard") return location.pathname === "/dashboard";
     return location.pathname.startsWith(path);
   }
 
@@ -85,7 +85,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
     onCloseBoard(board.id);
     // If closing the currently viewed board, navigate to dashboard
     if (wasActive) {
-      navigate("/");
+      navigate("/dashboard");
     }
   }
 

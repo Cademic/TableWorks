@@ -9,7 +9,7 @@ interface NavbarProps {
 }
 
 const PAGE_META: Record<string, { label: string; icon: typeof BookOpen }> = {
-  "/": { label: "Dashboard", icon: BookOpen },
+  "/dashboard": { label: "Dashboard", icon: BookOpen },
   "/projects": { label: "Projects", icon: BookOpen },
   "/calendar": { label: "Calendar", icon: BookOpen },
   "/chalkboards": { label: "Chalk Boards", icon: BookOpen },
@@ -26,8 +26,8 @@ export function Navbar({ boardName }: NavbarProps) {
 
   function getPageTitle(): string {
     for (const [path, meta] of Object.entries(PAGE_META)) {
-      if (path === "/" && location.pathname === "/") return meta.label;
-      if (path !== "/" && location.pathname.startsWith(path)) return meta.label;
+      if (path === "/dashboard" && location.pathname === "/dashboard") return meta.label;
+      if (path !== "/dashboard" && location.pathname.startsWith(path)) return meta.label;
     }
     return "Dashboard";
   }
@@ -42,7 +42,7 @@ export function Navbar({ boardName }: NavbarProps) {
           <>
             <button
               type="button"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/dashboard")}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-foreground/50 transition-all hover:bg-foreground/5 hover:text-foreground"
             >
               <ArrowLeft className="h-3.5 w-3.5" />

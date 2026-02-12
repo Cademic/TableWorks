@@ -3,6 +3,7 @@ import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../components/layout/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { NoteBoardPage } from "../pages/NoteBoardPage";
+import { ChalkBoardPage } from "../pages/ChalkBoardPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
@@ -24,6 +25,7 @@ export function AppRouter() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="/boards/:boardId" element={<NoteBoardPage />} />
+            <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/calendars" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />

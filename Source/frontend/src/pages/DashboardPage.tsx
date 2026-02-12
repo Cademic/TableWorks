@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useOutletContext } from "react-router-dom";
+import type { AppLayoutContext } from "../components/layout/AppLayout";
 import {
   Plus,
   ClipboardList,
@@ -42,6 +44,7 @@ function formatShortDate(dateStr: string): string {
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { closeBoard } = useOutletContext<AppLayoutContext>();
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +90,7 @@ export function DashboardPage() {
     const id = deleteTarget.id;
     setDeleteTarget(null);
     setBoards((prev) => prev.filter((b) => b.id !== id));
+    closeBoard(id);
     try {
       await deleteBoard(id);
     } catch {
@@ -245,12 +249,20 @@ export function DashboardPage() {
           title="Chalk Boards"
           count={chalkBoards.length}
           accentColor="emerald"
-          badge="Coming Soon"
         >
-          <ComingSoonCard
-            description="A freehand drawing canvas for sketches and brainstorming."
-            icon={PenTool}
-          />
+          {chalkBoards.length === 0 ? (
+            <BlankPageEmpty
+              message="No chalkboards yet"
+              actionLabel="Create your first chalkboard"
+              onAction={() => setIsCreateOpen(true)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {chalkBoards.map((board) => (
+                <BoardCard key={board.id} board={board} onDelete={handleDelete} />
+              ))}
+            </div>
+          )}
         </NotebookSection>
 
         {/* ── Calendars ─────────────────────────────────── */}

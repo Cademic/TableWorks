@@ -46,6 +46,11 @@ function formatRelativeDate(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
+function getBoardRoute(board: BoardSummaryDto): string {
+  if (board.boardType === "ChalkBoard") return `/chalkboards/${board.id}`;
+  return `/boards/${board.id}`;
+}
+
 export function BoardCard({ board, onDelete }: BoardCardProps) {
   const navigate = useNavigate();
   const config = BOARD_TYPE_CONFIG[board.boardType] ?? BOARD_TYPE_CONFIG.NoteBoard;
@@ -54,7 +59,7 @@ export function BoardCard({ board, onDelete }: BoardCardProps) {
   return (
     <button
       type="button"
-      onClick={() => navigate(`/boards/${board.id}`)}
+      onClick={() => navigate(getBoardRoute(board))}
       className="paper-card group relative flex flex-col rounded-lg p-5 pt-7 text-left transition-all duration-200 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
     >
       {/* Colored tape strip at top */}

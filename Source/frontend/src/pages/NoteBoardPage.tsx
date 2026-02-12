@@ -25,7 +25,7 @@ let nextTempCardId = 1;
 
 export function NoteBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const { setBoardName } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, openBoard } = useOutletContext<AppLayoutContext>();
 
   const [board, setBoard] = useState<BoardSummaryDto | null>(null);
   const [notes, setNotes] = useState<NoteSummaryDto[]>([]);
@@ -152,6 +152,13 @@ export function NoteBoardPage() {
     setBoardName(board?.name ?? null);
     return () => setBoardName(null);
   }, [board?.name, setBoardName]);
+
+  // Register this board in the "Opened Boards" sidebar section
+  useEffect(() => {
+    if (board) {
+      openBoard({ id: board.id, name: board.name, boardType: board.boardType });
+    }
+  }, [board?.id, board?.name, board?.boardType, openBoard]);
 
   // Listen for sidebar tool clicks (custom event from Sidebar component)
   useEffect(() => {

@@ -177,6 +177,7 @@ builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IDrawingService, DrawingService>();
 
 // ---------------------------------------------------------------------------
 // Build

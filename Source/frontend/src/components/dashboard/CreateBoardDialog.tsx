@@ -5,18 +5,19 @@ interface CreateBoardDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (name: string, description: string, boardType: string) => void;
+  defaultBoardType?: string;
 }
 
 const BOARD_TYPES = [
   { value: "NoteBoard", label: "Note Board", icon: ClipboardList, description: "Pin sticky notes and index cards" },
-  { value: "ChalkBoard", label: "Chalk Board", icon: PenTool, description: "Freehand drawing canvas", isDisabled: true },
+  { value: "ChalkBoard", label: "Chalk Board", icon: PenTool, description: "Freehand drawing canvas" },
   { value: "Calendar", label: "Calendar", icon: Calendar, description: "Schedule events and tasks", isDisabled: true },
 ];
 
-export function CreateBoardDialog({ isOpen, onClose, onCreate }: CreateBoardDialogProps) {
+export function CreateBoardDialog({ isOpen, onClose, onCreate, defaultBoardType = "NoteBoard" }: CreateBoardDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [boardType, setBoardType] = useState("NoteBoard");
+  const [boardType, setBoardType] = useState(defaultBoardType);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +25,7 @@ export function CreateBoardDialog({ isOpen, onClose, onCreate }: CreateBoardDial
     onCreate(name.trim(), description.trim(), boardType);
     setName("");
     setDescription("");
-    setBoardType("NoteBoard");
+    setBoardType(defaultBoardType);
     onClose();
   }
 

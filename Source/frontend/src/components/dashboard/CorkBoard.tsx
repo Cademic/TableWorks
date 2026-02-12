@@ -215,7 +215,7 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
       <div
         ref={viewportRef}
         className={[
-          "corkboard-surface absolute inset-0 overflow-hidden transition-shadow duration-150",
+          "corkboard-surface relative h-full w-full overflow-hidden transition-shadow duration-150",
           isDragOver ? "ring-2 ring-inset ring-primary/40" : "",
           cursorClass,
         ].join(" ")}

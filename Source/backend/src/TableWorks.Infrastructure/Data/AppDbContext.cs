@@ -24,6 +24,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
     public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
     public DbSet<Board> Boards => Set<Board>();
+    public DbSet<Drawing> Drawings => Set<Drawing>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -269,6 +270,28 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.BoardConnections)
                 .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----- Drawing -----
+        modelBuilder.Entity<Drawing>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.BoardId).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.CanvasJson).HasColumnType("text");
+
+            entity.HasOne(x => x.Board)
+                .WithOne(x => x.Drawing)
+                .HasForeignKey<Drawing>(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.Drawings)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----- UserPreferences -----

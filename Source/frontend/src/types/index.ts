@@ -185,3 +185,17 @@ export interface PatchIndexCardRequest {
   color?: string;
   rotation?: number;
 }
+
+// --- Drawing DTOs ---
+
+export interface DrawingDto {
+  id: string;
+  boardId: string;
+  canvasJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveDrawingRequest {
+  canvasJson: string;
+}

@@ -7,23 +7,27 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
-  PenTool,
   Calendar,
   Notebook,
+  X,
+  ClipboardList,
+  PenTool,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import type { OpenedBoard } from "./AppLayout";
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  openedBoards: OpenedBoard[];
+  onCloseBoard: (id: string) => void;
 }
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/calendars", icon: Calendar, label: "Calendars" },
-  { to: "/chalkboards", icon: PenTool, label: "Chalk Boards" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -44,15 +48,45 @@ const BOARD_TOOLS = [
   },
 ];
 
-export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+const BOARD_TYPE_ICON: Record<string, typeof ClipboardList> = {
+  NoteBoard: ClipboardList,
+  ChalkBoard: PenTool,
+  Calendar: Calendar,
+};
+
+function getBoardPath(board: OpenedBoard): string {
+  if (board.boardType === "ChalkBoard") return `/chalkboards/${board.id}`;
+  return `/boards/${board.id}`;
+}
+
+export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   const isOnBoardPage = location.pathname.startsWith("/boards/");
+  const isOnChalkBoardPage = location.pathname.startsWith("/chalkboards/") && location.pathname !== "/chalkboards";
+  const isOnAnyBoardPage = isOnBoardPage || isOnChalkBoardPage;
 
   function isActive(path: string) {
     if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
+  }
+
+  function isBoardActive(board: OpenedBoard): boolean {
+    const boardPath = getBoardPath(board);
+    return location.pathname === boardPath;
+  }
+
+  function handleCloseBoard(e: React.MouseEvent, board: OpenedBoard) {
+    e.preventDefault();
+    e.stopPropagation();
+    const wasActive = isBoardActive(board);
+    onCloseBoard(board.id);
+    // If closing the currently viewed board, navigate to dashboard
+    if (wasActive) {
+      navigate("/");
+    }
   }
 
   return (
@@ -79,7 +113,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-0.5 p-3">
+      <nav className="flex flex-col gap-0.5 p-3">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.to);
           return (
@@ -108,8 +142,68 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         })}
       </nav>
 
+      {/* Opened Boards */}
+      {openedBoards.length > 0 && (
+        <div className="flex flex-col border-t border-border/40 overflow-hidden">
+          {isOpen && (
+            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0">
+              Opened Boards
+            </span>
+          )}
+          {!isOpen && (
+            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
+              Open
+            </span>
+          )}
+          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-48 scrollbar-thin">
+            {openedBoards.map((board) => {
+              const active = isBoardActive(board);
+              const Icon = BOARD_TYPE_ICON[board.boardType] ?? ClipboardList;
+              return (
+                <Link
+                  key={board.id}
+                  to={getBoardPath(board)}
+                  title={board.name}
+                  className={[
+                    "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150",
+                    active
+                      ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                      : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
+                    !isOpen && "justify-center",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <Icon
+                    className={`h-4 w-4 flex-shrink-0 ${
+                      active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
+                    }`}
+                  />
+                  {isOpen && (
+                    <>
+                      <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCloseBoard(e, board)}
+                        className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10"
+                        title="Close board"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Spacer to push board tools and user section to bottom */}
+      <div className="flex-1" />
+
       {/* Board Tools — draggable stationery items */}
-      {isOnBoardPage && (
+      {isOnAnyBoardPage && (
         <div className="border-t border-border/40 p-3">
           {isOpen && (
             <span className="mb-1.5 block px-3 text-[10px] font-semibold uppercase tracking-wider text-foreground/35">
@@ -117,7 +211,10 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
             </span>
           )}
           <div className="flex flex-col gap-0.5">
-            {BOARD_TOOLS.map((tool) => (
+            {(isOnChalkBoardPage
+              ? BOARD_TOOLS.filter((t) => t.type === "sticky-note")
+              : BOARD_TOOLS
+            ).map((tool) => (
               <div
                 key={tool.type}
                 draggable="true"

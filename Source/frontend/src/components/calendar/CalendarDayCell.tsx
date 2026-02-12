@@ -1,0 +1,134 @@
+import { Plus } from "lucide-react";
+import type { CalendarEventDto, ProjectSummaryDto } from "../../types";
+import { CalendarEventItem } from "./CalendarEventItem";
+import { CalendarProjectBar } from "./CalendarProjectBar";
+
+interface CalendarDayCellProps {
+  date: Date;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  events: CalendarEventDto[];
+  projects: ProjectSummaryDto[];
+  onClickDay: (date: Date) => void;
+  onClickEvent: (event: CalendarEventDto) => void;
+  onClickProject?: (project: ProjectSummaryDto) => void;
+  compact?: boolean;
+}
+
+export function CalendarDayCell({
+  date,
+  isCurrentMonth,
+  isToday,
+  events,
+  projects,
+  onClickDay,
+  onClickEvent,
+  onClickProject,
+  compact,
+}: CalendarDayCellProps) {
+  const dayNumber = date.getDate();
+  const maxItems = compact ? 0 : 3;
+  const visibleEvents = events.slice(0, maxItems);
+  const visibleProjects = projects.slice(0, Math.max(0, maxItems - visibleEvents.length));
+  const overflow =
+    events.length + projects.length - visibleEvents.length - visibleProjects.length;
+
+  if (compact) {
+    const allDots = [...events.map((e) => e.color), ...projects.map((p) => p.color || "violet")];
+    return (
+      <button
+        type="button"
+        onClick={() => onClickDay(date)}
+        className={`navbar-day-cell flex flex-col items-center gap-0.5 px-1 py-1.5 transition-colors hover:brightness-[0.97] dark:hover:brightness-110 ${
+          !isCurrentMonth ? "opacity-40" : ""
+        }`}
+      >
+        <span
+          className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
+            isToday
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/70"
+          }`}
+        >
+          {dayNumber}
+        </span>
+        {allDots.length > 0 && (
+          <div className="flex gap-0.5">
+            {allDots.slice(0, 3).map((c, i) => (
+              <CalendarEventItem
+                key={i}
+                event={{ color: c } as CalendarEventDto}
+                compact
+              />
+            ))}
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={`navbar-day-cell group relative flex min-h-[100px] flex-col border-b border-r border-border/40 p-1.5 transition-colors hover:brightness-[0.97] dark:hover:brightness-110 ${
+        !isCurrentMonth ? "opacity-40" : ""
+      }`}
+    >
+      {/* Day number + add button */}
+      <div className="mb-1 flex items-center justify-between">
+        <span
+          className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+            isToday
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/60"
+          }`}
+        >
+          {dayNumber}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClickDay(date);
+          }}
+          className="flex h-5 w-5 items-center justify-center rounded-md text-foreground/20 opacity-0 transition-all hover:bg-foreground/5 hover:text-foreground/50 group-hover:opacity-100"
+          title="Add event"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* Project bars */}
+      <div className="flex flex-col gap-0.5">
+        {visibleProjects.map((project) => (
+          <CalendarProjectBar
+            key={project.id}
+            project={project}
+            onClick={onClickProject}
+          />
+        ))}
+      </div>
+
+      {/* Events */}
+      <div className="flex flex-col gap-0.5">
+        {visibleEvents.map((event) => (
+          <CalendarEventItem
+            key={event.id}
+            event={event}
+            onClick={onClickEvent}
+          />
+        ))}
+      </div>
+
+      {/* Overflow */}
+      {overflow > 0 && (
+        <button
+          type="button"
+          onClick={() => onClickDay(date)}
+          className="mt-0.5 text-left text-[10px] font-medium text-foreground/40 hover:text-foreground/60"
+        >
+          +{overflow} more
+        </button>
+      )}
+    </div>
+  );
+}

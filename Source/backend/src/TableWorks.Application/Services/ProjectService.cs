@@ -60,6 +60,7 @@ public sealed class ProjectService : IProjectService
             Deadline = p.Deadline,
             Status = p.Status,
             Progress = p.Progress,
+            Color = p.Color,
             OwnerId = p.OwnerId,
             OwnerUsername = p.Owner?.Username ?? string.Empty,
             UserRole = p.OwnerId == userId ? "Owner" : (p.Members.FirstOrDefault(m => m.UserId == userId)?.Role ?? "Viewer"),
@@ -93,6 +94,7 @@ public sealed class ProjectService : IProjectService
                 : null,
             Status = "Active",
             Progress = 0,
+            Color = request.Color ?? "violet",
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -131,6 +133,7 @@ public sealed class ProjectService : IProjectService
             Deadline = project.Deadline,
             Status = project.Status,
             Progress = project.Progress,
+            Color = project.Color,
             OwnerId = project.OwnerId,
             OwnerUsername = project.Owner?.Username ?? string.Empty,
             UserRole = userRole,
@@ -190,6 +193,7 @@ public sealed class ProjectService : IProjectService
             : null;
         project.Status = request.Status;
         project.Progress = request.Progress;
+        project.Color = request.Color ?? project.Color;
         project.UpdatedAt = DateTime.UtcNow;
 
         _projectRepo.Update(project);

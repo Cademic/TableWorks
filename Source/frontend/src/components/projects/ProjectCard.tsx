@@ -52,6 +52,15 @@ const ROLE_CONFIG: Record<string, { icon: typeof Crown; label: string; className
   },
 };
 
+const COLOR_MAP: Record<string, { strip: string; iconBg: string; progress: string }> = {
+  violet:  { strip: "bg-violet-400/60 dark:bg-violet-500/40",  iconBg: "bg-violet-100/80 dark:bg-violet-900/30",  progress: "bg-violet-500 dark:bg-violet-400" },
+  sky:     { strip: "bg-sky-400/60 dark:bg-sky-500/40",        iconBg: "bg-sky-100/80 dark:bg-sky-900/30",        progress: "bg-sky-500 dark:bg-sky-400" },
+  amber:   { strip: "bg-amber-400/60 dark:bg-amber-500/40",    iconBg: "bg-amber-100/80 dark:bg-amber-900/30",    progress: "bg-amber-500 dark:bg-amber-400" },
+  rose:    { strip: "bg-rose-400/60 dark:bg-rose-500/40",      iconBg: "bg-rose-100/80 dark:bg-rose-900/30",      progress: "bg-rose-500 dark:bg-rose-400" },
+  emerald: { strip: "bg-emerald-400/60 dark:bg-emerald-500/40", iconBg: "bg-emerald-100/80 dark:bg-emerald-900/30", progress: "bg-emerald-500 dark:bg-emerald-400" },
+  orange:  { strip: "bg-orange-400/60 dark:bg-orange-500/40",  iconBg: "bg-orange-100/80 dark:bg-orange-900/30",  progress: "bg-orange-500 dark:bg-orange-400" },
+};
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
@@ -66,6 +75,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   const roleConfig = ROLE_CONFIG[project.userRole] ?? ROLE_CONFIG.Viewer;
   const RoleIcon = roleConfig.icon;
   const isOwner = project.userRole === "Owner";
+  const colors = COLOR_MAP[project.color] ?? COLOR_MAP.violet;
 
   return (
     <button
@@ -74,7 +84,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       className="paper-card group relative flex flex-col rounded-lg p-5 pt-7 text-left transition-all duration-200 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
     >
       {/* Colored tape strip at top */}
-      <div className="absolute inset-x-0 top-0 h-1.5 rounded-t-lg bg-violet-400/60 dark:bg-violet-500/40" />
+      <div className={`absolute inset-x-0 top-0 h-1.5 rounded-t-lg ${colors.strip}`} />
 
       {/* Delete button -- owner only, when onDelete provided */}
       {isOwner && onDelete && (
@@ -100,7 +110,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
       {/* Icon & Role badge */}
       <div className="mb-3 flex items-center gap-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100/80 dark:bg-violet-900/30">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${colors.iconBg}`}>
           <FolderOpen className="h-5 w-5 text-foreground/60" />
         </div>
         <span
@@ -143,7 +153,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
         <div className="mb-3">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/5">
             <div
-              className="h-full rounded-full bg-violet-500 transition-all dark:bg-violet-400"
+              className={`h-full rounded-full ${colors.progress} transition-all`}
               style={{ width: `${Math.min(project.progress, 100)}%` }}
             />
           </div>

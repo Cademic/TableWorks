@@ -29,7 +29,7 @@ export function AppRouter() {
             <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
-            <Route path="/calendars" element={<CalendarsPage />} />
+            <Route path="/calendar" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

@@ -51,6 +51,7 @@ export function ProjectsPage() {
   async function handleCreate(
     name: string,
     description: string,
+    color: string,
     startDate?: string,
     endDate?: string,
     deadline?: string,
@@ -60,6 +61,7 @@ export function ProjectsPage() {
       const created = await createProject({
         name,
         description: description || undefined,
+        color,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         deadline: deadline || undefined,
@@ -74,6 +76,7 @@ export function ProjectsPage() {
           deadline: created.deadline,
           status: created.status,
           progress: created.progress,
+          color: created.color,
           ownerId: created.ownerId,
           ownerUsername: created.ownerUsername,
           userRole: created.userRole,

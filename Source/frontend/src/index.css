@@ -37,6 +37,7 @@
   --color-border: 214 32% 91%;
   --color-primary: 222 89% 55%;
   --color-primary-foreground: 210 40% 98%;
+  --grid-line-color: rgba(0, 0, 0, 0.08);
 }
 
 .dark {
@@ -47,6 +48,7 @@
   --color-border: 216 34% 24%;
   --color-primary: 217 91% 60%;
   --color-primary-foreground: 222 47% 11%;
+  --grid-line-color: rgba(255, 255, 255, 0.08);
 }
 
 html,
@@ -715,6 +717,28 @@ body {
   background: linear-gradient(180deg, hsl(220, 18%, 15%) 0%, hsl(220, 18%, 13%) 100%);
   border-bottom-color: rgba(255, 255, 255, 0.05);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ========================================
+   Calendar
+   ======================================== */
+
+/* Day name headers — blue */
+.calendar-day-cell {
+  background: linear-gradient(180deg, #eef4fb 0%, #e4edf8 100%);
+}
+
+.dark .calendar-day-cell {
+  background: linear-gradient(180deg, hsl(217, 35%, 16%) 0%, hsl(217, 35%, 14%) 100%);
+}
+
+/* Day grid cells — same as navbar */
+.navbar-day-cell {
+  background: linear-gradient(180deg, #fdfcfa 0%, #f8f7f5 100%);
+}
+
+.dark .navbar-day-cell {
+  background: linear-gradient(180deg, hsl(220, 18%, 15%) 0%, hsl(220, 18%, 13%) 100%);
 }
 
 /* Theme segmented control — paper tab strip */

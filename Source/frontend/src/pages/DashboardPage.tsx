@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { getBoards, createBoard, deleteBoard } from "../api/boards";
-import { getProjects } from "../api/projects";
+import { getProjects, createProject } from "../api/projects";
 import { BoardCard } from "../components/dashboard/BoardCard";
+import { MiniCalendar } from "../components/dashboard/MiniCalendar";
 import { ProjectCard } from "../components/projects/ProjectCard";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
@@ -78,7 +79,7 @@ export function DashboardPage() {
     fetchBoards();
   }, [fetchBoards]);
 
-  async function handleCreate(name: string, description: string, boardType: string) {
+  async function handleCreateBoard(name: string, description: string, boardType: string) {
     try {
       setCreateBoardError(null);
       const created = await createBoard({
@@ -94,6 +95,36 @@ export function DashboardPage() {
       } else {
         setCreateBoardError("Failed to create board. Please try again.");
         console.error("Failed to create board:", err);
+      }
+    }
+  }
+
+  async function handleCreateProject(
+    name: string,
+    description: string,
+    color: string,
+    startDate?: string,
+    endDate?: string,
+    deadline?: string,
+  ) {
+    try {
+      setCreateBoardError(null);
+      const created = await createProject({
+        name,
+        description: description || undefined,
+        color,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        deadline: deadline || undefined,
+      });
+      navigate(`/projects/${created.id}`);
+      setIsCreateOpen(false);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setCreateBoardError(err.response.data?.message ?? "A project with that name already exists.");
+      } else {
+        setCreateBoardError("Failed to create project. Please try again.");
+        console.error("Failed to create project:", err);
       }
     }
   }
@@ -118,7 +149,6 @@ export function DashboardPage() {
 
   const noteBoards = boards.filter((b) => b.boardType === "NoteBoard");
   const chalkBoards = boards.filter((b) => b.boardType === "ChalkBoard");
-  const calendars = boards.filter((b) => b.boardType === "Calendar");
 
   const totalNotes = useMemo(
     () => boards.reduce((sum, b) => sum + b.noteCount, 0),
@@ -187,7 +217,7 @@ export function DashboardPage() {
                 className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
               >
                 <Plus className="h-4 w-4" />
-                <span>New Board</span>
+                <span>Get Started</span>
               </button>
             </div>
           </div>
@@ -225,18 +255,14 @@ export function DashboardPage() {
           />
         </div>
 
-        {/* ── Calendars ─────────────────────────────────── */}
+        {/* ── Calendar ──────────────────────────────────── */}
         <NotebookSection
           icon={Calendar}
-          title="Calendars"
-          count={calendars.length}
+          title="Calendar"
+          count={0}
           accentColor="sky"
-          badge="Coming Soon"
         >
-          <ComingSoonCard
-            description="Plan your schedule with events, deadlines, and milestone tracking."
-            icon={Calendar}
-          />
+          <MiniCalendar projects={activeProjects} />
         </NotebookSection>
 
         {/* ── Active Projects ────────────────────────────── */}
@@ -336,7 +362,8 @@ export function DashboardPage() {
         isOpen={isCreateOpen}
         error={createBoardError}
         onClose={() => { setIsCreateOpen(false); setCreateBoardError(null); }}
-        onCreate={handleCreate}
+        onCreateBoard={handleCreateBoard}
+        onCreateProject={handleCreateProject}
       />
 
       <ConfirmDialog
@@ -470,20 +497,3 @@ function BlankPageEmpty({ message, actionLabel, onAction }: BlankPageEmptyProps)
   );
 }
 
-/* -- Coming Soon Card ----------------------------------------- */
-
-interface ComingSoonCardProps {
-  description: string;
-  icon: typeof FolderOpen;
-}
-
-function ComingSoonCard({ description, icon: Icon }: ComingSoonCardProps) {
-  return (
-    <div className="coming-soon-card flex items-center gap-4 rounded-xl border border-dashed border-border/40 px-6 py-8">
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-foreground/[0.03]">
-        <Icon className="h-5 w-5 text-foreground/20" />
-      </div>
-      <p className="text-sm text-foreground/30">{description}</p>
-    </div>
-  );
-}

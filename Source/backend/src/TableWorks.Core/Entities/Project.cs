@@ -11,6 +11,7 @@ public sealed class Project
     public DateTime? Deadline { get; set; }
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
+    public string Color { get; set; } = "violet";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

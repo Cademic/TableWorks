@@ -27,7 +27,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
-  { to: "/calendars", icon: Calendar, label: "Calendars" },
+  { to: "/calendar", icon: Calendar, label: "Calendar" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 

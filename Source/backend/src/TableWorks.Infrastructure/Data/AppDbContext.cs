@@ -25,6 +25,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
     public DbSet<Board> Boards => Set<Board>();
     public DbSet<Drawing> Drawings => Set<Drawing>();
+    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -298,6 +299,32 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Drawings)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----- CalendarEvent -----
+        modelBuilder.Entity<CalendarEvent>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.ProjectId);
+            entity.HasIndex(x => x.StartDate);
+
+            entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(2000);
+            entity.Property(x => x.Color).HasMaxLength(20).HasDefaultValue("sky");
+            entity.Property(x => x.EventType).HasMaxLength(20).HasDefaultValue("Event");
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.CalendarEvents)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Project)
+                .WithMany()
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ----- UserPreferences -----

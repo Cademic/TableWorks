@@ -27,6 +27,7 @@ import { createBoard } from "../api/boards";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
+import { ProjectCalendar } from "../components/calendar/ProjectCalendar";
 import { MemberList } from "../components/projects/MemberList";
 import { AddMemberDialog } from "../components/projects/AddMemberDialog";
 import { AddExistingBoardDialog } from "../components/projects/AddExistingBoardDialog";
@@ -42,6 +43,15 @@ const TABS: { id: TabId; label: string; icon: typeof ClipboardList }[] = [
 ];
 
 const STATUS_OPTIONS = ["Active", "Completed", "Archived"];
+
+const PROJECT_COLOR_MAP: Record<string, { iconBg: string; iconText: string; progress: string }> = {
+  violet:  { iconBg: "bg-violet-100 dark:bg-violet-900/30",  iconText: "text-violet-600 dark:text-violet-400",  progress: "bg-violet-500 dark:bg-violet-400" },
+  sky:     { iconBg: "bg-sky-100 dark:bg-sky-900/30",        iconText: "text-sky-600 dark:text-sky-400",        progress: "bg-sky-500 dark:bg-sky-400" },
+  amber:   { iconBg: "bg-amber-100 dark:bg-amber-900/30",    iconText: "text-amber-600 dark:text-amber-400",    progress: "bg-amber-500 dark:bg-amber-400" },
+  rose:    { iconBg: "bg-rose-100 dark:bg-rose-900/30",      iconText: "text-rose-600 dark:text-rose-400",      progress: "bg-rose-500 dark:bg-rose-400" },
+  emerald: { iconBg: "bg-emerald-100 dark:bg-emerald-900/30", iconText: "text-emerald-600 dark:text-emerald-400", progress: "bg-emerald-500 dark:bg-emerald-400" },
+  orange:  { iconBg: "bg-orange-100 dark:bg-orange-900/30",  iconText: "text-orange-600 dark:text-orange-400",  progress: "bg-orange-500 dark:bg-orange-400" },
+};
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -74,6 +84,7 @@ export function ProjectDetailPage() {
   // Settings form state
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editColor, setEditColor] = useState("violet");
   const [editStatus, setEditStatus] = useState("Active");
   const [editProgress, setEditProgress] = useState(0);
   const [editStartDate, setEditStartDate] = useState("");
@@ -94,6 +105,7 @@ export function ProjectDetailPage() {
       // Populate settings form
       setEditName(data.name);
       setEditDescription(data.description ?? "");
+      setEditColor(data.color ?? "violet");
       setEditStatus(data.status);
       setEditProgress(data.progress);
       setEditStartDate(toInputDate(data.startDate));
@@ -178,6 +190,7 @@ export function ProjectDetailPage() {
       await updateProject(projectId, {
         name: editName,
         description: editDescription || undefined,
+        color: editColor,
         startDate: editStartDate || undefined,
         endDate: editEndDate || undefined,
         deadline: editDeadline || undefined,
@@ -240,6 +253,7 @@ export function ProjectDetailPage() {
 
   const RoleIcon = isOwner ? Crown : isEditor ? Pencil : Eye;
   const roleLabel = project.userRole;
+  const projectColors = PROJECT_COLOR_MAP[project.color] ?? PROJECT_COLOR_MAP.violet;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -257,8 +271,8 @@ export function ProjectDetailPage() {
         {/* Header */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
-              <FolderOpen className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+            <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${projectColors.iconBg}`}>
+              <FolderOpen className={`h-6 w-6 ${projectColors.iconText}`} />
             </div>
             <div>
               <h1 className="text-xl font-bold text-foreground">
@@ -313,7 +327,7 @@ export function ProjectDetailPage() {
             </div>
             <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-foreground/5">
               <div
-                className="h-full rounded-full bg-violet-500 transition-all dark:bg-violet-400"
+                className={`h-full rounded-full ${projectColors.progress} transition-all`}
                 style={{ width: `${Math.min(project.progress, 100)}%` }}
               />
             </div>
@@ -357,17 +371,13 @@ export function ProjectDetailPage() {
 
         {/* Tab content */}
         {activeTab === "calendar" && (
-          <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-14">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-950/30">
-              <Calendar className="h-5 w-5 text-sky-500/60" />
-            </div>
-            <h3 className="mb-1 text-sm font-semibold text-foreground/60">
-              Project Calendar
-            </h3>
-            <p className="max-w-sm text-center text-xs text-foreground/40">
-              View project timelines, deadlines, and milestones. Coming soon.
-            </p>
-          </div>
+          <ProjectCalendar
+            projectId={project.id}
+            projectName={project.name}
+            startDate={project.startDate}
+            endDate={project.endDate}
+            deadline={project.deadline}
+          />
         )}
 
         {activeTab === "boards" && (
@@ -393,6 +403,7 @@ export function ProjectDetailPage() {
           <SettingsTab
             editName={editName}
             editDescription={editDescription}
+            editColor={editColor}
             editStatus={editStatus}
             editProgress={editProgress}
             editStartDate={editStartDate}
@@ -401,6 +412,7 @@ export function ProjectDetailPage() {
             isSaving={isSaving}
             onNameChange={setEditName}
             onDescriptionChange={setEditDescription}
+            onColorChange={setEditColor}
             onStatusChange={setEditStatus}
             onProgressChange={setEditProgress}
             onStartDateChange={setEditStartDate}
@@ -417,7 +429,8 @@ export function ProjectDetailPage() {
         isOpen={isCreateBoardOpen}
         error={createBoardError}
         onClose={() => { setIsCreateBoardOpen(false); setCreateBoardError(null); }}
-        onCreate={handleCreateBoard}
+        onCreateBoard={handleCreateBoard}
+        onCreateProject={() => { /* no-op */ }}
       />
 
       <AddExistingBoardDialog
@@ -607,9 +620,19 @@ function MembersTab({ project, isOwner, onAddMember, onMemberChanged }: MembersT
   );
 }
 
+const PROJECT_COLORS = [
+  { value: "violet", label: "Violet", bg: "bg-violet-400", ring: "ring-violet-500" },
+  { value: "sky", label: "Sky", bg: "bg-sky-400", ring: "ring-sky-500" },
+  { value: "amber", label: "Amber", bg: "bg-amber-400", ring: "ring-amber-500" },
+  { value: "rose", label: "Rose", bg: "bg-rose-400", ring: "ring-rose-500" },
+  { value: "emerald", label: "Emerald", bg: "bg-emerald-400", ring: "ring-emerald-500" },
+  { value: "orange", label: "Orange", bg: "bg-orange-400", ring: "ring-orange-500" },
+];
+
 interface SettingsTabProps {
   editName: string;
   editDescription: string;
+  editColor: string;
   editStatus: string;
   editProgress: number;
   editStartDate: string;
@@ -618,6 +641,7 @@ interface SettingsTabProps {
   isSaving: boolean;
   onNameChange: (v: string) => void;
   onDescriptionChange: (v: string) => void;
+  onColorChange: (v: string) => void;
   onStatusChange: (v: string) => void;
   onProgressChange: (v: number) => void;
   onStartDateChange: (v: string) => void;
@@ -630,6 +654,7 @@ interface SettingsTabProps {
 function SettingsTab({
   editName,
   editDescription,
+  editColor,
   editStatus,
   editProgress,
   editStartDate,
@@ -638,6 +663,7 @@ function SettingsTab({
   isSaving,
   onNameChange,
   onDescriptionChange,
+  onColorChange,
   onStatusChange,
   onProgressChange,
   onStartDateChange,
@@ -683,6 +709,28 @@ function SettingsTab({
             rows={3}
             className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
+        </div>
+
+        {/* Color */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-foreground/60">
+            Color
+          </label>
+          <div className="flex gap-2">
+            {PROJECT_COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => onColorChange(c.value)}
+                title={c.label}
+                className={`h-7 w-7 rounded-full ${c.bg} transition-all ${
+                  editColor === c.value
+                    ? `ring-2 ${c.ring} ring-offset-2 ring-offset-background scale-110`
+                    : "opacity-60 hover:opacity-100"
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Status */}

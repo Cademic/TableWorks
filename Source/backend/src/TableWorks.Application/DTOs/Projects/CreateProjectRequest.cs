@@ -7,4 +7,5 @@ public sealed class CreateProjectRequest
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public DateTime? Deadline { get; set; }
+    public string? Color { get; set; }
 }

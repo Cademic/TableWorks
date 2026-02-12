@@ -141,7 +141,8 @@ export function ChalkBoardsPage() {
       <CreateBoardDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onCreate={handleCreate}
+        onCreateBoard={handleCreate}
+        onCreateProject={() => { /* no-op */ }}
         defaultBoardType="ChalkBoard"
       />
 

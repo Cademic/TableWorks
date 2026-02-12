@@ -213,6 +213,7 @@ export interface ProjectSummaryDto {
   deadline: string | null;
   status: string;
   progress: number;
+  color: string;
   ownerId: string;
   ownerUsername: string;
   userRole: string;
@@ -238,6 +239,7 @@ export interface ProjectDetailDto {
   deadline: string | null;
   status: string;
   progress: number;
+  color: string;
   ownerId: string;
   ownerUsername: string;
   userRole: string;
@@ -253,6 +255,7 @@ export interface CreateProjectRequest {
   startDate?: string;
   endDate?: string;
   deadline?: string;
+  color?: string;
 }
 
 export interface UpdateProjectRequest {
@@ -263,6 +266,7 @@ export interface UpdateProjectRequest {
   deadline?: string;
   status: string;
   progress: number;
+  color?: string;
 }
 
 export interface AddMemberRequest {
@@ -272,4 +276,41 @@ export interface AddMemberRequest {
 
 export interface UpdateMemberRoleRequest {
   role: string;
+}
+
+// --- Calendar Event DTOs ---
+
+export interface CalendarEventDto {
+  id: string;
+  title: string;
+  description: string | null;
+  projectId: string | null;
+  startDate: string;
+  endDate: string | null;
+  isAllDay: boolean;
+  color: string;
+  eventType: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCalendarEventRequest {
+  title: string;
+  description?: string;
+  projectId?: string;
+  startDate: string;
+  endDate?: string;
+  isAllDay?: boolean;
+  color?: string;
+  eventType?: string;
+}
+
+export interface UpdateCalendarEventRequest {
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  isAllDay?: boolean;
+  color?: string;
+  eventType?: string;
 }

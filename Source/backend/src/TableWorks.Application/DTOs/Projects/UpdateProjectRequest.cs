@@ -9,4 +9,5 @@ public sealed class UpdateProjectRequest
     public DateTime? Deadline { get; set; }
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
+    public string? Color { get; set; }
 }

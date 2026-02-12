@@ -1,5 +1,6 @@
 using AutoMapper;
 using TableWorks.Application.DTOs.Admin;
+using TableWorks.Application.DTOs.CalendarEvents;
 using TableWorks.Application.DTOs.Folders;
 using TableWorks.Application.DTOs.IndexCards;
 using TableWorks.Application.DTOs.Notes;
@@ -92,5 +93,8 @@ public sealed class MappingProfile : Profile
         // UserPreferences -> DTO
         CreateMap<UserPreferences, UserPreferencesDto>()
             .ForMember(d => d.EmailNotifications, opt => opt.MapFrom(s => s.EmailNotificationsJson));
+
+        // CalendarEvent -> DTO
+        CreateMap<CalendarEvent, CalendarEventDto>();
     }
 }

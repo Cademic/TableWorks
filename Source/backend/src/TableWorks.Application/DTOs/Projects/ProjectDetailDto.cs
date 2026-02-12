@@ -13,6 +13,7 @@ public sealed class ProjectDetailDto
     public DateTime? Deadline { get; set; }
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
+    public string Color { get; set; } = "violet";
     public Guid OwnerId { get; set; }
     public string OwnerUsername { get; set; } = string.Empty;
     public string UserRole { get; set; } = string.Empty;

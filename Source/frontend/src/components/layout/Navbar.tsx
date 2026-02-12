@@ -11,7 +11,7 @@ interface NavbarProps {
 const PAGE_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   "/": { label: "Dashboard", icon: BookOpen },
   "/projects": { label: "Projects", icon: BookOpen },
-  "/calendars": { label: "Calendars", icon: BookOpen },
+  "/calendar": { label: "Calendar", icon: BookOpen },
   "/chalkboards": { label: "Chalk Boards", icon: BookOpen },
   "/settings": { label: "Settings", icon: BookOpen },
 };

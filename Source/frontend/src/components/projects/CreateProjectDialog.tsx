@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { X, CalendarClock } from "lucide-react";
 
+const PROJECT_COLORS = [
+  { value: "violet", label: "Violet", bg: "bg-violet-400", ring: "ring-violet-500" },
+  { value: "sky", label: "Sky", bg: "bg-sky-400", ring: "ring-sky-500" },
+  { value: "amber", label: "Amber", bg: "bg-amber-400", ring: "ring-amber-500" },
+  { value: "rose", label: "Rose", bg: "bg-rose-400", ring: "ring-rose-500" },
+  { value: "emerald", label: "Emerald", bg: "bg-emerald-400", ring: "ring-emerald-500" },
+  { value: "orange", label: "Orange", bg: "bg-orange-400", ring: "ring-orange-500" },
+];
+
 interface CreateProjectDialogProps {
   isOpen: boolean;
   error?: string | null;
@@ -8,6 +17,7 @@ interface CreateProjectDialogProps {
   onCreate: (
     name: string,
     description: string,
+    color: string,
     startDate?: string,
     endDate?: string,
     deadline?: string,
@@ -32,6 +42,7 @@ export function CreateProjectDialog({
 }: CreateProjectDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [color, setColor] = useState("violet");
   const [hasTimeConstraints, setHasTimeConstraints] = useState(false);
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(nextMonthStr());
@@ -44,6 +55,7 @@ export function CreateProjectDialog({
     onCreate(
       name.trim(),
       description.trim(),
+      color,
       hasTimeConstraints ? startDate : undefined,
       hasTimeConstraints ? endDate : undefined,
       hasTimeConstraints && deadline ? deadline : undefined,
@@ -53,6 +65,7 @@ export function CreateProjectDialog({
   function handleClose() {
     setName("");
     setDescription("");
+    setColor("violet");
     setHasTimeConstraints(false);
     setStartDate(todayStr());
     setEndDate(nextMonthStr());
@@ -133,6 +146,28 @@ export function CreateProjectDialog({
               rows={2}
               className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
+          </div>
+
+          {/* Color */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground/60">
+              Color
+            </label>
+            <div className="flex gap-2">
+              {PROJECT_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setColor(c.value)}
+                  title={c.label}
+                  className={`h-7 w-7 rounded-full ${c.bg} transition-all ${
+                    color === c.value
+                      ? `ring-2 ${c.ring} ring-offset-2 ring-offset-background scale-110`
+                      : "opacity-60 hover:opacity-100"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Time constraints toggle */}

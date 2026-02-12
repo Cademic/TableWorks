@@ -102,7 +102,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
           <div className="flex items-center gap-2.5">
             <Notebook className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="text-lg font-bold tracking-tight text-foreground">
-              TableWorks
+              ASideNote
             </span>
           </div>
         ) : (

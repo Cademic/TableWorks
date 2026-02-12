@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Drawings;
+using ASideNote.Application.DTOs.Drawings;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IDrawingService
 {

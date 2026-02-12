@@ -10,9 +10,9 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/Source/Backend/src/TableWorks.API/bin/Debug/net8.0/TableWorks.API.dll",
+            "program": "${workspaceFolder}/Source/Backend/src/ASideNote.API/bin/Debug/net8.0/ASideNote.API.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/Source/Backend/src/TableWorks.API",
+            "cwd": "${workspaceFolder}/Source/Backend/src/ASideNote.API",
             "stopAtEntry": false,
             // Enable launching a web browser when ASP.NET Core starts. For more information: https://aka.ms/VSCode-CS-LaunchJson-WebBrowser
             "serverReadyAction": {

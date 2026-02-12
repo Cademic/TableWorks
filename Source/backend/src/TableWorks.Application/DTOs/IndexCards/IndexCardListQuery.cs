@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.DTOs.IndexCards;
+namespace ASideNote.Application.DTOs.IndexCards;
 
 public sealed class IndexCardListQuery : PaginationRequest
 {

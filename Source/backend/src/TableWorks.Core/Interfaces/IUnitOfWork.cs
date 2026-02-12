@@ -1,4 +1,4 @@
-namespace TableWorks.Core.Interfaces;
+namespace ASideNote.Core.Interfaces;
 
 public interface IUnitOfWork
 {

@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Tags;
+using ASideNote.Application.DTOs.Tags;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface ITagService
 {

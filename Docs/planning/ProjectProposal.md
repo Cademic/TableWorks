@@ -1,8 +1,8 @@
-# TableWorks Project Proposal
+# ASideNote Project Proposal
 
 ## Contents
 
-- [TableWorks Project Proposal](#tableworks-project-proposal)
+- [ASideNote Project Proposal](#asidenote-project-proposal)
   - [Contents](#contents)
   - [Executive Summary](#executive-summary)
   - [Software Description](#software-description)
@@ -91,15 +91,15 @@
 
 ## Executive Summary
 
-TableWorks is a comprehensive web application designed to help users plan projects, create and manage notes, and organize their schedules efficiently. The platform provides a collaborative workspace where users can create accounts, manage lists in an intuitive table layout, and work together on projects with date/time constraints. With features like quick note-taking, advanced organization tools, and a modern light/dark mode interface, TableWorks aims to be a one-stop solution for personal and team productivity. The application is built with a React/TypeScript frontend, an ASP.NET backend, and a PostgreSQL database, with plans for future expansion to desktop and iOS platforms.
+ASideNote is a comprehensive web application designed to help users plan projects, create and manage notes, and organize their schedules efficiently. The platform provides a collaborative workspace where users can create accounts, manage lists in an intuitive table layout, and work together on projects with date/time constraints. With features like quick note-taking, advanced organization tools, and a modern light/dark mode interface, ASideNote aims to be a one-stop solution for personal and team productivity. The application is built with a React/TypeScript frontend, an ASP.NET backend, and a PostgreSQL database, with plans for future expansion to desktop and iOS platforms.
 
 ## Software Description
 
-TableWorks is a productivity-focused web application that combines note-taking, project management, and collaboration features into a single, user-friendly platform. The application emphasizes speed and efficiency, allowing users to quickly capture thoughts, organize information in customizable table layouts, and collaborate with team members on time-sensitive projects. Built with modern web technologies, TableWorks provides a responsive, accessible interface that adapts to user preferences and workflows.
+ASideNote is a productivity-focused web application that combines note-taking, project management, and collaboration features into a single, user-friendly platform. The application emphasizes speed and efficiency, allowing users to quickly capture thoughts, organize information in customizable table layouts, and collaborate with team members on time-sensitive projects. Built with modern web technologies, ASideNote provides a responsive, accessible interface that adapts to user preferences and workflows.
 
 ### The client experience
 
-Users will interact with TableWorks through a clean, intuitive web interface that prioritizes quick access to core features. Upon logging in, users are greeted with a dashboard that provides immediate access to their recent notes, active projects, and quick actions. The application features a persistent navigation bar with shortcuts for creating new notes (keyboard shortcut: Ctrl+N/Cmd+N), accessing projects, and managing account settings.
+Users will interact with ASideNote through a clean, intuitive web interface that prioritizes quick access to core features. Upon logging in, users are greeted with a dashboard that provides immediate access to their recent notes, active projects, and quick actions. The application features a persistent navigation bar with shortcuts for creating new notes (keyboard shortcut: Ctrl+N/Cmd+N), accessing projects, and managing account settings.
 
 The note-taking experience is designed for speed; users can start typing immediately without navigating through multiple screens. Notes auto-save as they type, providing peace of mind and eliminating the need to manually save work. The table layout view allows users to see multiple notes at once, sort by various criteria, and perform bulk operations efficiently.
 
@@ -123,7 +123,7 @@ For detailed Nonfunctional Requirements (NFR1-NFR10), please refer to [Nonfuncti
 
 ## Data Model and Design
 
-![UML Diagram](/Docs/Images/TableWorksUML.png)
+![UML Diagram](/Docs/Images/ASideNoteUML.png)
 
 ### Core Entities
 
@@ -326,9 +326,9 @@ The application uses **PostgreSQL** as its relational database management system
 
 ### API Overview
 
-TableWorks uses a RESTful API architecture with JSON as the primary data format. All endpoints require authentication via JWT tokens (except registration and login). The API follows REST conventions with standard HTTP methods (GET, POST, PUT, DELETE, PATCH) and appropriate status codes.
+ASideNote uses a RESTful API architecture with JSON as the primary data format. All endpoints require authentication via JWT tokens (except registration and login). The API follows REST conventions with standard HTTP methods (GET, POST, PUT, DELETE, PATCH) and appropriate status codes.
 
-![UML Diagram](/Docs/Images/TableWorksAPI.png)
+![UML Diagram](/Docs/Images/ASideNoteAPI.png)
 
 **Base URL**: `/api/v1`
 
@@ -847,7 +847,7 @@ Delete a folder.
 
 ### Notification Endpoints
 
-![UML Diagram](/Docs/Images/TableWorksAPISequence.png)
+![UML Diagram](/Docs/Images/ASideNoteAPISequence.png)
 
 #### GET /notifications
 Get all notifications for the current user.
@@ -1064,7 +1064,7 @@ The API supports versioning through URL path (`/api/v1`). Future versions will b
 
 ### Design Philosophy
 
-TableWorks follows a minimalist, user-centric design approach that prioritizes speed and efficiency. The interface emphasizes clean layouts, intuitive navigation, and quick access to core features. The design philosophy centers on reducing cognitive load and minimizing the number of clicks required to accomplish tasks.
+ASideNote follows a minimalist, user-centric design approach that prioritizes speed and efficiency. The interface emphasizes clean layouts, intuitive navigation, and quick access to core features. The design philosophy centers on reducing cognitive load and minimizing the number of clicks required to accomplish tasks.
 
 ### Layout Structure
 

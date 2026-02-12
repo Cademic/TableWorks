@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Common;
-using TableWorks.Application.DTOs.Notes;
+using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Notes;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface INoteService
 {

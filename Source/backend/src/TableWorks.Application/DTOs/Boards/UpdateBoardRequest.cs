@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Boards;
+namespace ASideNote.Application.DTOs.Boards;
 
 public sealed class UpdateBoardRequest
 {

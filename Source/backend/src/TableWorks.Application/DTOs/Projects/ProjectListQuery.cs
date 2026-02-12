@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Projects;
+namespace ASideNote.Application.DTOs.Projects;
 
 public sealed class ProjectListQuery
 {

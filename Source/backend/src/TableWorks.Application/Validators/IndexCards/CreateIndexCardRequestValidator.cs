@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.IndexCards;
+using ASideNote.Application.DTOs.IndexCards;
 
-namespace TableWorks.Application.Validators.IndexCards;
+namespace ASideNote.Application.Validators.IndexCards;
 
 public sealed class CreateIndexCardRequestValidator : AbstractValidator<CreateIndexCardRequest>
 {

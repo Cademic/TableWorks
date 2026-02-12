@@ -1,4 +1,4 @@
-namespace TableWorks.Core.Entities;
+namespace ASideNote.Core.Entities;
 
 public sealed class Tag
 {

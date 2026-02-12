@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Notes;
+namespace ASideNote.Application.DTOs.Notes;
 
 public sealed class CreateNoteRequest
 {

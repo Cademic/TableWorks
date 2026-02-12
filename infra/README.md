@@ -1,6 +1,6 @@
 # Infrastructure as Code
 
-This directory contains infrastructure provisioning modules for TableWorks.
+This directory contains infrastructure provisioning modules for ASideNote.
 
 ## Structure
 

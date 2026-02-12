@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Tags;
+using ASideNote.Application.DTOs.Tags;
 
-namespace TableWorks.Application.DTOs.IndexCards;
+namespace ASideNote.Application.DTOs.IndexCards;
 
 public sealed class IndexCardSummaryDto
 {

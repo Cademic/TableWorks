@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Projects;
+using ASideNote.Application.DTOs.Projects;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IProjectService
 {

@@ -1,7 +1,7 @@
-using TableWorks.Core.Interfaces;
-using TableWorks.Infrastructure.Data;
+using ASideNote.Core.Interfaces;
+using ASideNote.Infrastructure.Data;
 
-namespace TableWorks.Infrastructure.Repositories;
+namespace ASideNote.Infrastructure.Repositories;
 
 public sealed class UnitOfWork : IUnitOfWork
 {

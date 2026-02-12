@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.Notes;
+using ASideNote.Application.DTOs.Notes;
 
-namespace TableWorks.Application.Validators.Notes;
+namespace ASideNote.Application.Validators.Notes;
 
 public sealed class UpdateNoteRequestValidator : AbstractValidator<UpdateNoteRequest>
 {

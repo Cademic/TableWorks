@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Common;
-using TableWorks.Application.DTOs.IndexCards;
+using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.DTOs.IndexCards;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IIndexCardService
 {

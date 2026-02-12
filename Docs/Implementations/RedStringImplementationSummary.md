@@ -1,4 +1,4 @@
-# TableWorks – Red String Linking Implementation Summary
+# ASideNote – Red String Linking Implementation Summary
 
 This document summarises the "Red String" feature implemented during this session, which allows users to visually link sticky notes together with red strings on the cork board — similar to a detective evidence board.
 

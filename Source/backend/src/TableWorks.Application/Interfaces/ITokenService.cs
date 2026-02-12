@@ -1,6 +1,6 @@
-using TableWorks.Core.Entities;
+using ASideNote.Core.Entities;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface ITokenService
 {

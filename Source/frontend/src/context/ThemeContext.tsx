@@ -14,7 +14,7 @@ interface ThemeContextValue {
   setThemeMode: (mode: ThemeMode) => void;
 }
 
-const STORAGE_KEY = "tableworks.theme";
+const STORAGE_KEY = "asidenote.theme";
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 interface ThemeProviderProps {

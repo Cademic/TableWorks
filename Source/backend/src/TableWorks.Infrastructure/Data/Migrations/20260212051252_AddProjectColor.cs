@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace TableWorks.Infrastructure.Data.Migrations
+namespace ASideNote.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
     public partial class AddProjectColor : Migration

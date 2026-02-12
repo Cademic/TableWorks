@@ -1,8 +1,8 @@
-# TableWorks
+# ASideNote
 
 A productivity web application featuring a visual cork board dashboard where users can create sticky notes, index cards, and connect ideas with red string links -- all in a rich, interactive workspace.
 
-![TableWorks Dashboard](Docs/Images/TableWorksDashboard.png)
+![ASideNote Dashboard](Docs/Images/ASideNoteDashboard.png)
 
 ---
 
@@ -24,7 +24,7 @@ A productivity web application featuring a visual cork board dashboard where use
 
 ## Overview
 
-TableWorks is a web-based productivity platform that combines note-taking, project planning, and visual organization on an interactive cork board. Users can drag sticky notes and index cards around a realistic board, connect related ideas with red string links (detective-board style), and format content with a full rich text editor including tables and checklists.
+ASideNote is a web-based productivity platform that combines note-taking, project planning, and visual organization on an interactive cork board. Users can drag sticky notes and index cards around a realistic board, connect related ideas with red string links (detective-board style), and format content with a full rich text editor including tables and checklists.
 
 The application is built with a clean-architecture ASP.NET Core 8 backend and a React + TypeScript frontend, backed by PostgreSQL.
 
@@ -134,7 +134,7 @@ The application is built with a clean-architecture ASP.NET Core 8 backend and a 
 ## Project Structure
 
 ```
-TableWorks/
+ASideNote/
 ├── .github/workflows/          # CI/CD pipelines
 │   └── backend-ci.yml
 ├── Docs/
@@ -146,14 +146,14 @@ TableWorks/
 ├── Source/
 │   ├── backend/
 │   │   ├── src/
-│   │   │   ├── TableWorks.API/           # Controllers, middleware, startup
-│   │   │   ├── TableWorks.Application/   # Services, DTOs, validators
-│   │   │   ├── TableWorks.Core/          # Entities, enums, interfaces
-│   │   │   └── TableWorks.Infrastructure/# DbContext, repos, migrations
+│   │   │   ├── ASideNote.API/           # Controllers, middleware, startup
+│   │   │   ├── ASideNote.Application/   # Services, DTOs, validators
+│   │   │   ├── ASideNote.Core/          # Entities, enums, interfaces
+│   │   │   └── ASideNote.Infrastructure/# DbContext, repos, migrations
 │   │   ├── tests/
-│   │   │   └── TableWorks.Tests/         # Unit and integration tests
+│   │   │   └── ASideNote.Tests/         # Unit and integration tests
 │   │   ├── docker-compose.yml
-│   │   └── TableWorks.sln
+│   │   └── ASideNote.sln
 │   └── frontend/
 │       ├── src/
 │       │   ├── api/              # API client functions
@@ -193,10 +193,10 @@ cp .env.example .env
 docker compose up -d
 
 # Apply database migrations
-dotnet ef database update --project src/TableWorks.Infrastructure --startup-project src/TableWorks.API
+dotnet ef database update --project src/ASideNote.Infrastructure --startup-project src/ASideNote.API
 
 # Run the API (default: http://localhost:5000)
-dotnet run --project src/TableWorks.API/TableWorks.API.csproj
+dotnet run --project src/ASideNote.API/ASideNote.API.csproj
 ```
 
 ### Frontend

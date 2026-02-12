@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using TableWorks.Application.DTOs.BoardConnections;
-using TableWorks.Application.Interfaces;
-using TableWorks.Core.Entities;
-using TableWorks.Core.Interfaces;
+using ASideNote.Application.DTOs.BoardConnections;
+using ASideNote.Application.Interfaces;
+using ASideNote.Core.Entities;
+using ASideNote.Core.Interfaces;
 
-namespace TableWorks.Application.Services;
+namespace ASideNote.Application.Services;
 
 public sealed class BoardConnectionService : IBoardConnectionService
 {

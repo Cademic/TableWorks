@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Common;
+namespace ASideNote.Application.DTOs.Common;
 
 public sealed class PaginatedResponse<T>
 {

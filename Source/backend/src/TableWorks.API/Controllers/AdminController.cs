@@ -1,11 +1,11 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TableWorks.Application.DTOs.Admin;
-using TableWorks.Application.DTOs.Common;
-using TableWorks.Application.Interfaces;
+using ASideNote.Application.DTOs.Admin;
+using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.Interfaces;
 
-namespace TableWorks.API.Controllers;
+namespace ASideNote.API.Controllers;
 
 [Authorize(Policy = "AdminOnly")]
 [ApiVersion("1.0")]

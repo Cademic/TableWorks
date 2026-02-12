@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/Source/Backend/TableWorks.sln",
+                "${workspaceFolder}/Source/Backend/ASideNote.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -19,7 +19,7 @@
             "type": "process",
             "args": [
                 "publish",
-                "${workspaceFolder}/Source/Backend/TableWorks.sln",
+                "${workspaceFolder}/Source/Backend/ASideNote.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary;ForceNoAlign"
             ],
@@ -33,7 +33,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/Source/Backend/TableWorks.sln"
+                "${workspaceFolder}/Source/Backend/ASideNote.sln"
             ],
             "problemMatcher": "$msCompile"
         }

@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Users;
+using ASideNote.Application.DTOs.Users;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IUserService
 {

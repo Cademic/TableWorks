@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Boards;
-using TableWorks.Application.DTOs.Notes;
+using ASideNote.Application.DTOs.Boards;
+using ASideNote.Application.DTOs.Notes;
 
-namespace TableWorks.Application.DTOs.Projects;
+namespace ASideNote.Application.DTOs.Projects;
 
 public sealed class ProjectDetailDto
 {

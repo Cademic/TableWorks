@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace TableWorks.Infrastructure.Data.Migrations
+namespace ASideNote.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

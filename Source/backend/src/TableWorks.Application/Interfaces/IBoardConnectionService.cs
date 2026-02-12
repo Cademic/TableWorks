@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.BoardConnections;
+using ASideNote.Application.DTOs.BoardConnections;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IBoardConnectionService
 {

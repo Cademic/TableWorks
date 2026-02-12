@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Drawings;
+namespace ASideNote.Application.DTOs.Drawings;
 
 public sealed class DrawingDto
 {

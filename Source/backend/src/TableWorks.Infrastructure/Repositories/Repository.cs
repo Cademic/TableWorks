@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using TableWorks.Core.Interfaces;
-using TableWorks.Infrastructure.Data;
+using ASideNote.Core.Interfaces;
+using ASideNote.Infrastructure.Data;
 
-namespace TableWorks.Infrastructure.Repositories;
+namespace ASideNote.Infrastructure.Repositories;
 
 public class Repository<T> : IRepository<T>
     where T : class

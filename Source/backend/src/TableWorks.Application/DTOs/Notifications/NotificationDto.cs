@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Notifications;
+namespace ASideNote.Application.DTOs.Notifications;
 
 public sealed class NotificationDto
 {

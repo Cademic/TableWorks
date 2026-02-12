@@ -22,9 +22,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const TOKEN_KEY = "tableworks.access_token";
-const REFRESH_KEY = "tableworks.refresh_token";
-const USER_KEY = "tableworks.user";
+const TOKEN_KEY = "asidenote.access_token";
+const REFRESH_KEY = "asidenote.refresh_token";
+const USER_KEY = "asidenote.user";
 
 interface AuthProviderProps {
   children: ReactNode;

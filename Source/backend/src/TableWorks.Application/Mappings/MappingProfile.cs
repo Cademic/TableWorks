@@ -1,16 +1,16 @@
 using AutoMapper;
-using TableWorks.Application.DTOs.Admin;
-using TableWorks.Application.DTOs.CalendarEvents;
-using TableWorks.Application.DTOs.Folders;
-using TableWorks.Application.DTOs.IndexCards;
-using TableWorks.Application.DTOs.Notes;
-using TableWorks.Application.DTOs.Notifications;
-using TableWorks.Application.DTOs.Projects;
-using TableWorks.Application.DTOs.Tags;
-using TableWorks.Application.DTOs.Users;
-using TableWorks.Core.Entities;
+using ASideNote.Application.DTOs.Admin;
+using ASideNote.Application.DTOs.CalendarEvents;
+using ASideNote.Application.DTOs.Folders;
+using ASideNote.Application.DTOs.IndexCards;
+using ASideNote.Application.DTOs.Notes;
+using ASideNote.Application.DTOs.Notifications;
+using ASideNote.Application.DTOs.Projects;
+using ASideNote.Application.DTOs.Tags;
+using ASideNote.Application.DTOs.Users;
+using ASideNote.Core.Entities;
 
-namespace TableWorks.Application.Mappings;
+namespace ASideNote.Application.Mappings;
 
 public sealed class MappingProfile : Profile
 {

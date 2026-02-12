@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.Users;
+using ASideNote.Application.DTOs.Users;
 
-namespace TableWorks.Application.Validators.Users;
+namespace ASideNote.Application.Validators.Users;
 
 public sealed class UpdatePreferencesRequestValidator : AbstractValidator<UpdatePreferencesRequest>
 {

@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using TableWorks.Application.DTOs.Drawings;
-using TableWorks.Application.Interfaces;
-using TableWorks.Core.Entities;
-using TableWorks.Core.Interfaces;
+using ASideNote.Application.DTOs.Drawings;
+using ASideNote.Application.Interfaces;
+using ASideNote.Core.Entities;
+using ASideNote.Core.Interfaces;
 
-namespace TableWorks.Application.Services;
+namespace ASideNote.Application.Services;
 
 public sealed class DrawingService : IDrawingService
 {

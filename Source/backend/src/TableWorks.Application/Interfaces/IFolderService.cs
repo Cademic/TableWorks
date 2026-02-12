@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Folders;
+using ASideNote.Application.DTOs.Folders;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IFolderService
 {

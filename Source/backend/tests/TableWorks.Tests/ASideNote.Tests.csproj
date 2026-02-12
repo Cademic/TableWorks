@@ -15,6 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\TableWorks.API\TableWorks.API.csproj" />
+    <ProjectReference Include="..\..\src\TableWorks.API\ASideNote.API.csproj" />
   </ItemGroup>
 </Project>

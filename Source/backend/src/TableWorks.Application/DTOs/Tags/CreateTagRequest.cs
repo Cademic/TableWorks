@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Tags;
+namespace ASideNote.Application.DTOs.Tags;
 
 public sealed class CreateTagRequest
 {

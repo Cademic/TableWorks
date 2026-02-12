@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace TableWorks.Tests;
+namespace ASideNote.Tests;
 
 public sealed class ScaffoldSmokeTests
 {

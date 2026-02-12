@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.IndexCards;
+namespace ASideNote.Application.DTOs.IndexCards;
 
 public sealed class PatchIndexCardRequest
 {

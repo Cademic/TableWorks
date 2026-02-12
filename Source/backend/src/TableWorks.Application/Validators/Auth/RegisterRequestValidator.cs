@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.Auth;
+using ASideNote.Application.DTOs.Auth;
 
-namespace TableWorks.Application.Validators.Auth;
+namespace ASideNote.Application.Validators.Auth;
 
 public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 {

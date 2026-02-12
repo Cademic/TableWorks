@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.DTOs.Boards;
+namespace ASideNote.Application.DTOs.Boards;
 
 public sealed class BoardListQuery : PaginationRequest
 {

@@ -6,9 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TableWorks.Application\TableWorks.Application.csproj" />
-    <ProjectReference Include="..\TableWorks.Infrastructure\TableWorks.Infrastructure.csproj" />
-    <ProjectReference Include="..\TableWorks.Core\TableWorks.Core.csproj" />
+    <ProjectReference Include="..\TableWorks.Application\ASideNote.Application.csproj" />
+    <ProjectReference Include="..\TableWorks.Infrastructure\ASideNote.Infrastructure.csproj" />
+    <ProjectReference Include="..\TableWorks.Core\ASideNote.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

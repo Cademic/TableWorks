@@ -1,7 +1,7 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 
-namespace TableWorks.API.Controllers;
+namespace ASideNote.API.Controllers;
 
 [ApiController]
 [ApiVersion("1.0")]
@@ -14,7 +14,7 @@ public sealed class HealthController : ControllerBase
         return Ok(new
         {
             status = "ok",
-            service = "TableWorks.API",
+            service = "ASideNote.API",
             utcTimestamp = DateTime.UtcNow
         });
     }

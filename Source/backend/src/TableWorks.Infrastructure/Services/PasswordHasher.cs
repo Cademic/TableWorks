@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using Konscious.Security.Cryptography;
-using TableWorks.Application.Interfaces;
+using ASideNote.Application.Interfaces;
 
-namespace TableWorks.Infrastructure.Services;
+namespace ASideNote.Infrastructure.Services;
 
 public sealed class PasswordHasher : IPasswordHasher
 {

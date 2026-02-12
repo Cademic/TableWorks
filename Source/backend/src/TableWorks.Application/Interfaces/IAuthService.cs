@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Auth;
+using ASideNote.Application.DTOs.Auth;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IAuthService
 {

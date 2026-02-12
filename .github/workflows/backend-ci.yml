@@ -14,7 +14,7 @@ on:
 
 env:
   DOTNET_VERSION: "8.0.x"
-  SOLUTION_PATH: Source/Backend/TableWorks.sln
+  SOLUTION_PATH: Source/Backend/ASideNote.sln
 
 jobs:
   build-and-test:
@@ -24,13 +24,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: tableworks_test
+          POSTGRES_DB: asidenote_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d tableworks_test"
+          --health-cmd "pg_isready -U postgres -d asidenote_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -56,24 +56,24 @@ jobs:
       - name: Validate migrations
         run: |
           dotnet ef migrations list \
-            --project Source/Backend/src/TableWorks.Infrastructure/TableWorks.Infrastructure.csproj \
-            --startup-project Source/Backend/src/TableWorks.API/TableWorks.API.csproj \
+            --project Source/Backend/src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
+            --startup-project Source/Backend/src/ASideNote.API/ASideNote.API.csproj \
             --no-build \
             --configuration Release
         env:
-          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=asidenote_test;Username=postgres;Password=postgres"
 
       - name: Apply migrations
         run: |
           dotnet ef database update \
-            --project Source/Backend/src/TableWorks.Infrastructure/TableWorks.Infrastructure.csproj \
-            --startup-project Source/Backend/src/TableWorks.API/TableWorks.API.csproj \
+            --project Source/Backend/src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
+            --startup-project Source/Backend/src/ASideNote.API/ASideNote.API.csproj \
             --no-build \
             --configuration Release
         env:
-          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=asidenote_test;Username=postgres;Password=postgres"
 
       - name: Run tests
         run: dotnet test ${{ env.SOLUTION_PATH }} --no-build --configuration Release --verbosity normal
         env:
-          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=tableworks_test;Username=postgres;Password=postgres"
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=asidenote_test;Username=postgres;Password=postgres"

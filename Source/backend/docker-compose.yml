@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: tableworks-postgres
+    container_name: asidenote-postgres
     restart: unless-stopped
     ports:
       - "${DB_PORT:-5432}:5432"
     environment:
-      POSTGRES_DB: ${DB_NAME:-tableworks}
+      POSTGRES_DB: ${DB_NAME:-asidenote}
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
-      - tableworks_pgdata:/var/lib/postgresql/data
+      - asidenote_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-tableworks}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-asidenote}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,18 +20,18 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: tableworks-pgadmin
+    container_name: asidenote-pgadmin
     restart: unless-stopped
     profiles:
       - tools
     ports:
       - "5050:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tableworks.local
+      PGADMIN_DEFAULT_EMAIL: admin@asidenote.local
       PGADMIN_DEFAULT_PASSWORD: admin
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
-  tableworks_pgdata:
+  asidenote_pgdata:

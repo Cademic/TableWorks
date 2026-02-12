@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.CalendarEvents;
+namespace ASideNote.Application.DTOs.CalendarEvents;
 
 public sealed class CalendarEventDto
 {

@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TableWorks.Core\TableWorks.Core.csproj" />
-    <ProjectReference Include="..\TableWorks.Application\TableWorks.Application.csproj" />
+    <ProjectReference Include="..\TableWorks.Core\ASideNote.Core.csproj" />
+    <ProjectReference Include="..\TableWorks.Application\ASideNote.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

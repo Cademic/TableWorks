@@ -1,4 +1,4 @@
-# TableWorks – Dashboard Implementation Summary
+# ASideNote – Dashboard Implementation Summary
 
 This document provides a comprehensive overview of all features implemented across the frontend and backend during the current development session.
 
@@ -345,10 +345,10 @@ All migrations have been generated and applied to the PostgreSQL database.
 
 | File | Changes |
 |------|---------|
-| `TableWorks.Core/Entities/Note.cs` | Added Position, Size, Color, Rotation fields |
-| `TableWorks.Application/DTOs/Notes/*.cs` | Added new fields to all 5 DTOs |
-| `TableWorks.Application/Services/NoteService.cs` | Updated create, update, patch, and mapper methods |
-| `TableWorks.Application/Validators/Notes/*.cs` | Updated length limits, added color validation |
+| `ASideNote.Core/Entities/Note.cs` | Added Position, Size, Color, Rotation fields |
+| `ASideNote.Application/DTOs/Notes/*.cs` | Added new fields to all 5 DTOs |
+| `ASideNote.Application/Services/NoteService.cs` | Updated create, update, patch, and mapper methods |
+| `ASideNote.Application/Validators/Notes/*.cs` | Updated length limits, added color validation |
 
 ### Backend – New Files
 

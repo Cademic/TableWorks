@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 
-namespace TableWorks.API.Middleware;
+namespace ASideNote.API.Middleware;
 
 public sealed class ExceptionHandlingMiddleware
 {

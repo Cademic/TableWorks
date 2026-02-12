@@ -1,4 +1,4 @@
-# TableWorks -- Index Card Implementation Summary
+# ASideNote -- Index Card Implementation Summary
 
 This document provides a comprehensive overview of the Index Card feature and all related enhancements implemented during this session. Index Cards are a new board element that lives alongside Sticky Notes on the CorkBoard, offering a larger format with ruled lines, table creation, checklists, and additional rich text capabilities.
 

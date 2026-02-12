@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
-using TableWorks.Application.DTOs.Common;
-using TableWorks.Application.DTOs.Notes;
-using TableWorks.Application.DTOs.Tags;
-using TableWorks.Application.Interfaces;
-using TableWorks.Core.Entities;
-using TableWorks.Core.Interfaces;
+using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Notes;
+using ASideNote.Application.DTOs.Tags;
+using ASideNote.Application.Interfaces;
+using ASideNote.Core.Entities;
+using ASideNote.Core.Interfaces;
 
-namespace TableWorks.Application.Services;
+namespace ASideNote.Application.Services;
 
 public sealed class NoteService : INoteService
 {

@@ -57,28 +57,28 @@ Built the entire backend stack for Index Cards following the existing Note patte
 
 ### Files Created
 
-- `Source/backend/src/TableWorks.Core/Entities/IndexCard.cs`
-- `Source/backend/src/TableWorks.Core/Entities/IndexCardTag.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/IndexCards/IndexCardSummaryDto.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/IndexCards/IndexCardDetailDto.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/IndexCards/CreateIndexCardRequest.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/IndexCards/PatchIndexCardRequest.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/IndexCards/IndexCardListQuery.cs`
-- `Source/backend/src/TableWorks.Application/Interfaces/IIndexCardService.cs`
-- `Source/backend/src/TableWorks.Application/Services/IndexCardService.cs`
-- `Source/backend/src/TableWorks.Application/Validators/IndexCards/CreateIndexCardRequestValidator.cs`
-- `Source/backend/src/TableWorks.Application/Validators/IndexCards/PatchIndexCardRequestValidator.cs`
-- `Source/backend/src/TableWorks.API/Controllers/IndexCardsController.cs`
+- `Source/backend/src/ASideNote.Core/Entities/IndexCard.cs`
+- `Source/backend/src/ASideNote.Core/Entities/IndexCardTag.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/IndexCards/IndexCardSummaryDto.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/IndexCards/IndexCardDetailDto.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/IndexCards/CreateIndexCardRequest.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/IndexCards/PatchIndexCardRequest.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/IndexCards/IndexCardListQuery.cs`
+- `Source/backend/src/ASideNote.Application/Interfaces/IIndexCardService.cs`
+- `Source/backend/src/ASideNote.Application/Services/IndexCardService.cs`
+- `Source/backend/src/ASideNote.Application/Validators/IndexCards/CreateIndexCardRequestValidator.cs`
+- `Source/backend/src/ASideNote.Application/Validators/IndexCards/PatchIndexCardRequestValidator.cs`
+- `Source/backend/src/ASideNote.API/Controllers/IndexCardsController.cs`
 
 ### Files Modified
 
-- `Source/backend/src/TableWorks.Core/Entities/User.cs` — added `IndexCards` collection
-- `Source/backend/src/TableWorks.Core/Entities/Folder.cs` — added `IndexCards` collection
-- `Source/backend/src/TableWorks.Core/Entities/Project.cs` — added `IndexCards` collection
-- `Source/backend/src/TableWorks.Core/Entities/Tag.cs` — added `IndexCardTags` collection
-- `Source/backend/src/TableWorks.Infrastructure/Data/AppDbContext.cs` — added DbSets and entity configuration
-- `Source/backend/src/TableWorks.Application/Mappings/MappingProfile.cs` — added IndexCard mappings
-- `Source/backend/src/TableWorks.API/Program.cs` — registered `IIndexCardService`
+- `Source/backend/src/ASideNote.Core/Entities/User.cs` — added `IndexCards` collection
+- `Source/backend/src/ASideNote.Core/Entities/Folder.cs` — added `IndexCards` collection
+- `Source/backend/src/ASideNote.Core/Entities/Project.cs` — added `IndexCards` collection
+- `Source/backend/src/ASideNote.Core/Entities/Tag.cs` — added `IndexCardTags` collection
+- `Source/backend/src/ASideNote.Infrastructure/Data/AppDbContext.cs` — added DbSets and entity configuration
+- `Source/backend/src/ASideNote.Application/Mappings/MappingProfile.cs` — added IndexCard mappings
+- `Source/backend/src/ASideNote.API/Program.cs` — registered `IIndexCardService`
 
 ---
 
@@ -179,19 +179,19 @@ Built the complete backend stack and wired the frontend to persist connections.
 
 ### Files Created
 
-- `Source/backend/src/TableWorks.Core/Entities/BoardConnection.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/BoardConnections/BoardConnectionDto.cs`
-- `Source/backend/src/TableWorks.Application/DTOs/BoardConnections/CreateBoardConnectionRequest.cs`
-- `Source/backend/src/TableWorks.Application/Interfaces/IBoardConnectionService.cs`
-- `Source/backend/src/TableWorks.Application/Services/BoardConnectionService.cs`
-- `Source/backend/src/TableWorks.API/Controllers/BoardConnectionsController.cs`
+- `Source/backend/src/ASideNote.Core/Entities/BoardConnection.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/BoardConnections/BoardConnectionDto.cs`
+- `Source/backend/src/ASideNote.Application/DTOs/BoardConnections/CreateBoardConnectionRequest.cs`
+- `Source/backend/src/ASideNote.Application/Interfaces/IBoardConnectionService.cs`
+- `Source/backend/src/ASideNote.Application/Services/BoardConnectionService.cs`
+- `Source/backend/src/ASideNote.API/Controllers/BoardConnectionsController.cs`
 - `Source/frontend/src/api/connections.ts`
 
 ### Files Modified
 
-- `Source/backend/src/TableWorks.Core/Entities/User.cs` — added `BoardConnections` collection
-- `Source/backend/src/TableWorks.Infrastructure/Data/AppDbContext.cs` — added DbSet and entity configuration
-- `Source/backend/src/TableWorks.API/Program.cs` — registered `IBoardConnectionService`
+- `Source/backend/src/ASideNote.Core/Entities/User.cs` — added `BoardConnections` collection
+- `Source/backend/src/ASideNote.Infrastructure/Data/AppDbContext.cs` — added DbSet and entity configuration
+- `Source/backend/src/ASideNote.API/Program.cs` — registered `IBoardConnectionService`
 - `Source/frontend/src/types/index.ts` — added new interfaces
 - `Source/frontend/src/pages/DashboardPage.tsx` — wired API calls for connections
 - `Source/frontend/src/components/dashboard/RedStringLayer.tsx` — updated types and field names

@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using TableWorks.Core.Entities;
+using ASideNote.Core.Entities;
 
-namespace TableWorks.Infrastructure.Data;
+namespace ASideNote.Infrastructure.Data;
 
 public static class AppDbContextSeeder
 {
@@ -28,7 +28,7 @@ public static class AppDbContextSeeder
         {
             Id = AdminUserId,
             Username = "admin",
-            Email = "admin@tableworks.local",
+            Email = "admin@asidenote.local",
             PasswordHash = string.Empty,
             Role = "Admin",
             CreatedAt = DateTime.UtcNow,

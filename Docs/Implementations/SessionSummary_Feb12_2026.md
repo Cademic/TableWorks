@@ -286,7 +286,7 @@ The Boards tab inside a project had a "Calendars" filter pill in the board type 
 | File | Description |
 |------|-------------|
 | `Source/frontend/src/components/projects/AddExistingBoardDialog.tsx` | Dialog for selecting and adding existing boards to a project |
-| `Source/Backend/src/TableWorks.Infrastructure/Data/Migrations/*_MakeProjectDatesNullable.cs` | EF Core migration making StartDate/EndDate nullable |
+| `Source/Backend/src/ASideNote.Infrastructure/Data/Migrations/*_MakeProjectDatesNullable.cs` | EF Core migration making StartDate/EndDate nullable |
 
 ## Files Modified
 
@@ -294,14 +294,14 @@ The Boards tab inside a project had a "Calendars" filter pill in the board type 
 
 | File | Changes |
 |------|---------|
-| `TableWorks.Core/Entities/Project.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
-| `TableWorks.Application/DTOs/Projects/CreateProjectRequest.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
-| `TableWorks.Application/DTOs/Projects/UpdateProjectRequest.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
-| `TableWorks.Application/DTOs/Projects/ProjectSummaryDto.cs` | `StartDate`/`EndDate` nullable; added `OwnerUsername` |
-| `TableWorks.Application/DTOs/Projects/ProjectDetailDto.cs` | `StartDate`/`EndDate` nullable; added `OwnerUsername` |
-| `TableWorks.Application/Services/ProjectService.cs` | Nullable date handling; duplicate name check; `.Include(p => p.Owner)`; `OwnerUsername` mapping |
-| `TableWorks.Application/Services/BoardService.cs` | Duplicate name check per user+board type |
-| `TableWorks.API/Middleware/ExceptionHandlingMiddleware.cs` | Added 409/404/403 exception mapping |
+| `ASideNote.Core/Entities/Project.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
+| `ASideNote.Application/DTOs/Projects/CreateProjectRequest.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
+| `ASideNote.Application/DTOs/Projects/UpdateProjectRequest.cs` | `StartDate` and `EndDate` changed to `DateTime?` |
+| `ASideNote.Application/DTOs/Projects/ProjectSummaryDto.cs` | `StartDate`/`EndDate` nullable; added `OwnerUsername` |
+| `ASideNote.Application/DTOs/Projects/ProjectDetailDto.cs` | `StartDate`/`EndDate` nullable; added `OwnerUsername` |
+| `ASideNote.Application/Services/ProjectService.cs` | Nullable date handling; duplicate name check; `.Include(p => p.Owner)`; `OwnerUsername` mapping |
+| `ASideNote.Application/Services/BoardService.cs` | Duplicate name check per user+board type |
+| `ASideNote.API/Middleware/ExceptionHandlingMiddleware.cs` | Added 409/404/403 exception mapping |
 
 ### Frontend
 

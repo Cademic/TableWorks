@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Tags;
+using ASideNote.Application.DTOs.Tags;
 
-namespace TableWorks.Application.DTOs.Notes;
+namespace ASideNote.Application.DTOs.Notes;
 
 public class NoteSummaryDto
 {

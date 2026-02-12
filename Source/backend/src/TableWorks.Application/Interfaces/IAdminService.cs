@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Admin;
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Admin;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IAdminService
 {

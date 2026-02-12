@@ -1,8 +1,8 @@
-using TableWorks.Application.Interfaces;
-using TableWorks.Core.Entities;
-using TableWorks.Core.Interfaces;
+using ASideNote.Application.Interfaces;
+using ASideNote.Core.Entities;
+using ASideNote.Core.Interfaces;
 
-namespace TableWorks.Application.Services;
+namespace ASideNote.Application.Services;
 
 public sealed class AuditLogService : IAuditLogService
 {

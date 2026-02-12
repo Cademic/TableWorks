@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using TableWorks.Core.Entities;
+using ASideNote.Core.Entities;
 
-namespace TableWorks.Infrastructure.Data;
+namespace ASideNote.Infrastructure.Data;
 
 public sealed class AppDbContext : DbContext
 {

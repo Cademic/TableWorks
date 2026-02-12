@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Admin;
+namespace ASideNote.Application.DTOs.Admin;
 
 public sealed class UpdateUserStatusRequest
 {

@@ -1,4 +1,4 @@
-# Tableworks Project Requirements
+# ASideNote Project Requirements
 
 ## Contents
 
@@ -45,10 +45,10 @@
 
 ## Project Overview
 
-TableWorks is a modern web application designed to serve as a comprehensive productivity platform that combines note-taking, project management, and collaboration capabilities. The application addresses the need for a unified workspace where users can quickly capture ideas, organize information efficiently, and collaborate with team members on time-sensitive projects.
+ASideNote is a modern web application designed to serve as a comprehensive productivity platform that combines note-taking, project management, and collaboration capabilities. The application addresses the need for a unified workspace where users can quickly capture ideas, organize information efficiently, and collaborate with team members on time-sensitive projects.
 
 ### Project Purpose
-The primary purpose of TableWorks is to provide users with a fast, intuitive, and organized way to manage their personal and professional productivity needs. The application eliminates the need for multiple tools by integrating note-taking, project planning, and collaboration features into a single platform.
+The primary purpose of ASideNote is to provide users with a fast, intuitive, and organized way to manage their personal and professional productivity needs. The application eliminates the need for multiple tools by integrating note-taking, project planning, and collaboration features into a single platform.
 
 ### Key Features
 - **Quick Note Creation**: Rapid note-taking with keyboard shortcuts and auto-save functionality
@@ -79,7 +79,7 @@ The primary purpose of TableWorks is to provide users with a fast, intuitive, an
 ## Design Planning Summary
 
 ### Architecture Overview
-TableWorks follows a three-tier architecture pattern:
+ASideNote follows a three-tier architecture pattern:
 1. **Presentation Layer**: React-based frontend providing the user interface
 2. **Application Layer**: ASP.NET backend API handling business logic and data processing
 3. **Data Layer**: Database (PostgreSQL/MongoDB) for persistent data storage

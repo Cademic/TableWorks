@@ -4,10 +4,10 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using TableWorks.Application.Interfaces;
-using TableWorks.Core.Entities;
+using ASideNote.Application.Interfaces;
+using ASideNote.Core.Entities;
 
-namespace TableWorks.Application.Services;
+namespace ASideNote.Application.Services;
 
 public sealed class TokenService : ITokenService
 {

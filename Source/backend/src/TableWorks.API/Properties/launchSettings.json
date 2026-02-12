@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "TableWorks.API": {
+    "ASideNote.API": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,

@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.Boards;
+using ASideNote.Application.DTOs.Boards;
 
-namespace TableWorks.Application.Validators.Boards;
+namespace ASideNote.Application.Validators.Boards;
 
 public sealed class CreateBoardRequestValidator : AbstractValidator<CreateBoardRequest>
 {

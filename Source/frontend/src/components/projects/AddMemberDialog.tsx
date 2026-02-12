@@ -101,7 +101,7 @@ export function AddMemberDialog({
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <p className="mt-1 text-[10px] text-foreground/40">
-              The user must already have a TableWorks account.
+              The user must already have a ASideNote account.
             </p>
           </div>
 

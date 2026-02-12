@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.CalendarEvents;
+using ASideNote.Application.DTOs.CalendarEvents;
 
-namespace TableWorks.Application.Validators.CalendarEvents;
+namespace ASideNote.Application.Validators.CalendarEvents;
 
 public sealed class UpdateCalendarEventRequestValidator : AbstractValidator<UpdateCalendarEventRequest>
 {

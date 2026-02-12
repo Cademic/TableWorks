@@ -8,13 +8,13 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using Serilog;
-using TableWorks.API.Middleware;
-using TableWorks.Application.Interfaces;
-using TableWorks.Application.Services;
-using TableWorks.Core.Interfaces;
-using TableWorks.Infrastructure.Data;
-using TableWorks.Infrastructure.Repositories;
-using TableWorks.Infrastructure.Services;
+using ASideNote.API.Middleware;
+using ASideNote.Application.Interfaces;
+using ASideNote.Application.Services;
+using ASideNote.Core.Interfaces;
+using ASideNote.Infrastructure.Data;
+using ASideNote.Infrastructure.Repositories;
+using ASideNote.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +56,7 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "TableWorks API",
+        Title = "ASideNote API",
         Version = "v1"
     });
 
@@ -140,7 +140,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
-builder.Services.AddValidatorsFromAssemblyContaining<TableWorks.Application.Validators.Auth.RegisterRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<ASideNote.Application.Validators.Auth.RegisterRequestValidator>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres");
 
@@ -232,7 +232,7 @@ app.Run();
 static string ResolveConnectionString(IConfiguration configuration)
 {
     var connectionString = configuration.GetConnectionString("DefaultConnection")
-        ?? "Host=localhost;Port=5432;Database=tableworks;Username=postgres;Password=postgres";
+        ?? "Host=localhost;Port=5432;Database=asidenote;Username=postgres;Password=postgres";
 
     var connectionBuilder = new NpgsqlConnectionStringBuilder(connectionString);
 

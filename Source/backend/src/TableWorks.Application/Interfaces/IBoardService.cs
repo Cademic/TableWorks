@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Boards;
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Boards;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface IBoardService
 {

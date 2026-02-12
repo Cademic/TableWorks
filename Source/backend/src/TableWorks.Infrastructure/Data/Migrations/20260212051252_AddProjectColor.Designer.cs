@@ -5,11 +5,11 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using TableWorks.Infrastructure.Data;
+using ASideNote.Infrastructure.Data;
 
 #nullable disable
 
-namespace TableWorks.Infrastructure.Data.Migrations
+namespace ASideNote.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
     [Migration("20260212051252_AddProjectColor")]
@@ -26,7 +26,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "uuid-ossp");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("TableWorks.Core.Entities.AuditLog", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -67,7 +67,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("AuditLogs");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Board", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -110,7 +110,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Boards");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.BoardConnection", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.BoardConnection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -143,7 +143,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("BoardConnections");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.CalendarEvent", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.CalendarEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -205,7 +205,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("CalendarEvents");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Drawing", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Drawing", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -238,7 +238,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Drawings");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Folder", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Folder", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -270,7 +270,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Folders");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.IndexCard", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.IndexCard", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -343,7 +343,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("IndexCards");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.IndexCardTag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.IndexCardTag", b =>
                 {
                     b.Property<Guid>("IndexCardId")
                         .HasColumnType("uuid");
@@ -358,7 +358,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("IndexCardTags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Note", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Note", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -431,7 +431,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Notes");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.NoteTag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.NoteTag", b =>
                 {
                     b.Property<Guid>("NoteId")
                         .HasColumnType("uuid");
@@ -449,7 +449,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("NoteTags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Notification", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Notification", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -494,7 +494,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Project", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -550,7 +550,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Projects");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.ProjectMember", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.ProjectMember", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -583,7 +583,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("ProjectMembers");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.RefreshToken", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -619,7 +619,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Tag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Tag", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -644,7 +644,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Tags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.User", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -687,7 +687,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.UserPreferences", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.UserPreferences", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -722,9 +722,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.ToTable("UserPreferences");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.AuditLog", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.AuditLog", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("AuditLogs")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -732,14 +732,14 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Board", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Project", "Project")
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
                         .WithMany("Boards")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("Boards")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -750,14 +750,14 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.BoardConnection", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.BoardConnection", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                    b.HasOne("ASideNote.Core.Entities.Board", "Board")
                         .WithMany("BoardConnections")
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("BoardConnections")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -768,14 +768,14 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.CalendarEvent", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.CalendarEvent", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Project", "Project")
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("CalendarEvents")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -786,15 +786,15 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Drawing", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Drawing", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                    b.HasOne("ASideNote.Core.Entities.Board", "Board")
                         .WithOne("Drawing")
-                        .HasForeignKey("TableWorks.Core.Entities.Drawing", "BoardId")
+                        .HasForeignKey("ASideNote.Core.Entities.Drawing", "BoardId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("Drawings")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -805,14 +805,14 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Folder", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Folder", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Folder", "ParentFolder")
+                    b.HasOne("ASideNote.Core.Entities.Folder", "ParentFolder")
                         .WithMany("ChildFolders")
                         .HasForeignKey("ParentFolderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("Folders")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -823,24 +823,24 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.IndexCard", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.IndexCard", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                    b.HasOne("ASideNote.Core.Entities.Board", "Board")
                         .WithMany("IndexCards")
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.Folder", "Folder")
+                    b.HasOne("ASideNote.Core.Entities.Folder", "Folder")
                         .WithMany("IndexCards")
                         .HasForeignKey("FolderId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.Project", "Project")
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
                         .WithMany("IndexCards")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("IndexCards")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -855,15 +855,15 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.IndexCardTag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.IndexCardTag", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.IndexCard", "IndexCard")
+                    b.HasOne("ASideNote.Core.Entities.IndexCard", "IndexCard")
                         .WithMany("IndexCardTags")
                         .HasForeignKey("IndexCardId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TableWorks.Core.Entities.Tag", "Tag")
+                    b.HasOne("ASideNote.Core.Entities.Tag", "Tag")
                         .WithMany("IndexCardTags")
                         .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -874,24 +874,24 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Note", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Note", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Board", "Board")
+                    b.HasOne("ASideNote.Core.Entities.Board", "Board")
                         .WithMany("Notes")
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.Folder", "Folder")
+                    b.HasOne("ASideNote.Core.Entities.Folder", "Folder")
                         .WithMany("Notes")
                         .HasForeignKey("FolderId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.Project", "Project")
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
                         .WithMany("Notes")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("Notes")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -906,15 +906,15 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.NoteTag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.NoteTag", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Note", "Note")
+                    b.HasOne("ASideNote.Core.Entities.Note", "Note")
                         .WithMany("NoteTags")
                         .HasForeignKey("NoteId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TableWorks.Core.Entities.Tag", "Tag")
+                    b.HasOne("ASideNote.Core.Entities.Tag", "Tag")
                         .WithMany("NoteTags")
                         .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -925,9 +925,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Notification", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Notification", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("Notifications")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -936,9 +936,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Project", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Project", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.User", "Owner")
+                    b.HasOne("ASideNote.Core.Entities.User", "Owner")
                         .WithMany("OwnedProjects")
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -947,15 +947,15 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Owner");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.ProjectMember", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.ProjectMember", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.Project", "Project")
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
                         .WithMany("Members")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany("ProjectMemberships")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -966,9 +966,9 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.RefreshToken", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.RefreshToken", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -977,18 +977,18 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.UserPreferences", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.UserPreferences", b =>
                 {
-                    b.HasOne("TableWorks.Core.Entities.User", "User")
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
                         .WithOne("Preferences")
-                        .HasForeignKey("TableWorks.Core.Entities.UserPreferences", "UserId")
+                        .HasForeignKey("ASideNote.Core.Entities.UserPreferences", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Board", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Board", b =>
                 {
                     b.Navigation("BoardConnections");
 
@@ -999,7 +999,7 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Notes");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Folder", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Folder", b =>
                 {
                     b.Navigation("ChildFolders");
 
@@ -1008,17 +1008,17 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Notes");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.IndexCard", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.IndexCard", b =>
                 {
                     b.Navigation("IndexCardTags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Note", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Note", b =>
                 {
                     b.Navigation("NoteTags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Project", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Project", b =>
                 {
                     b.Navigation("Boards");
 
@@ -1029,14 +1029,14 @@ namespace TableWorks.Infrastructure.Data.Migrations
                     b.Navigation("Notes");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.Tag", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.Tag", b =>
                 {
                     b.Navigation("IndexCardTags");
 
                     b.Navigation("NoteTags");
                 });
 
-            modelBuilder.Entity("TableWorks.Core.Entities.User", b =>
+            modelBuilder.Entity("ASideNote.Core.Entities.User", b =>
                 {
                     b.Navigation("AuditLogs");
 

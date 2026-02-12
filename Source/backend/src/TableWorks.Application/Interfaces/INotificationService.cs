@@ -1,7 +1,7 @@
-using TableWorks.Application.DTOs.Common;
-using TableWorks.Application.DTOs.Notifications;
+using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Notifications;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface INotificationService
 {

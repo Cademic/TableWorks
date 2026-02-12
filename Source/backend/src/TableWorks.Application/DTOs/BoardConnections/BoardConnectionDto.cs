@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.BoardConnections;
+namespace ASideNote.Application.DTOs.BoardConnections;
 
 public sealed class BoardConnectionDto
 {

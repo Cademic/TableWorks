@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Users;
+namespace ASideNote.Application.DTOs.Users;
 
 public sealed class UpdatePreferencesRequest
 {

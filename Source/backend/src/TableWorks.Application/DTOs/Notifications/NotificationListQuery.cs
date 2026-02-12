@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.DTOs.Notifications;
+namespace ASideNote.Application.DTOs.Notifications;
 
 public sealed class NotificationListQuery : PaginationRequest
 {

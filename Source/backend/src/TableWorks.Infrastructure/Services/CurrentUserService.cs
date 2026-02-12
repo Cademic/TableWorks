@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using TableWorks.Application.Interfaces;
+using ASideNote.Application.Interfaces;
 
-namespace TableWorks.Infrastructure.Services;
+namespace ASideNote.Infrastructure.Services;
 
 public sealed class CurrentUserService : ICurrentUserService
 {

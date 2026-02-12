@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.CalendarEvents;
+using ASideNote.Application.DTOs.CalendarEvents;
 
-namespace TableWorks.Application.Interfaces;
+namespace ASideNote.Application.Interfaces;
 
 public interface ICalendarEventService
 {

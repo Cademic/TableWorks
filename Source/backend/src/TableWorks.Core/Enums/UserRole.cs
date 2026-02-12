@@ -1,4 +1,4 @@
-namespace TableWorks.Core.Enums;
+namespace ASideNote.Core.Enums;
 
 public enum UserRole
 {

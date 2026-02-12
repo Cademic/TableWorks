@@ -1,7 +1,7 @@
 using FluentValidation;
-using TableWorks.Application.DTOs.Drawings;
+using ASideNote.Application.DTOs.Drawings;
 
-namespace TableWorks.Application.Validators.Drawings;
+namespace ASideNote.Application.Validators.Drawings;
 
 public sealed class SaveDrawingRequestValidator : AbstractValidator<SaveDrawingRequest>
 {

@@ -6,7 +6,7 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const token = window.localStorage.getItem("tableworks.access_token");
+  const token = window.localStorage.getItem("asidenote.access_token");
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -57,12 +57,12 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = window.localStorage.getItem("tableworks.refresh_token");
+      const refreshToken = window.localStorage.getItem("asidenote.refresh_token");
 
       if (!refreshToken) {
         isRefreshing = false;
-        window.localStorage.removeItem("tableworks.access_token");
-        window.localStorage.removeItem("tableworks.refresh_token");
+        window.localStorage.removeItem("asidenote.access_token");
+        window.localStorage.removeItem("asidenote.refresh_token");
         window.location.href = "/login";
         return Promise.reject(error);
       }
@@ -72,8 +72,8 @@ apiClient.interceptors.response.use(
         const newToken = data.token as string;
         const newRefreshToken = data.refreshToken as string;
 
-        window.localStorage.setItem("tableworks.access_token", newToken);
-        window.localStorage.setItem("tableworks.refresh_token", newRefreshToken);
+        window.localStorage.setItem("asidenote.access_token", newToken);
+        window.localStorage.setItem("asidenote.refresh_token", newRefreshToken);
 
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         processQueue(null, newToken);
@@ -81,8 +81,8 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        window.localStorage.removeItem("tableworks.access_token");
-        window.localStorage.removeItem("tableworks.refresh_token");
+        window.localStorage.removeItem("asidenote.access_token");
+        window.localStorage.removeItem("asidenote.refresh_token");
         window.location.href = "/login";
         return Promise.reject(refreshError);
       } finally {

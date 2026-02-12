@@ -1,6 +1,6 @@
-using TableWorks.Application.DTOs.Common;
+using ASideNote.Application.DTOs.Common;
 
-namespace TableWorks.Application.DTOs.Admin;
+namespace ASideNote.Application.DTOs.Admin;
 
 public sealed class AdminUserListQuery : PaginationRequest
 {

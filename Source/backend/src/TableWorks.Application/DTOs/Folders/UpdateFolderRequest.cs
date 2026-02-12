@@ -1,4 +1,4 @@
-namespace TableWorks.Application.DTOs.Folders;
+namespace ASideNote.Application.DTOs.Folders;
 
 public sealed class UpdateFolderRequest
 {

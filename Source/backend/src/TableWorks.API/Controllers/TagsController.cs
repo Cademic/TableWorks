@@ -1,10 +1,10 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using TableWorks.Application.DTOs.Tags;
-using TableWorks.Application.Interfaces;
+using ASideNote.Application.DTOs.Tags;
+using ASideNote.Application.Interfaces;
 
-namespace TableWorks.API.Controllers;
+namespace ASideNote.API.Controllers;
 
 [Authorize]
 [ApiVersion("1.0")]

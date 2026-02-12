@@ -2,7 +2,7 @@
 
 ## Overview
 
-TableWorks uses PostgreSQL as its primary data store, accessed via Entity Framework Core
+ASideNote uses PostgreSQL as its primary data store, accessed via Entity Framework Core
 with the Npgsql provider. This document defines the operational policies and procedures
 for database management across environments.
 
@@ -31,8 +31,8 @@ for database management across environments.
 
 | Role | Permissions | Used By |
 |------|------------|---------|
-| `tableworks_app` | SELECT, INSERT, UPDATE, DELETE on application tables | Application runtime |
-| `tableworks_migrator` | ALL on schema + tables (DDL + DML) | Migration tooling / CI |
+| `asidenote_app` | SELECT, INSERT, UPDATE, DELETE on application tables | Application runtime |
+| `asidenote_migrator` | ALL on schema + tables (DDL + DML) | Migration tooling / CI |
 | `postgres` (superuser) | Full access | Local development only |
 
 ### Security Requirements

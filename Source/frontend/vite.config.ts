@@ -5,6 +5,9 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
     port: 5173,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    },
     proxy: {
       "/api": {
         target: "http://localhost:5000",
@@ -25,7 +28,6 @@ export default defineConfig(({ mode }) => ({
             "@tiptap/extension-color",
             "@tiptap/extension-font-family",
             "@tiptap/extension-text-style",
-            "@tiptap/extension-underline",
           ],
           vendor: ["axios", "lucide-react", "react-draggable"],
         },

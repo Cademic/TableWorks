@@ -336,7 +336,7 @@ Full API documentation is available via Swagger at `/swagger` when the backend i
 
 ## Deployment
 
-ASideNote is deployed on **Render** with auto-deploy from the `staging` branch.
+ASideNote is deployed on **Render** with auto-deploy from the `main` branch.
 
 | Service | Type | URL |
 |---------|------|-----|
@@ -347,7 +347,7 @@ ASideNote is deployed on **Render** with auto-deploy from the `staging` branch.
 ### How to Deploy Changes
 
 1. Make changes locally and test.
-2. Commit and push to the `staging` branch.
+2. Commit and push to the `main` branch.
 3. Render auto-deploys both services (frontend: 1-3 min, backend: 2-5 min).
 4. Database migrations run automatically via the pre-deploy command.
 
@@ -368,7 +368,7 @@ For the full deployment process, setup instructions, and troubleshooting guide, 
 
 ### Render Auto-Deploy
 
-Both Render services (frontend static site and API web service) are configured to auto-deploy when the `staging` branch receives a push. The API pre-deploy command applies any pending database migrations before the new code starts serving traffic.
+Both Render services (frontend static site and API web service) are configured to auto-deploy when the `main` branch receives a push. The API pre-deploy command applies any pending database migrations before the new code starts serving traffic.
 
 ---
 

@@ -100,7 +100,7 @@ This ensures client-side routes like `/dashboard`, `/verify-email`, and `/login`
 |---------|-------|
 | Type | Web Service |
 | Repository | `Cademic/ASideNote` |
-| Branch | `staging` |
+| Branch | `main` |
 | Root Directory | `Source/backend` |
 | Runtime | Docker |
 | Dockerfile Path | `./Dockerfile` |
@@ -115,7 +115,7 @@ Environment variables were set in the Render dashboard (see `Docs/Deployment/Env
 |---------|-------|
 | Type | Static Site |
 | Repository | `Cademic/ASideNote` |
-| Branch | `staging` |
+| Branch | `main` |
 | Root Directory | `Source/frontend` |
 | Build Command | `npm ci && npm run build` |
 | Publish Directory | `dist` |
@@ -183,7 +183,7 @@ In the [Google Cloud Console](https://console.cloud.google.com):
 
 ### Initial Deploy
 
-1. Pushed all changes to the `staging` branch on GitHub.
+1. Pushed all changes to the `main` branch on GitHub.
 2. Render auto-deployed both the frontend static site and the API web service.
 3. The Pre-Deploy Command ran EF Core migrations against the Render PostgreSQL database.
 
@@ -201,14 +201,14 @@ In the [Google Cloud Console](https://console.cloud.google.com):
 After the initial deployment, the workflow for making changes is:
 
 ```
-Local development → git push origin staging → Render auto-deploys
+Local development → git push origin main → Render auto-deploys
 ```
 
 ### Frontend Changes
 
 1. Edit code in `Source/frontend/`.
 2. Test locally with `npm run dev`.
-3. Commit and push to `staging`.
+3. Commit and push to `main`.
 4. Render rebuilds the static site (1-3 minutes).
 
 ### Backend Changes
@@ -221,7 +221,7 @@ Local development → git push origin staging → Render auto-deploys
      --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj \
      --startup-project src/TableWorks.API/ASideNote.API.csproj
    ```
-4. Commit and push to `staging`.
+4. Commit and push to `main`.
 5. Render rebuilds the Docker image and runs the pre-deploy migration command (2-5 minutes).
 
 ### Adding New Environment Variables

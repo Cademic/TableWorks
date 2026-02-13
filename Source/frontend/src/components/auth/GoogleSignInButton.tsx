@@ -46,11 +46,6 @@ export function GoogleSignInButton({ onError }: GoogleSignInButtonProps) {
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Only render if GOOGLE_CLIENT_ID is configured
-  if (!GOOGLE_CLIENT_ID) {
-    return null;
-  }
-
   const handleCredentialResponse = useCallback(
     async (response: GoogleCredentialResponse) => {
       setIsLoading(true);
@@ -72,6 +67,8 @@ export function GoogleSignInButton({ onError }: GoogleSignInButtonProps) {
   );
 
   useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+
     // Load Google Identity Services script
     if (document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
       setIsScriptLoaded(true);
@@ -87,10 +84,10 @@ export function GoogleSignInButton({ onError }: GoogleSignInButtonProps) {
   }, []);
 
   useEffect(() => {
-    if (!isScriptLoaded || !window.google || !containerRef.current) return;
+    if (!GOOGLE_CLIENT_ID || !isScriptLoaded || !window.google || !containerRef.current) return;
 
     window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID!,
+      client_id: GOOGLE_CLIENT_ID,
       callback: handleCredentialResponse,
     });
 
@@ -102,6 +99,10 @@ export function GoogleSignInButton({ onError }: GoogleSignInButtonProps) {
       width: 400,
     });
   }, [isScriptLoaded, handleCredentialResponse]);
+
+  if (!GOOGLE_CLIENT_ID) {
+    return null;
+  }
 
   if (isLoading) {
     return (

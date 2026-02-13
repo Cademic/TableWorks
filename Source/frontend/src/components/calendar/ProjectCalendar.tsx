@@ -54,6 +54,7 @@ export function ProjectCalendar({
             deadline,
             status: "Active",
             progress: 0,
+            color: "#6366f1",
             ownerId: "",
             ownerUsername: "",
             userRole: "",

@@ -1,8 +1,11 @@
+using System.Threading.RateLimiting;
 using System.Text;
 using Asp.Versioning;
+using DotNetEnv;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -15,6 +18,28 @@ using ASideNote.Core.Interfaces;
 using ASideNote.Infrastructure.Data;
 using ASideNote.Infrastructure.Repositories;
 using ASideNote.Infrastructure.Services;
+
+// ---------------------------------------------------------------------------
+// Load .env file (development convenience – no-op if file doesn't exist)
+// Search upward from the working directory to find the nearest .env file.
+// ---------------------------------------------------------------------------
+LoadEnvFile();
+
+static void LoadEnvFile()
+{
+    var dir = Directory.GetCurrentDirectory();
+    while (dir is not null)
+    {
+        var envPath = Path.Combine(dir, ".env");
+        if (File.Exists(envPath))
+        {
+            Env.Load(envPath);
+            return;
+        }
+        dir = Directory.GetParent(dir)?.FullName;
+    }
+    // No .env found – that's fine in production (env vars set by host).
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -96,13 +121,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 // ---------------------------------------------------------------------------
-// CORS
+// CORS – environment-aware origin allowlist
 // ---------------------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("FrontendDevPolicy", policy =>
+    var corsOrigins = Environment.GetEnvironmentVariable("CORS_ORIGINS");
+    var origins = !string.IsNullOrWhiteSpace(corsOrigins)
+        ? corsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        : new[] { "http://localhost:5173" };
+
+    options.AddPolicy("AllowedOrigins", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(origins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -112,7 +142,11 @@ builder.Services.AddCors(options =>
 // JWT Authentication
 // ---------------------------------------------------------------------------
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtSecret = jwtSection["Secret"] ?? "CHANGE_ME_IN_DEVELOPMENT_AND_PRODUCTION";
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? jwtSection["Secret"]
+    ?? (builder.Environment.IsDevelopment()
+        ? "DEV_ONLY_FALLBACK_SECRET_CHANGE_IN_PRODUCTION_MIN_32_CHARS"
+        : throw new InvalidOperationException("JWT_SECRET environment variable is required in non-development environments."));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -129,9 +163,58 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
+// ---------------------------------------------------------------------------
+// Google OAuth (optional – enabled when GOOGLE_CLIENT_ID is set)
+// ---------------------------------------------------------------------------
+var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
+
+if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle("Google", googleOptions =>
+        {
+            googleOptions.ClientId = googleClientId;
+            googleOptions.ClientSecret = googleClientSecret;
+            googleOptions.CallbackPath = "/api/v1/auth/google-callback";
+        });
+}
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
+
+// ---------------------------------------------------------------------------
+// Rate Limiting
+// ---------------------------------------------------------------------------
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Auth endpoints: 10 requests per minute per IP
+    options.AddPolicy("auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    // General API: 100 requests per minute per IP
+    options.AddPolicy("general", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 });
 
 // ---------------------------------------------------------------------------
@@ -160,6 +243,27 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 // ---------------------------------------------------------------------------
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// ---------------------------------------------------------------------------
+// Email Service (Resend)
+// ---------------------------------------------------------------------------
+var resendApiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+if (!string.IsNullOrWhiteSpace(resendApiKey))
+{
+    builder.Services.AddOptions();
+    builder.Services.AddHttpClient<Resend.ResendClient>();
+    builder.Services.Configure<Resend.ResendClientOptions>(options =>
+    {
+        options.ApiToken = resendApiKey;
+    });
+    builder.Services.AddTransient<Resend.IResend, Resend.ResendClient>();
+    builder.Services.AddScoped<IEmailService, ResendEmailService>();
+}
+else
+{
+    // Development fallback: log emails instead of sending
+    builder.Services.AddScoped<IEmailService, ASideNote.Infrastructure.Services.ConsoleEmailService>();
+}
 
 // ---------------------------------------------------------------------------
 // Application Services
@@ -210,17 +314,47 @@ if (ShouldRunSeedOnly(args))
 // ---------------------------------------------------------------------------
 // Middleware pipeline
 // ---------------------------------------------------------------------------
-app.UseSwagger();
-app.UseSwaggerUI();
+
+// Swagger: enabled in Development/Staging, restricted in Production
+if (!app.Environment.IsProduction())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 app.UseSerilogRequestLogging();
 app.UseHttpsRedirection();
+
+// Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+
+    if (!app.Environment.IsDevelopment())
+    {
+        context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+    }
+
+    await next();
+});
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseCors("FrontendDevPolicy");
+app.UseCors("AllowedOrigins");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Health checks
 app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false // liveness: app is up, no dependency checks
+});
+app.MapHealthChecks("/health/ready"); // readiness: includes DB check
+
 app.MapControllers();
 
 app.Run();

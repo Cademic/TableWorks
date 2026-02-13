@@ -11,6 +11,10 @@ public sealed class User
     public DateTime? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
 
+    // Email verification
+    public bool IsEmailVerified { get; set; }
+    public DateTime? EmailVerifiedAt { get; set; }
+
     public UserPreferences? Preferences { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
     public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
@@ -23,4 +27,5 @@ public sealed class User
     public ICollection<Board> Boards { get; set; } = new List<Board>();
     public ICollection<Drawing> Drawings { get; set; } = new List<Drawing>();
     public ICollection<CalendarEvent> CalendarEvents { get; set; } = new List<CalendarEvent>();
+    public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
 }

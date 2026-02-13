@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ASideNote.Application.DTOs.Auth;
 using ASideNote.Application.Interfaces;
 
@@ -9,6 +10,7 @@ namespace ASideNote.API.Controllers;
 [ApiVersion("1.0")]
 [ApiController]
 [Route("api/v{version:apiVersion}/auth")]
+[EnableRateLimiting("auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -54,5 +56,31 @@ public sealed class AuthController : ControllerBase
     {
         await _authService.LogoutAsync(_currentUserService.UserId, cancellationToken);
         return Ok();
+    }
+
+    [HttpPost("verify-email")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.VerifyEmailAsync(request.Token, cancellationToken);
+        return Ok(new { message = "Email verified successfully." });
+    }
+
+    [HttpPost("resend-verification")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken cancellationToken)
+    {
+        await _authService.ResendVerificationAsync(request.Email, cancellationToken);
+        return Ok(new { message = "If an unverified account exists, a new verification email has been sent." });
+    }
+
+    [HttpPost("google")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.GoogleLoginAsync(request.IdToken, cancellationToken);
+        return Ok(result);
     }
 }

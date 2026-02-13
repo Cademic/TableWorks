@@ -7,17 +7,22 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { postLogin, postLogout, postRegister } from "../api/auth";
+import { postLogin, postLogout, postRegister, postGoogleLogin, postResendVerification, postVerifyEmail } from "../api/auth";
 import type { AuthUser } from "../types";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
+  isEmailVerified: boolean;
   isLoading: boolean;
   user: AuthUser | null;
   accessToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
+  googleLogin: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
+  setEmailVerified: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -54,38 +59,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(false);
   }, []);
 
+  function persistAuth(token: string, refreshToken: string, authUser: AuthUser) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(REFRESH_KEY, refreshToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
+    setAccessToken(token);
+    setUser(authUser);
+  }
+
   const login = useCallback(async (email: string, password: string) => {
     const response = await postLogin({ email, password });
-
     const authUser: AuthUser = {
       userId: response.userId,
       username: response.username,
       email: response.email,
+      isEmailVerified: response.isEmailVerified,
     };
-
-    localStorage.setItem(TOKEN_KEY, response.token);
-    localStorage.setItem(REFRESH_KEY, response.refreshToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
-
-    setAccessToken(response.token);
-    setUser(authUser);
+    persistAuth(response.token, response.refreshToken, authUser);
   }, []);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     const response = await postRegister({ username, email, password });
-
     const authUser: AuthUser = {
       userId: response.userId,
       username: response.username,
       email: response.email,
+      isEmailVerified: response.isEmailVerified,
     };
+    persistAuth(response.token, response.refreshToken, authUser);
+  }, []);
 
-    localStorage.setItem(TOKEN_KEY, response.token);
-    localStorage.setItem(REFRESH_KEY, response.refreshToken);
-    localStorage.setItem(USER_KEY, JSON.stringify(authUser));
-
-    setAccessToken(response.token);
-    setUser(authUser);
+  const googleLogin = useCallback(async (idToken: string) => {
+    const response = await postGoogleLogin({ idToken });
+    const authUser: AuthUser = {
+      userId: response.userId,
+      username: response.username,
+      email: response.email,
+      isEmailVerified: response.isEmailVerified,
+    };
+    persistAuth(response.token, response.refreshToken, authUser);
   }, []);
 
   const logout = useCallback(async () => {
@@ -103,17 +115,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
   }, []);
 
+  const verifyEmail = useCallback(async (token: string) => {
+    await postVerifyEmail(token);
+    // Update local user state
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, isEmailVerified: true };
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const resendVerification = useCallback(async () => {
+    if (user?.email) {
+      await postResendVerification(user.email);
+    }
+  }, [user?.email]);
+
+  const setEmailVerified = useCallback(() => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, isEmailVerified: true };
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated: Boolean(accessToken),
+      isEmailVerified: user?.isEmailVerified ?? false,
       isLoading,
       user,
       accessToken,
       login,
       register,
+      googleLogin,
       logout,
+      verifyEmail,
+      resendVerification,
+      setEmailVerified,
     }),
-    [accessToken, isLoading, user, login, register, logout],
+    [accessToken, isLoading, user, login, register, googleLogin, logout, verifyEmail, resendVerification, setEmailVerified],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,6 +4,7 @@ export interface AuthResponse {
   userId: string;
   username: string;
   email: string;
+  isEmailVerified: boolean;
   token: string;
   refreshToken: string;
   expiresIn: number;
@@ -20,10 +21,15 @@ export interface RegisterRequest {
   password: string;
 }
 
+export interface GoogleLoginRequest {
+  idToken: string;
+}
+
 export interface AuthUser {
   userId: string;
   username: string;
   email: string;
+  isEmailVerified: boolean;
 }
 
 // --- Board DTOs ---

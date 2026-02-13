@@ -303,6 +303,16 @@ if (ShouldApplyMigrationsOnStartup(app))
 }
 
 // ---------------------------------------------------------------------------
+// Migrate-only entry point: dotnet ASideNote.API.dll --migrate
+// Used by Render Pre-Deploy Command to apply migrations before starting.
+// ---------------------------------------------------------------------------
+if (ShouldRunMigrateOnly(args))
+{
+    await RunMigrateOnlyAsync(app);
+    return;
+}
+
+// ---------------------------------------------------------------------------
 // Seed-only entry point: dotnet run --seed
 // ---------------------------------------------------------------------------
 if (ShouldRunSeedOnly(args))
@@ -394,6 +404,11 @@ static string ResolveConnectionString(IConfiguration configuration)
     return connectionBuilder.ConnectionString;
 }
 
+static bool ShouldRunMigrateOnly(string[] args)
+{
+    return args.Any(a => a.Equals("--migrate", StringComparison.OrdinalIgnoreCase));
+}
+
 static bool ShouldRunSeedOnly(string[] args)
 {
     return args.Any(a => a.Equals("--seed", StringComparison.OrdinalIgnoreCase));
@@ -444,6 +459,30 @@ static async Task ApplyMigrationsAsync(WebApplication app)
     logger.LogInformation("Applying EF Core migrations on startup (Development mode).");
     await dbContext.Database.MigrateAsync();
     logger.LogInformation("EF Core migrations applied successfully.");
+}
+
+static async Task RunMigrateOnlyAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DatabaseSetup");
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    var pending = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+
+    if (pending.Count == 0)
+    {
+        logger.LogInformation("No pending migrations. Database is up to date.");
+        return;
+    }
+
+    logger.LogInformation(
+        "Applying {Count} pending migration(s): {Migrations}",
+        pending.Count,
+        string.Join(", ", pending));
+
+    await dbContext.Database.MigrateAsync();
+    logger.LogInformation("All migrations applied successfully.");
 }
 
 static async Task SeedDatabaseAsync(WebApplication app)

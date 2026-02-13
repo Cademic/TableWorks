@@ -89,9 +89,9 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
         onChange?.();
       }
 
-      canvas.on("path:created" as "path:created", handlePathCreated);
+      canvas.on("path:created", handlePathCreated);
       return () => {
-        canvas.off("path:created" as "path:created", handlePathCreated);
+        canvas.off("path:created", handlePathCreated);
       };
     }, [onChange]);
 

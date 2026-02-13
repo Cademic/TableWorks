@@ -4,17 +4,17 @@ on:
   push:
     branches: [main]
     paths:
-      - "Source/Backend/**"
+      - "Source/backend/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     branches: [main]
     paths:
-      - "Source/Backend/**"
+      - "Source/backend/**"
       - ".github/workflows/backend-ci.yml"
 
 env:
   DOTNET_VERSION: "8.0.x"
-  SOLUTION_PATH: Source/Backend/ASideNote.sln
+  SOLUTION_PATH: Source/backend/ASideNote.sln
 
 jobs:
   build-and-test:
@@ -56,8 +56,8 @@ jobs:
       - name: Validate migrations
         run: |
           dotnet ef migrations list \
-            --project Source/Backend/src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-            --startup-project Source/Backend/src/ASideNote.API/ASideNote.API.csproj \
+            --project Source/backend/src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj \
+            --startup-project Source/backend/src/TableWorks.API/ASideNote.API.csproj \
             --no-build \
             --configuration Release
         env:
@@ -66,8 +66,8 @@ jobs:
       - name: Apply migrations
         run: |
           dotnet ef database update \
-            --project Source/Backend/src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-            --startup-project Source/Backend/src/ASideNote.API/ASideNote.API.csproj \
+            --project Source/backend/src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj \
+            --startup-project Source/backend/src/TableWorks.API/ASideNote.API.csproj \
             --no-build \
             --configuration Release
         env:

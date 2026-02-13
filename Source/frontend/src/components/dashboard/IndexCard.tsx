@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Draggable, { type DraggableEventHandler } from "react-draggable";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import UnderlineExt from "@tiptap/extension-underline";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
@@ -140,7 +139,6 @@ export function IndexCard({
   // --- TipTap editors ---
   const sharedExtensions = [
     StarterKit.configure({ heading: false }),
-    UnderlineExt,
     TextStyle,
     Color,
     FontFamily,

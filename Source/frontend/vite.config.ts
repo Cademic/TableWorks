@@ -1,10 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   server: {
     port: 5173,
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+    },
     proxy: {
       "/api": {
         target: "http://localhost:5000",
@@ -13,7 +16,7 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: process.env.NODE_ENV !== "production",
+    sourcemap: mode !== "production",
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,11 +28,10 @@ export default defineConfig({
             "@tiptap/extension-color",
             "@tiptap/extension-font-family",
             "@tiptap/extension-text-style",
-            "@tiptap/extension-underline",
           ],
           vendor: ["axios", "lucide-react", "react-draggable"],
         },
       },
     },
   },
-});
+}));

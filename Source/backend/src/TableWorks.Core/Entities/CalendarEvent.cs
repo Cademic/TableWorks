@@ -12,6 +12,12 @@ public sealed class CalendarEvent
     public bool IsAllDay { get; set; } = true;
     public string Color { get; set; } = "sky";
     public string EventType { get; set; } = "Event";
+
+    // Recurrence fields (simple pattern)
+    public string? RecurrenceFrequency { get; set; }   // "Daily" | "Weekly" | "Monthly" | null
+    public int RecurrenceInterval { get; set; } = 1;    // Every N days/weeks/months
+    public DateTime? RecurrenceEndDate { get; set; }    // Optional end date for recurrence
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

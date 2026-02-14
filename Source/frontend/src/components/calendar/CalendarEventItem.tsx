@@ -13,16 +13,18 @@ interface CalendarEventItemProps {
   event: CalendarEventDto;
   onClick?: (event: CalendarEventDto) => void;
   compact?: boolean;
+  projectName?: string | null;
 }
 
-export function CalendarEventItem({ event, onClick, compact }: CalendarEventItemProps) {
+export function CalendarEventItem({ event, onClick, compact, projectName }: CalendarEventItemProps) {
   const colors = COLOR_MAP[event.color] ?? COLOR_MAP.sky;
+  const displayTitle = projectName ? `${projectName}: ${event.title}` : event.title;
 
   if (compact) {
     return (
       <div
         className={`h-1.5 w-1.5 rounded-full ${colors.dot}`}
-        title={event.title}
+        title={displayTitle}
       />
     );
   }
@@ -32,9 +34,12 @@ export function CalendarEventItem({ event, onClick, compact }: CalendarEventItem
       type="button"
       onClick={() => onClick?.(event)}
       className={`w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight transition-opacity hover:opacity-80 ${colors.bg} ${colors.text}`}
-      title={event.title}
+      title={displayTitle}
     >
       {event.eventType === "Note" && "📝 "}
+      {projectName && (
+        <span className="opacity-60">{projectName}: </span>
+      )}
       {event.title}
     </button>
   );

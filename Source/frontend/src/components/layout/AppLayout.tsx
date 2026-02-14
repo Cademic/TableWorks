@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { getPinnedBoards } from "../../api/boards";
+import { getPinnedProjects } from "../../api/projects";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
+import type { BoardSummaryDto, ProjectSummaryDto } from "../../types";
 
 /** Tailwind `lg` breakpoint — sidebar auto-collapses below this width */
 const SIDEBAR_BREAKPOINT = 1024;
@@ -17,12 +20,16 @@ export interface AppLayoutContext {
   openBoard: (board: OpenedBoard) => void;
   closeBoard: (id: string) => void;
   openedBoards: OpenedBoard[];
+  refreshPinnedBoards: () => void;
+  refreshPinnedProjects: () => void;
 }
 
 export function AppLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= SIDEBAR_BREAKPOINT);
   const [boardName, setBoardName] = useState<string | null>(null);
   const [openedBoards, setOpenedBoards] = useState<OpenedBoard[]>([]);
+  const [pinnedBoards, setPinnedBoards] = useState<BoardSummaryDto[]>([]);
+  const [pinnedProjects, setPinnedProjects] = useState<ProjectSummaryDto[]>([]);
 
   /** Track whether the user has manually toggled the sidebar since the last
    *  automatic resize change. When the breakpoint triggers we reset this flag
@@ -66,11 +73,37 @@ export function AppLayout() {
     setOpenedBoards((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
+  const refreshPinnedBoards = useCallback(async () => {
+    try {
+      const result = await getPinnedBoards();
+      setPinnedBoards(result);
+    } catch {
+      // Fail silently
+    }
+  }, []);
+
+  const refreshPinnedProjects = useCallback(async () => {
+    try {
+      const result = await getPinnedProjects();
+      setPinnedProjects(result);
+    } catch {
+      // Fail silently
+    }
+  }, []);
+
+  // Fetch pinned boards and projects on mount
+  useEffect(() => {
+    refreshPinnedBoards();
+    refreshPinnedProjects();
+  }, [refreshPinnedBoards, refreshPinnedProjects]);
+
   const outletContext: AppLayoutContext = {
     setBoardName,
     openBoard,
     closeBoard,
     openedBoards,
+    refreshPinnedBoards,
+    refreshPinnedProjects,
   };
 
   return (
@@ -80,6 +113,8 @@ export function AppLayout() {
         onToggle={handleToggleSidebar}
         openedBoards={openedBoards}
         onCloseBoard={closeBoard}
+        pinnedBoards={pinnedBoards}
+        pinnedProjects={pinnedProjects}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar boardName={boardName} />

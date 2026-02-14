@@ -31,6 +31,15 @@ public sealed class ProjectsController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Must be declared before [HttpGet("{id:guid}")] so GET api/v1/projects/pinned matches this action.</summary>
+    [HttpGet("pinned", Order = 0)]
+    [ProducesResponseType(typeof(IReadOnlyList<ProjectSummaryDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPinnedProjects(CancellationToken cancellationToken)
+    {
+        var result = await _projectService.GetPinnedProjectsAsync(_currentUserService.UserId, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost]
     [ProducesResponseType(typeof(ProjectDetailDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -40,7 +49,7 @@ public sealed class ProjectsController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
-    [HttpGet("{id:guid}")]
+    [HttpGet("{id:guid}", Order = 1)]
     [ProducesResponseType(typeof(ProjectDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProject(Guid id, CancellationToken cancellationToken)
@@ -119,4 +128,18 @@ public sealed class ProjectsController : ControllerBase
         await _boardService.RemoveBoardFromProjectAsync(_currentUserService.UserId, id, boardId, cancellationToken);
         return Ok();
     }
+
+    [HttpPut("{id:guid}/pin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TogglePin(Guid id, [FromBody] ProjectTogglePinRequest request, CancellationToken cancellationToken)
+    {
+        await _projectService.ToggleProjectPinAsync(_currentUserService.UserId, id, request.IsPinned, cancellationToken);
+        return Ok();
+    }
+}
+
+public sealed class ProjectTogglePinRequest
+{
+    public bool IsPinned { get; set; }
 }

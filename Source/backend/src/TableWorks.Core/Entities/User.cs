@@ -28,4 +28,5 @@ public sealed class User
     public ICollection<Drawing> Drawings { get; set; } = new List<Drawing>();
     public ICollection<CalendarEvent> CalendarEvents { get; set; } = new List<CalendarEvent>();
     public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
+    public ICollection<UserPinnedProject> PinnedProjects { get; set; } = new List<UserPinnedProject>();
 }

@@ -66,6 +66,8 @@ public sealed class BoardService : IBoardService
                 Description = b.Description,
                 BoardType = b.BoardType,
                 ProjectId = b.ProjectId,
+                IsPinned = b.IsPinned,
+                PinnedAt = b.PinnedAt,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt,
                 NoteCount = b.Notes.Count(n => !n.IsArchived),
@@ -95,6 +97,8 @@ public sealed class BoardService : IBoardService
                 Description = b.Description,
                 BoardType = b.BoardType,
                 ProjectId = b.ProjectId,
+                IsPinned = b.IsPinned,
+                PinnedAt = b.PinnedAt,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt,
                 NoteCount = b.Notes.Count(n => !n.IsArchived),
@@ -242,6 +246,43 @@ public sealed class BoardService : IBoardService
 
         _boardRepo.Update(board);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task TogglePinAsync(Guid userId, Guid boardId, bool isPinned, CancellationToken cancellationToken = default)
+    {
+        var board = await _boardRepo.Query()
+            .FirstOrDefaultAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Board not found.");
+
+        board.IsPinned = isPinned;
+        board.PinnedAt = isPinned ? DateTime.UtcNow : null;
+        board.UpdatedAt = DateTime.UtcNow;
+
+        _boardRepo.Update(board);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BoardSummaryDto>> GetPinnedBoardsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _boardRepo.Query()
+            .Where(b => b.UserId == userId && b.IsPinned)
+            .OrderBy(b => b.PinnedAt)
+            .Select(b => new BoardSummaryDto
+            {
+                Id = b.Id,
+                Name = b.Name,
+                Description = b.Description,
+                BoardType = b.BoardType,
+                ProjectId = b.ProjectId,
+                IsPinned = b.IsPinned,
+                PinnedAt = b.PinnedAt,
+                CreatedAt = b.CreatedAt,
+                UpdatedAt = b.UpdatedAt,
+                NoteCount = b.Notes.Count(n => !n.IsArchived),
+                IndexCardCount = b.IndexCards.Count(ic => !ic.IsArchived)
+            })
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>

@@ -5,8 +5,9 @@ import {
   updateCalendarEvent,
   deleteCalendarEvent,
 } from "../../api/calendar-events";
-import { CalendarHeader } from "./CalendarHeader";
+import { CalendarHeader, type CalendarLayout } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
+import { CalendarTimeline } from "./CalendarTimeline";
 import { CreateEventDialog } from "./CreateEventDialog";
 import type { CalendarEventDto, ProjectSummaryDto } from "../../types";
 
@@ -23,6 +24,7 @@ interface ProjectCalendarProps {
   startDate: string | null;
   endDate: string | null;
   deadline: string | null;
+  color: string;
 }
 
 export function ProjectCalendar({
@@ -31,10 +33,12 @@ export function ProjectCalendar({
   startDate,
   endDate,
   deadline,
+  color,
 }: ProjectCalendarProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [layout, setLayout] = useState<CalendarLayout>("grid");
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -54,7 +58,7 @@ export function ProjectCalendar({
             deadline,
             status: "Active",
             progress: 0,
-            color: "#6366f1",
+            color: color || "#6366f1",
             ownerId: "",
             ownerUsername: "",
             userRole: "",
@@ -122,29 +126,59 @@ export function ProjectCalendar({
     isAllDay: boolean;
     color: string;
     eventType: string;
+    startHour: string;
+    endHour: string;
+    recurrenceFrequency: string;
+    recurrenceInterval: number;
+    recurrenceEndDate: string;
   }) {
     try {
-      const toNoonUtc = (s: string) => `${s}T12:00:00.000Z`;
-      if (editingEvent) {
-        await updateCalendarEvent(editingEvent.id, {
+      const toDateUtc = (dateStr: string, hour: string, allDay: boolean) =>
+        allDay ? `${dateStr}T12:00:00.000Z` : `${dateStr}T${hour}:00:00.000Z`;
+
+      const startIso = toDateUtc(data.startDate, data.startHour, data.isAllDay);
+      const endIso = data.endDate
+        ? toDateUtc(data.endDate, data.endHour, data.isAllDay)
+        : undefined;
+
+      const recurrence = data.recurrenceFrequency
+        ? {
+            recurrenceFrequency: data.recurrenceFrequency,
+            recurrenceInterval: data.recurrenceInterval,
+            recurrenceEndDate: data.recurrenceEndDate
+              ? `${data.recurrenceEndDate}T12:00:00.000Z`
+              : undefined,
+          }
+        : {
+            recurrenceFrequency: undefined,
+            recurrenceInterval: 1,
+            recurrenceEndDate: undefined,
+          };
+
+      const eventId = editingEvent?.recurrenceSourceId ?? editingEvent?.id;
+
+      if (editingEvent && eventId) {
+        await updateCalendarEvent(eventId, {
           title: data.title,
           description: data.description || undefined,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       } else {
         await createCalendarEvent({
           title: data.title,
           description: data.description || undefined,
           projectId,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       }
       setDialogOpen(false);
@@ -158,7 +192,8 @@ export function ProjectCalendar({
   async function handleDelete() {
     if (!editingEvent) return;
     try {
-      await deleteCalendarEvent(editingEvent.id);
+      const eventId = editingEvent.recurrenceSourceId ?? editingEvent.id;
+      await deleteCalendarEvent(eventId);
       setDialogOpen(false);
       setEditingEvent(null);
       fetchEvents();
@@ -194,15 +229,27 @@ export function ProjectCalendar({
         onPreviousMonth={handlePreviousMonth}
         onNextMonth={handleNextMonth}
         onToday={handleToday}
+        layout={layout}
+        onLayoutChange={setLayout}
       />
 
-      <CalendarGrid
-        currentDate={currentDate}
-        events={events}
-        projects={projectAsEntry}
-        onClickDay={handleClickDay}
-        onClickEvent={handleClickEvent}
-      />
+      {layout === "grid" ? (
+        <CalendarGrid
+          currentDate={currentDate}
+          events={events}
+          projects={projectAsEntry}
+          onClickDay={handleClickDay}
+          onClickEvent={handleClickEvent}
+        />
+      ) : (
+        <CalendarTimeline
+          currentDate={currentDate}
+          events={events}
+          projects={projectAsEntry}
+          onClickDay={handleClickDay}
+          onClickEvent={handleClickEvent}
+        />
+      )}
 
       <CreateEventDialog
         isOpen={dialogOpen}
@@ -215,6 +262,8 @@ export function ProjectCalendar({
         initialDate={dialogDate}
         editEvent={editingEvent}
         projectId={projectId}
+        projectStartDate={startDate}
+        projectEndDate={endDate}
       />
     </div>
   );

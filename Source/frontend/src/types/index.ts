@@ -40,6 +40,8 @@ export interface BoardSummaryDto {
   description: string | null;
   boardType: string;
   projectId: string | null;
+  isPinned: boolean;
+  pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
   noteCount: number;
@@ -226,6 +228,8 @@ export interface ProjectSummaryDto {
   memberCount: number;
   boardCount: number;
   createdAt: string;
+  isPinned?: boolean;
+  pinnedAt?: string | null;
 }
 
 export interface ProjectMemberDto {
@@ -296,6 +300,10 @@ export interface CalendarEventDto {
   isAllDay: boolean;
   color: string;
   eventType: string;
+  recurrenceFrequency: string | null;
+  recurrenceInterval: number;
+  recurrenceEndDate: string | null;
+  recurrenceSourceId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -309,6 +317,9 @@ export interface CreateCalendarEventRequest {
   isAllDay?: boolean;
   color?: string;
   eventType?: string;
+  recurrenceFrequency?: string;
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
 }
 
 export interface UpdateCalendarEventRequest {
@@ -319,4 +330,7 @@ export interface UpdateCalendarEventRequest {
   isAllDay?: boolean;
   color?: string;
   eventType?: string;
+  recurrenceFrequency?: string;
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
 }

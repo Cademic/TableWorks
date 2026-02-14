@@ -377,6 +377,7 @@ export function ProjectDetailPage() {
             startDate={project.startDate}
             endDate={project.endDate}
             deadline={project.deadline}
+            color={project.color}
           />
         )}
 

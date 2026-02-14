@@ -8,6 +8,8 @@ public sealed class Board
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string BoardType { get; set; } = "NoteBoard";
+    public bool IsPinned { get; set; }
+    public DateTime? PinnedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

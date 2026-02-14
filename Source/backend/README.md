@@ -25,16 +25,16 @@ docker compose ps
 
 ### 2. Apply Migrations
 
+From `Source/backend/`, run (single line; works in PowerShell and bash):
+
 ```bash
-dotnet ef database update \
-  --project src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-  --startup-project src/ASideNote.API/ASideNote.API.csproj
+dotnet ef database update --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj --startup-project src/TableWorks.API/ASideNote.API.csproj
 ```
 
 ### 3. Run the API
 
 ```bash
-dotnet run --project src/ASideNote.API/ASideNote.API.csproj
+dotnet run --project src/TableWorks.API/ASideNote.API.csproj
 ```
 
 The API is available at `https://localhost:5001` (or `http://localhost:5000`).
@@ -43,7 +43,7 @@ Swagger UI: `http://localhost:5000/swagger`
 ### 4. Seed the Database (optional)
 
 ```bash
-dotnet run --project src/ASideNote.API/ASideNote.API.csproj -- --seed
+dotnet run --project src/TableWorks.API/ASideNote.API.csproj -- --seed
 ```
 
 ## Docker Compose Commands
@@ -58,30 +58,27 @@ dotnet run --project src/ASideNote.API/ASideNote.API.csproj -- --seed
 
 ## EF Core Migration Commands
 
-All commands run from the `Source/Backend/` directory.
+All commands run from the `Source/backend/` directory. Use single-line commands in PowerShell (avoid `\` line continuation).
 
-```bash
+```powershell
 # Create a new migration
-dotnet ef migrations add <MigrationName> \
-  --project src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-  --startup-project src/ASideNote.API/ASideNote.API.csproj \
-  --output-dir Data/Migrations
+dotnet ef migrations add <MigrationName> --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj --startup-project src/TableWorks.API/ASideNote.API.csproj --output-dir Data/Migrations
 
 # Apply all pending migrations
-dotnet ef database update \
-  --project src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-  --startup-project src/ASideNote.API/ASideNote.API.csproj
+dotnet ef database update --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj --startup-project src/TableWorks.API/ASideNote.API.csproj
 
 # List applied and pending migrations
-dotnet ef migrations list \
-  --project src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-  --startup-project src/ASideNote.API/ASideNote.API.csproj
+dotnet ef migrations list --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj --startup-project src/TableWorks.API/ASideNote.API.csproj
 
 # Rollback the latest migration
-dotnet ef migrations remove \
-  --project src/ASideNote.Infrastructure/ASideNote.Infrastructure.csproj \
-  --startup-project src/ASideNote.API/ASideNote.API.csproj
+dotnet ef migrations remove --project src/TableWorks.Infrastructure/ASideNote.Infrastructure.csproj --startup-project src/TableWorks.API/ASideNote.API.csproj
 ```
+
+**If the database isn't updating:**
+
+1. Run from **`Source/backend/`** (the folder that contains `src/`). Paths are relative to the current directory.
+2. Check pending migrations: run `dotnet ef migrations list ...` (same project/startup-project). Pending migrations show `(Pending)`.
+3. Ensure the startup project uses the same connection as your app (same `appsettings.json` and `.env`; the API loads `.env` from the current directory when you run the command).
 
 ## Environment Variables
 

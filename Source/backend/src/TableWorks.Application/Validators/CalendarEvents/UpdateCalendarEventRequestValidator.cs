@@ -5,6 +5,8 @@ namespace ASideNote.Application.Validators.CalendarEvents;
 
 public sealed class UpdateCalendarEventRequestValidator : AbstractValidator<UpdateCalendarEventRequest>
 {
+    private static readonly string[] ValidFrequencies = ["Daily", "Weekly", "Monthly"];
+
     public UpdateCalendarEventRequestValidator()
     {
         RuleFor(x => x.Title)
@@ -27,5 +29,31 @@ public sealed class UpdateCalendarEventRequestValidator : AbstractValidator<Upda
             .GreaterThanOrEqualTo(x => x.StartDate)
             .WithMessage("End date must be on or after start date.")
             .When(x => x.EndDate.HasValue);
+
+        // Hourly constraints: when not all-day, start and end must be on whole-hour boundaries
+        RuleFor(x => x.StartDate)
+            .Must(d => d.Minute == 0 && d.Second == 0 && d.Millisecond == 0)
+            .WithMessage("Start time must be on a whole-hour boundary.")
+            .When(x => !x.IsAllDay);
+
+        RuleFor(x => x.EndDate)
+            .Must(d => d!.Value.Minute == 0 && d.Value.Second == 0 && d.Value.Millisecond == 0)
+            .WithMessage("End time must be on a whole-hour boundary.")
+            .When(x => !x.IsAllDay && x.EndDate.HasValue);
+
+        // Recurrence validation
+        RuleFor(x => x.RecurrenceFrequency)
+            .Must(f => ValidFrequencies.Contains(f))
+            .WithMessage("RecurrenceFrequency must be 'Daily', 'Weekly', or 'Monthly'.")
+            .When(x => x.RecurrenceFrequency is not null);
+
+        RuleFor(x => x.RecurrenceInterval)
+            .GreaterThanOrEqualTo(1).WithMessage("RecurrenceInterval must be at least 1.")
+            .LessThanOrEqualTo(365).WithMessage("RecurrenceInterval must not exceed 365.");
+
+        RuleFor(x => x.RecurrenceEndDate)
+            .GreaterThanOrEqualTo(x => x.StartDate)
+            .WithMessage("Recurrence end date must be on or after start date.")
+            .When(x => x.RecurrenceEndDate.HasValue);
     }
 }

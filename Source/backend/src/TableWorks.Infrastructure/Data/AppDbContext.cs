@@ -28,6 +28,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
     public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
+    public DbSet<UserPinnedProject> UserPinnedProjects => Set<UserPinnedProject>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -112,6 +113,23 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.Owner)
                 .WithMany(x => x.OwnedProjects)
                 .HasForeignKey(x => x.OwnerId);
+        });
+
+        // ----- UserPinnedProject -----
+        modelBuilder.Entity<UserPinnedProject>(entity =>
+        {
+            entity.HasKey(x => new { x.UserId, x.ProjectId });
+            entity.HasIndex(x => new { x.UserId, x.ProjectId }).IsUnique();
+            entity.Property(x => x.PinnedAt).IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.PinnedProjects)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Project)
+                .WithMany(x => x.PinnedByUsers)
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----- ProjectMember -----
@@ -317,6 +335,9 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Description).HasMaxLength(2000);
             entity.Property(x => x.Color).HasMaxLength(20).HasDefaultValue("sky");
             entity.Property(x => x.EventType).HasMaxLength(20).HasDefaultValue("Event");
+
+            entity.Property(x => x.RecurrenceFrequency).HasMaxLength(20);
+            entity.Property(x => x.RecurrenceInterval).HasDefaultValue(1);
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.CalendarEvents)

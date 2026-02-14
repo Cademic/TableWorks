@@ -12,16 +12,20 @@ import {
   X,
   ClipboardList,
   PenTool,
+  Pin,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { OpenedBoard } from "./AppLayout";
+import type { BoardSummaryDto, ProjectSummaryDto } from "../../types";
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   openedBoards: OpenedBoard[];
   onCloseBoard: (id: string) => void;
+  pinnedBoards: BoardSummaryDto[];
+  pinnedProjects: ProjectSummaryDto[];
 }
 
 const NAV_ITEMS = [
@@ -59,7 +63,7 @@ function getBoardPath(board: OpenedBoard): string {
   return `/boards/${board.id}`;
 }
 
-export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -67,6 +71,10 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
   const isOnBoardPage = location.pathname.startsWith("/boards/");
   const isOnChalkBoardPage = location.pathname.startsWith("/chalkboards/") && location.pathname !== "/chalkboards";
   const isOnAnyBoardPage = isOnBoardPage || isOnChalkBoardPage;
+
+  // Don't show pinned boards in the "Opened Boards" section
+  const pinnedIds = new Set(pinnedBoards.map((b) => b.id));
+  const filteredOpenedBoards = openedBoards.filter((b) => !pinnedIds.has(b.id));
 
   function isActive(path: string) {
     if (path === "/dashboard") return location.pathname === "/dashboard";
@@ -142,8 +150,105 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
         })}
       </nav>
 
+      {/* Pinned Projects */}
+      {pinnedProjects.length > 0 && (
+        <div className="flex flex-col border-t border-border/40 overflow-hidden">
+          {isOpen && (
+            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
+              <FolderOpen className="h-3 w-3" />
+              Pinned Projects
+            </span>
+          )}
+          {!isOpen && (
+            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
+              <FolderOpen className="mx-auto h-3 w-3" />
+            </span>
+          )}
+          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
+            {pinnedProjects.map((project) => {
+              const projectPath = `/projects/${project.id}`;
+              const active = location.pathname === projectPath;
+              return (
+                <Link
+                  key={project.id}
+                  to={projectPath}
+                  title={project.name}
+                  className={[
+                    "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150",
+                    active
+                      ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                      : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
+                    !isOpen && "justify-center",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <FolderOpen
+                    className={`h-4 w-4 flex-shrink-0 ${
+                      active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
+                    }`}
+                  />
+                  {isOpen && (
+                    <span className="flex-1 truncate text-xs font-medium">{project.name}</span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Pinned Boards */}
+      {pinnedBoards.length > 0 && (
+        <div className="flex flex-col border-t border-border/40 overflow-hidden">
+          {isOpen && (
+            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
+              <Pin className="h-3 w-3" />
+              Pinned Boards
+            </span>
+          )}
+          {!isOpen && (
+            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
+              <Pin className="mx-auto h-3 w-3" />
+            </span>
+          )}
+          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
+            {pinnedBoards.map((board) => {
+              const boardPath = board.boardType === "ChalkBoard" ? `/chalkboards/${board.id}` : `/boards/${board.id}`;
+              const active = location.pathname === boardPath;
+              const BoardIcon = BOARD_TYPE_ICON[board.boardType] ?? ClipboardList;
+              return (
+                <Link
+                  key={board.id}
+                  to={boardPath}
+                  title={board.name}
+                  className={[
+                    "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150",
+                    active
+                      ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                      : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
+                    !isOpen && "justify-center",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <BoardIcon
+                    className={`h-4 w-4 flex-shrink-0 ${
+                      active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
+                    }`}
+                  />
+                  {isOpen && (
+                    <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Opened Boards */}
-      {openedBoards.length > 0 && (
+      {filteredOpenedBoards.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
           {isOpen && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0">
@@ -156,7 +261,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard }: Sideba
             </span>
           )}
           <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-48 scrollbar-thin">
-            {openedBoards.map((board) => {
+            {filteredOpenedBoards.map((board) => {
               const active = isBoardActive(board);
               const Icon = BOARD_TYPE_ICON[board.boardType] ?? ClipboardList;
               return (

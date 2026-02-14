@@ -1,158 +1,167 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
 import {
-  FolderOpen,
+  ClipboardList,
+  PenTool,
   Plus,
   Filter,
   PencilLine,
 } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
-import { getProjects, createProject, deleteProject, updateProject, toggleProjectPin } from "../api/projects";
-import { ProjectCard } from "../components/projects/ProjectCard";
-import { CreateProjectDialog } from "../components/projects/CreateProjectDialog";
+import {
+  getBoards,
+  createBoard,
+  deleteBoard,
+  updateBoard,
+  toggleBoardPin,
+} from "../api/boards";
+import { getProjects, addBoardToProject } from "../api/projects";
+import { BoardCard } from "../components/dashboard/BoardCard";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
-import type { ProjectSummaryDto } from "../types";
+import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
+import type { BoardSummaryDto, ProjectSummaryDto } from "../types";
 
-const STATUS_FILTERS = [
+const BOARD_TYPE_FILTERS = [
   { value: "", label: "All" },
-  { value: "Active", label: "Active" },
-  { value: "Completed", label: "Completed" },
-  { value: "Archived", label: "Archived" },
+  { value: "NoteBoard", label: "Note Boards" },
+  { value: "ChalkBoard", label: "Chalk Boards" },
 ];
 
-export function ProjectsPage() {
-  const { refreshPinnedProjects } = useOutletContext<AppLayoutContext>();
-  const [projects, setProjects] = useState<ProjectSummaryDto[]>([]);
+export function BoardsPage() {
+  const { closeBoard, refreshPinnedBoards } = useOutletContext<AppLayoutContext>();
+  const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
+  const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [boardTypeFilter, setBoardTypeFilter] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ProjectSummaryDto | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = useState<BoardSummaryDto | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
 
-  const fetchProjects = useCallback(async () => {
+  const fetchBoards = useCallback(async () => {
     try {
       setError(null);
-      const params: Record<string, string> = {};
-      if (statusFilter) params.status = statusFilter;
-      const result = await getProjects(params);
-      setProjects(result);
+      const result = await getBoards({ limit: 200 });
+      setBoards(result.items);
     } catch {
-      setError("Failed to load projects.");
+      setError("Failed to load boards.");
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter]);
+  }, []);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const result = await getProjects({ status: "Active" }).catch(
+        () => [] as ProjectSummaryDto[],
+      );
+      setActiveProjects(result);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBoards();
+  }, [fetchBoards]);
 
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  async function handleCreate(
-    name: string,
-    description: string,
-    color: string,
-    startDate?: string,
-    endDate?: string,
-    deadline?: string,
-  ) {
+  const filteredBoards = useMemo(() => {
+    if (!boardTypeFilter) return boards;
+    return boards.filter((b) => b.boardType === boardTypeFilter);
+  }, [boards, boardTypeFilter]);
+
+  async function handleCreate(name: string, description: string, boardType: string) {
     try {
       setCreateError(null);
-      const created = await createProject({
+      const created = await createBoard({
         name,
         description: description || undefined,
-        color,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        deadline: deadline || undefined,
+        boardType,
       });
-      setProjects((prev) => [
-        {
-          id: created.id,
-          name: created.name,
-          description: created.description,
-          startDate: created.startDate,
-          endDate: created.endDate,
-          deadline: created.deadline,
-          status: created.status,
-          progress: created.progress,
-          color: created.color,
-          ownerId: created.ownerId,
-          ownerUsername: created.ownerUsername,
-          userRole: created.userRole,
-          memberCount: created.members.length,
-          boardCount: created.boards.length,
-          createdAt: created.createdAt,
-        },
-        ...prev,
-      ]);
+      setBoards((prev) => [created, ...prev]);
       setIsCreateOpen(false);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setCreateError(err.response.data?.message ?? "A project with that name already exists.");
+        setCreateError(
+          err.response.data?.message ?? "A board with that name already exists.",
+        );
       } else {
-        setCreateError("Failed to create project. Please try again.");
-        console.error("Failed to create project:", err);
+        setCreateError("Failed to create board. Please try again.");
+        console.error("Failed to create board:", err);
       }
     }
   }
 
   function handleDelete(id: string) {
-    const project = projects.find((p) => p.id === id) ?? null;
-    if (project) setDeleteTarget(project);
+    const board = boards.find((b) => b.id === id) ?? null;
+    if (board) setDeleteTarget(board);
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
     setDeleteTarget(null);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+    setBoards((prev) => prev.filter((b) => b.id !== id));
+    closeBoard(id);
     try {
-      await deleteProject(id);
-      refreshPinnedProjects();
+      await deleteBoard(id);
+      refreshPinnedBoards();
     } catch {
-      fetchProjects();
+      fetchBoards();
     }
   }
 
-  function handleRenameProject(id: string, currentName: string) {
+  function handleRename(id: string, currentName: string) {
     setRenameTarget({ id, name: currentName });
     setRenameValue(currentName);
   }
 
-  async function confirmRenameProject() {
+  async function confirmRename() {
     if (!renameTarget || !renameValue.trim()) return;
     const { id } = renameTarget;
     const newName = renameValue.trim();
     setRenameTarget(null);
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
+    setBoards((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, name: newName } : b)),
     );
     try {
-      await updateProject(id, { name: newName });
+      await updateBoard(id, { name: newName });
     } catch {
-      fetchProjects();
+      fetchBoards();
     }
   }
 
-  async function handleToggleProjectPin(id: string, isPinned: boolean) {
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, isPinned, pinnedAt: isPinned ? new Date().toISOString() : undefined }
-          : p,
+  async function handleMoveToProject(boardId: string, projectId: string) {
+    try {
+      await addBoardToProject(projectId, boardId);
+      setBoards((prev) =>
+        prev.map((b) => (b.id === boardId ? { ...b, projectId } : b)),
+      );
+    } catch {
+      console.error("Failed to move board to project");
+    }
+  }
+
+  async function handleTogglePin(id: string, isPinned: boolean) {
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === id
+          ? { ...b, isPinned, pinnedAt: isPinned ? new Date().toISOString() : null }
+          : b,
       ),
     );
     try {
-      await toggleProjectPin(id, isPinned);
-      await refreshPinnedProjects();
+      await toggleBoardPin(id, isPinned);
+      refreshPinnedBoards();
     } catch {
-      fetchProjects();
+      fetchBoards();
     }
   }
 
@@ -161,9 +170,7 @@ export function ProjectsPage() {
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <span className="text-sm text-foreground/60">
-            Loading projects...
-          </span>
+          <span className="text-sm text-foreground/60">Loading boards...</span>
         </div>
       </div>
     );
@@ -176,7 +183,7 @@ export function ProjectsPage() {
           <p className="mb-2 text-sm text-red-500">{error}</p>
           <button
             type="button"
-            onClick={fetchProjects}
+            onClick={fetchBoards}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Retry
@@ -192,13 +199,13 @@ export function ProjectsPage() {
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 dark:bg-violet-900/30">
-              <FolderOpen className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-950/40">
+              <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">Projects</h1>
+              <h1 className="text-xl font-bold text-foreground">Boards</h1>
               <p className="text-sm text-foreground/50">
-                Organize your boards into collaborative projects
+                Note boards and chalk boards in one place
               </p>
             </div>
           </div>
@@ -208,22 +215,22 @@ export function ProjectsPage() {
             className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md dark:bg-amber-600 dark:hover:bg-amber-500"
           >
             <Plus className="h-4 w-4" />
-            <span>New Project</span>
+            <span>New Board</span>
           </button>
         </div>
 
-        {/* Status filter pills */}
+        {/* Type filter pills */}
         <div className="mb-6 flex items-center gap-2">
           <Filter className="h-4 w-4 text-foreground/40" />
-          {STATUS_FILTERS.map((filter) => (
+          {BOARD_TYPE_FILTERS.map((filter) => (
             <button
               key={filter.value}
               type="button"
-              onClick={() => setStatusFilter(filter.value)}
+              onClick={() => setBoardTypeFilter(filter.value)}
               className={[
                 "rounded-full px-3 py-1 text-xs font-medium transition-all",
-                statusFilter === filter.value
-                  ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                boardTypeFilter === filter.value
+                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                   : "text-foreground/50 hover:bg-foreground/5 hover:text-foreground",
               ].join(" ")}
             >
@@ -232,54 +239,58 @@ export function ProjectsPage() {
           ))}
         </div>
 
-        {/* Project grid */}
-        {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-14">
+        {/* Board grid or empty state */}
+        {filteredBoards.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-20">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5">
               <PencilLine className="h-5 w-5 text-foreground/30" />
             </div>
             <p className="mb-4 text-sm text-foreground/40">
-              {statusFilter
-                ? `No ${statusFilter.toLowerCase()} projects found`
-                : "No projects yet"}
+              {boardTypeFilter
+                ? `No ${boardTypeFilter === "NoteBoard" ? "note" : "chalk"} boards yet`
+                : "No boards yet"}
             </p>
-            {!statusFilter && (
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Create your first project
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create your first board
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onRename={handleRenameProject}
-                onTogglePin={handleToggleProjectPin}
+            {filteredBoards.map((board) => (
+              <BoardCard
+                key={board.id}
+                board={board}
                 onDelete={handleDelete}
+                onRename={handleRename}
+                onMoveToProject={handleMoveToProject}
+                onTogglePin={handleTogglePin}
+                activeProjects={activeProjects}
               />
             ))}
           </div>
         )}
       </div>
 
-      <CreateProjectDialog
+      <CreateBoardDialog
         isOpen={isCreateOpen}
         error={createError}
-        onClose={() => { setIsCreateOpen(false); setCreateError(null); }}
-        onCreate={handleCreate}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCreateError(null);
+        }}
+        onCreateBoard={handleCreate}
+        onCreateProject={() => {}}
       />
 
       <ConfirmDialog
         isOpen={deleteTarget !== null}
-        title="Delete Project"
-        message={`Are you sure you want to delete "${deleteTarget?.name ?? "this project"}"? All boards will be unlinked but not deleted.`}
+        title="Delete Board"
+        message={`Are you sure you want to delete "${deleteTarget?.name ?? "this board"}"? All notes and index cards inside will be permanently removed.`}
         confirmLabel="Delete"
         cancelLabel="Keep It"
         variant="danger"
@@ -287,7 +298,7 @@ export function ProjectsPage() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* Rename Project Dialog */}
+      {/* Rename Dialog */}
       {renameTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
@@ -295,13 +306,15 @@ export function ProjectsPage() {
             onClick={() => setRenameTarget(null)}
           />
           <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-semibold text-foreground">Rename Project</h2>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              Rename Board
+            </h2>
             <input
               type="text"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") confirmRenameProject();
+                if (e.key === "Enter") confirmRename();
               }}
               maxLength={100}
               className="mb-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
@@ -317,7 +330,7 @@ export function ProjectsPage() {
               </button>
               <button
                 type="button"
-                onClick={confirmRenameProject}
+                onClick={confirmRename}
                 disabled={!renameValue.trim()}
                 className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import {
   FolderOpen,
@@ -92,6 +92,7 @@ export function ProjectsPage() {
         ...prev,
       ]);
       setIsCreateOpen(false);
+      navigate(`/projects/${created.id}`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateError(err.response.data?.message ?? "A project with that name already exists.");

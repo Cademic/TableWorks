@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import {
   ClipboardList,
@@ -77,6 +77,8 @@ export function BoardsPage() {
     return boards.filter((b) => b.boardType === boardTypeFilter);
   }, [boards, boardTypeFilter]);
 
+  const navigate = useNavigate();
+
   async function handleCreate(name: string, description: string, boardType: string) {
     try {
       setCreateError(null);
@@ -87,6 +89,11 @@ export function BoardsPage() {
       });
       setBoards((prev) => [created, ...prev]);
       setIsCreateOpen(false);
+      const path =
+        created.boardType === "ChalkBoard"
+          ? `/chalkboards/${created.id}`
+          : `/boards/${created.id}`;
+      navigate(path);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateError(

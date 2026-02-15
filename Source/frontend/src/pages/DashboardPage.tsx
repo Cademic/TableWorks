@@ -7,16 +7,17 @@ import {
   Calendar,
   FolderOpen,
   BookOpen,
-  StickyNote,
-  CreditCard,
   Clock,
   PencilLine,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import axios from "axios";
 import { getBoards, createBoard, deleteBoard, updateBoard, toggleBoardPin } from "../api/boards";
 import { getProjects, createProject, addBoardToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
 import { getNotebooks, createNotebook, deleteNotebook, updateNotebook, toggleNotebookPin } from "../api/notebooks";
+import { getFriends } from "../api/users";
+import { getCalendarEvents } from "../api/calendar-events";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { MiniCalendar } from "../components/dashboard/MiniCalendar";
 import { ProjectCard } from "../components/projects/ProjectCard";
@@ -25,7 +26,7 @@ import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDial
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import { useAuth } from "../context/AuthContext";
-import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../types";
+import type { BoardSummaryDto, CalendarEventDto, FriendDto, NotebookSummaryDto, ProjectSummaryDto } from "../types";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -71,6 +72,8 @@ export function DashboardPage() {
   const [notebookRenameTarget, setNotebookRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [notebookRenameValue, setNotebookRenameValue] = useState("");
   const [notebookDeleteTarget, setNotebookDeleteTarget] = useState<NotebookSummaryDto | null>(null);
+  const [friends, setFriends] = useState<FriendDto[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventDto[]>([]);
 
   const fetchBoards = useCallback(async () => {
     try {
@@ -93,6 +96,23 @@ export function DashboardPage() {
   useEffect(() => {
     fetchBoards();
   }, [fetchBoards]);
+
+  useEffect(() => {
+    getFriends().then(setFriends).catch(() => setFriends([]));
+  }, []);
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const future = new Date(today);
+    future.setDate(future.getDate() + 90);
+    getCalendarEvents({
+      from: today.toISOString(),
+      to: future.toISOString(),
+    })
+      .then(setCalendarEvents)
+      .catch(() => setCalendarEvents([]));
+  }, []);
 
   async function handleCreateBoard(name: string, description: string, boardType: string) {
     try {
@@ -358,15 +378,42 @@ export function DashboardPage() {
     [notebooks],
   );
 
-  const totalNotes = useMemo(
-    () => boards.reduce((sum, b) => sum + b.noteCount, 0),
-    [boards],
-  );
+  const nextUpcomingDisplay = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
 
-  const totalCards = useMemo(
-    () => boards.reduce((sum, b) => sum + b.indexCardCount, 0),
-    [boards],
-  );
+    const candidates: { startMs: number; title: string }[] = [];
+
+    for (const ev of calendarEvents) {
+      const start = new Date(ev.startDate).getTime();
+      if (start >= todayMs) {
+        candidates.push({ startMs: start, title: ev.title });
+      }
+    }
+    for (const proj of activeProjects) {
+      if (proj.startDate) {
+        const start = new Date(proj.startDate).getTime();
+        if (start >= todayMs) {
+          candidates.push({ startMs: start, title: proj.name });
+        }
+      }
+    }
+
+    if (candidates.length === 0) return "No upcoming events";
+    candidates.sort((a, b) => a.startMs - b.startMs);
+    const title = candidates[0].title;
+    const maxLen = 18;
+    return title.length > maxLen ? title.slice(0, maxLen).trim() + "…" : title;
+  }, [calendarEvents, activeProjects]);
+
+  const friendsOnline = useMemo(() => {
+    const ONLINE_MINS = 15;
+    const now = Date.now();
+    return friends.filter(
+      (f) => f.lastLoginAt && now - new Date(f.lastLoginAt).getTime() < ONLINE_MINS * 60 * 1000,
+    ).length;
+  }, [friends]);
 
   const mostRecentBoard = useMemo(() => {
     if (boards.length === 0) return null;
@@ -442,17 +489,18 @@ export function DashboardPage() {
           />
           <StatSticky
             color="rose"
-            icon={StickyNote}
-            label="Sticky Notes"
-            value={totalNotes.toString()}
+            icon={Calendar}
+            label="Next Up"
+            value={nextUpcomingDisplay}
             rotation={1.5}
           />
           <StatSticky
             color="sky"
-            icon={CreditCard}
-            label="Index Cards"
-            value={totalCards.toString()}
+            icon={Users}
+            label="Friends Online"
+            value={friendsOnline.toString()}
             rotation={-1}
+            onClick={() => navigate("/profile")}
           />
           <StatSticky
             color="green"
@@ -803,19 +851,38 @@ interface StatStickyProps {
   label: string;
   value: string;
   rotation: number;
+  onClick?: () => void;
 }
 
-function StatSticky({ color, icon: Icon, label, value, rotation }: StatStickyProps) {
-  return (
-    <div
-      className={`stat-sticky flex flex-col items-center justify-center px-4 py-5 ${STICKY_BG[color]}`}
-      style={{ transform: `rotate(${rotation}deg)` }}
-    >
+function StatSticky({ color, icon: Icon, label, value, rotation, onClick }: StatStickyProps) {
+  const baseClassName = `stat-sticky flex flex-col items-center justify-center px-4 py-5 ${STICKY_BG[color]}`;
+  const style = { transform: `rotate(${rotation}deg)` };
+  const content = (
+    <>
       <Icon className={`mb-1.5 h-4 w-4 ${STICKY_ACCENT[color]}`} />
       <span className={`text-2xl font-bold leading-none ${STICKY_ACCENT[color]}`}>
         {value}
       </span>
       <span className="mt-1 text-[11px] font-medium text-foreground/45">{label}</span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${baseClassName} cursor-pointer transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2`}
+        style={style}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={baseClassName} style={style}>
+      {content}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { ArrowLeft, BookOpen, User, Settings, LogOut, ChevronDown } from "lucide-react";
+import { ArrowLeft, BookOpen, User, Settings, LogOut, ChevronDown, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getAvatarUrl } from "../../constants/avatars";
@@ -7,6 +7,10 @@ import { getAvatarUrl } from "../../constants/avatars";
 interface NavbarProps {
   /** Board name to display when viewing a board page */
   boardName?: string | null;
+  /** Called when hamburger is clicked (mobile only) */
+  onToggleSidebar?: () => void;
+  /** Show hamburger menu button (true when viewport is below sidebar breakpoint) */
+  showMenuButton?: boolean;
 }
 
 const PAGE_META: Record<string, { label: string; icon: typeof BookOpen }> = {
@@ -18,7 +22,7 @@ const PAGE_META: Record<string, { label: string; icon: typeof BookOpen }> = {
   "/settings": { label: "Settings", icon: BookOpen },
 };
 
-export function Navbar({ boardName }: NavbarProps) {
+export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -51,9 +55,19 @@ export function Navbar({ boardName }: NavbarProps) {
   const avatarUrl = user?.profilePictureKey ? getAvatarUrl(user.profilePictureKey) : null;
 
   return (
-    <header className="navbar-surface flex h-14 items-center justify-between px-6">
-      {/* Left: Page context / breadcrumb */}
+    <header className="navbar-surface flex h-14 items-center justify-between px-4 sm:px-6">
+      {/* Left: Hamburger (mobile) + Page context / breadcrumb */}
       <div className="flex items-center gap-2 min-w-0">
+        {showMenuButton && onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="flex shrink-0 items-center justify-center rounded-lg p-2 text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
         {isOnBoardPage ? (
           <>
             <button

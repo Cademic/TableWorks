@@ -20,10 +20,6 @@ import type { CalendarEventDto, ProjectSummaryDto } from "../../types";
 /* ─── Constants ────────────────────────────────────────── */
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_LABELS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
 
 const BAR_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   sky:     { bg: "bg-sky-50 dark:bg-sky-950/30",     border: "border-sky-300 dark:border-sky-700",     text: "text-sky-700 dark:text-sky-300" },
@@ -450,19 +446,25 @@ function WeekSection({
               key={i}
               type="button"
               onClick={() => onDayClick(date)}
-              className={`px-1.5 py-2 text-center transition-colors hover:brightness-95 dark:hover:brightness-110 ${
+              className={`flex flex-col items-center justify-center gap-0 px-1.5 py-2 text-center transition-colors hover:brightness-95 dark:hover:brightness-110 ${
                 isToday
                   ? "ring-1 ring-inset ring-primary/40 font-bold"
                   : ""
               }`}
             >
               <span
-                className={`text-[11px] font-semibold ${
+                className={`text-[11px] font-semibold leading-tight ${
                   isToday ? "text-primary" : "text-foreground/60"
                 }`}
               >
-                {DAY_LABELS[date.getDay()]},{" "}
-                {MONTH_LABELS[date.getMonth()]} {date.getDate()}
+                {DAY_LABELS[date.getDay()]}
+              </span>
+              <span
+                className={`text-[11px] font-semibold leading-tight ${
+                  isToday ? "text-primary" : "text-foreground/60"
+                }`}
+              >
+                {date.getDate()}
               </span>
             </button>
           );
@@ -510,7 +512,7 @@ function WeekSection({
                     key={item.id}
                     type="button"
                     onClick={() => onEventClick(item)}
-                    className={`relative flex items-center gap-2 ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
+                    className={`relative flex min-w-0 items-center gap-2 overflow-hidden ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
                       roundLeft ? "border-l-[3px] " + colors.border : ""
                     } ${roundLeft && roundRight ? "rounded" : roundLeft ? "rounded-l" : roundRight ? "rounded-r" : ""}`}
                     style={{
@@ -527,11 +529,11 @@ function WeekSection({
                     ) : (
                       <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
                     )}
-                    <span className={`truncate text-xs font-medium ${colors.text}`}>
+                    <span className={`min-w-0 truncate text-xs font-medium ${colors.text}`}>
                       {item.title}
                     </span>
-                    <span className="ml-auto flex items-center gap-1 flex-shrink-0">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`}>
+                    <span className="ml-auto flex min-w-0 items-center justify-end gap-1 flex-shrink-0">
+                      <span className={`min-w-0 truncate max-w-full rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`} title={badge}>
                         {badge}
                       </span>
                       {item.continuesRight && (

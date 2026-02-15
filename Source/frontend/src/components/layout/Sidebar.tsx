@@ -21,6 +21,8 @@ import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  /** When true, sidebar is shown as overlay drawer (mobile); no collapse chevron, show close button */
+  isDrawer?: boolean;
   openedBoards: OpenedBoard[];
   onCloseBoard: (id: string) => void;
   pinnedBoards: BoardSummaryDto[];
@@ -65,7 +67,7 @@ function getBoardPath(board: OpenedBoard): string {
   return `/boards/${board.id}`;
 }
 
-export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects, pinnedNotebooks, onOpenNotebook }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects, pinnedNotebooks, onOpenNotebook }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -100,26 +102,43 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
     }
   }
 
+  const expanded = isDrawer || isOpen;
+
   return (
     <aside
       className={[
         "sidebar-surface relative flex h-screen flex-col transition-all duration-200",
-        isOpen ? "w-60" : "w-16",
+        expanded ? "w-60" : "w-16",
       ].join(" ")}
     >
-      {/* Brand — logo */}
-      <div className="sidebar-brand flex h-14 items-center justify-center px-4">
+      {/* Brand — logo + close (drawer) */}
+      <div
+        className={[
+          "sidebar-brand flex h-14 items-center px-4",
+          isDrawer ? "justify-between" : "justify-center",
+        ].join(" ")}
+      >
         <Link
           to="/"
           className="flex shrink-0 items-center justify-center"
           title="ASideNote"
         >
           <img
-            src={isOpen ? "/asidenote-logo.png" : "/asidenote-logo-square.png"}
+            src={expanded ? "/asidenote-logo.png" : "/asidenote-logo-square.png"}
             alt="ASideNote"
-            className={["shrink-0 object-contain", isOpen ? "h-14 w-auto" : "h-12 w-12"].join(" ")}
+            className={["shrink-0 object-contain", expanded ? "h-14 w-auto" : "h-12 w-12"].join(" ")}
           />
         </Link>
+        {isDrawer && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-foreground/60 transition-colors hover:bg-foreground/10 hover:text-foreground"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -136,7 +155,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                 active
                   ? "sidebar-nav-active bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                   : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
-                !isOpen && "justify-center",
+                !expanded && "justify-center",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -146,7 +165,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                   active ? "text-amber-600 dark:text-amber-400" : ""
                 }`}
               />
-              {isOpen && <span>{item.label}</span>}
+              {expanded && <span>{item.label}</span>}
             </Link>
           );
         })}
@@ -155,7 +174,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Pinned Projects */}
       {pinnedProjects.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {isOpen && (
+          {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
               <FolderOpen className="h-3 w-3" />
               Pinned Projects
@@ -180,7 +199,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                     active
                       ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                       : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
-                    !isOpen && "justify-center",
+                    !expanded && "justify-center",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -190,7 +209,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                       active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
                     }`}
                   />
-                  {isOpen && (
+                  {expanded && (
                     <span className="flex-1 truncate text-xs font-medium">{project.name}</span>
                   )}
                 </Link>
@@ -203,7 +222,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Pinned Notebooks */}
       {pinnedNotebooks.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {isOpen && (
+          {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
               <BookOpen className="h-3 w-3" />
               Pinned Notebooks
@@ -224,7 +243,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                 className={[
                   "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 text-left w-full",
                   "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
-                  !isOpen && "justify-center",
+                  !expanded && "justify-center",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -232,7 +251,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                 <BookOpen
                   className="h-4 w-4 flex-shrink-0 text-foreground/40 group-hover:text-foreground/60"
                 />
-                {isOpen && (
+                {expanded && (
                   <span className="flex-1 truncate text-xs font-medium">{notebook.name}</span>
                 )}
               </button>
@@ -244,7 +263,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Pinned Boards */}
       {pinnedBoards.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {isOpen && (
+          {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
               <Pin className="h-3 w-3" />
               Pinned Boards
@@ -270,7 +289,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                     active
                       ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                       : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
-                    !isOpen && "justify-center",
+                    !expanded && "justify-center",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -280,7 +299,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                       active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
                     }`}
                   />
-                  {isOpen && (
+                  {expanded && (
                     <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
                   )}
                 </Link>
@@ -293,7 +312,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Opened Boards */}
       {filteredOpenedBoards.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {isOpen && (
+          {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0">
               Opened Boards
             </span>
@@ -317,7 +336,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                     active
                       ? "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                       : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
-                    !isOpen && "justify-center",
+                    !expanded && "justify-center",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -327,7 +346,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                       active ? "text-amber-600 dark:text-amber-400" : "text-foreground/40"
                     }`}
                   />
-                  {isOpen && (
+                  {expanded && (
                     <>
                       <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
                       <button
@@ -353,7 +372,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Board Tools — draggable stationery items */}
       {isOnAnyBoardPage && (
         <div className="border-t border-border/40 p-3">
-          {isOpen && (
+          {expanded && (
             <span className="mb-1.5 block px-3 text-[10px] font-semibold uppercase tracking-wider text-foreground/35">
               Board Tools
             </span>
@@ -382,7 +401,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                 title={tool.label}
                 className={[
                   "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 transition-all hover:bg-foreground/[0.04] hover:text-foreground",
-                  !isOpen && "justify-center",
+                  !expanded && "justify-center",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -393,7 +412,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                     className={`sidebar-tool-swatch ${tool.swatchColor}`}
                   />
                 </div>
-                {isOpen && <span>{tool.label}</span>}
+                {expanded && <span>{tool.label}</span>}
               </div>
             ))}
           </div>
@@ -402,7 +421,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
 
       {/* User section */}
       <div className="border-t border-border/40 p-3">
-        {isOpen && user && (
+        {expanded && user && (
           <button
             type="button"
             onClick={() => navigate("/profile")}
@@ -413,19 +432,21 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
         )}
       </div>
 
-      {/* Collapse toggle — amber tinted */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="absolute -right-3 top-[4.25rem] z-10 flex h-6 w-6 items-center justify-center rounded-full border border-border/50 bg-amber-50 text-amber-700/60 shadow-sm transition-all hover:bg-amber-100 hover:text-amber-800 dark:bg-amber-950/60 dark:text-amber-400/60 dark:hover:bg-amber-900/50 dark:hover:text-amber-300"
-        aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {isOpen ? (
-          <ChevronLeft className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5" />
-        )}
-      </button>
+      {/* Collapse toggle — desktop only; drawer uses X in brand area */}
+      {!isDrawer && (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute -right-3 top-[4.25rem] z-10 flex h-6 w-6 items-center justify-center rounded-full border border-border/50 bg-amber-50 text-amber-700/60 shadow-sm transition-all hover:bg-amber-100 hover:text-amber-800 dark:bg-amber-950/60 dark:text-amber-400/60 dark:hover:bg-amber-900/50 dark:hover:text-amber-300"
+          aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {isOpen ? (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+        </button>
+      )}
     </aside>
   );
 }

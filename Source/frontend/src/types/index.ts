@@ -212,13 +212,6 @@ export interface CreateBoardConnectionRequest {
   boardId?: string;
 }
 
-/** @deprecated Use BoardConnectionDto instead */
-export interface NoteConnection {
-  id: string;
-  fromNoteId: string;
-  toNoteId: string;
-}
-
 // --- Index Card DTOs ---
 
 export interface IndexCardSummaryDto {

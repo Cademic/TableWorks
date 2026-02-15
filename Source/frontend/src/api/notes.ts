@@ -12,18 +12,9 @@ export async function getNotes(params?: Record<string, string | number>): Promis
   return response.data;
 }
 
-export async function getNoteById(id: string): Promise<NoteDetailDto> {
-  const response = await apiClient.get<NoteDetailDto>(`/notes/${id}`);
-  return response.data;
-}
-
 export async function createNote(data: CreateNoteRequest): Promise<NoteDetailDto> {
   const response = await apiClient.post<NoteDetailDto>("/notes", data);
   return response.data;
-}
-
-export async function updateNote(id: string, data: Partial<CreateNoteRequest>): Promise<void> {
-  await apiClient.put(`/notes/${id}`, data);
 }
 
 export async function patchNote(id: string, data: PatchNoteRequest): Promise<void> {

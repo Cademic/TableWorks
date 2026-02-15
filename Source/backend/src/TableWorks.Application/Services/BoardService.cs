@@ -87,37 +87,37 @@ public sealed class BoardService : IBoardService
 
     public async Task<BoardSummaryDto> GetBoardByIdAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default)
     {
-        // First try direct ownership
-        var board = await _boardRepo.Query()
+        // Single query: project DTO fields plus UserId/ProjectId for access check
+        var result = await _boardRepo.Query()
             .Where(b => b.Id == boardId)
-            .Select(b => new BoardSummaryDto
+            .Select(b => new
             {
-                Id = b.Id,
-                Name = b.Name,
-                Description = b.Description,
-                BoardType = b.BoardType,
-                ProjectId = b.ProjectId,
-                IsPinned = b.IsPinned,
-                PinnedAt = b.PinnedAt,
-                CreatedAt = b.CreatedAt,
-                UpdatedAt = b.UpdatedAt,
-                NoteCount = b.Notes.Count(n => !n.IsArchived),
-                IndexCardCount = b.IndexCards.Count(ic => !ic.IsArchived)
+                b.UserId,
+                b.ProjectId,
+                Dto = new BoardSummaryDto
+                {
+                    Id = b.Id,
+                    Name = b.Name,
+                    Description = b.Description,
+                    BoardType = b.BoardType,
+                    ProjectId = b.ProjectId,
+                    IsPinned = b.IsPinned,
+                    PinnedAt = b.PinnedAt,
+                    CreatedAt = b.CreatedAt,
+                    UpdatedAt = b.UpdatedAt,
+                    NoteCount = b.Notes.Count(n => !n.IsArchived),
+                    IndexCardCount = b.IndexCards.Count(ic => !ic.IsArchived)
+                }
             })
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("Board not found.");
 
-        // Check access: direct owner OR project member
-        var rawBoard = await _boardRepo.Query()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(b => b.Id == boardId, cancellationToken);
-
-        if (rawBoard!.UserId != userId)
+        if (result.UserId != userId)
         {
-            if (rawBoard.ProjectId.HasValue)
+            if (result.ProjectId.HasValue)
             {
-                var role = await GetProjectRoleAsync(userId, rawBoard.ProjectId.Value, cancellationToken);
+                var role = await GetProjectRoleAsync(userId, result.ProjectId.Value, cancellationToken);
                 if (role is null)
                     throw new KeyNotFoundException("Board not found.");
             }
@@ -127,7 +127,7 @@ public sealed class BoardService : IBoardService
             }
         }
 
-        return board;
+        return result.Dto;
     }
 
     public async Task<BoardSummaryDto> CreateBoardAsync(Guid userId, CreateBoardRequest request, CancellationToken cancellationToken = default)

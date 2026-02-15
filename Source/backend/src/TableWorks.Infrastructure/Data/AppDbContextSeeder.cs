@@ -47,7 +47,7 @@ public static class AppDbContextSeeder
                 Theme = "System",
                 UpdatedAt = DateTime.UtcNow
             });
-            logger.LogInformation("Seeded verified test user: testuser1@localhost / {Password}", TestUserPassword);
+            logger.LogInformation("Seeded verified test user: testuser1@localhost (using shared local test password).");
         }
 
         if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser2@localhost"))
@@ -71,7 +71,7 @@ public static class AppDbContextSeeder
                 Theme = "System",
                 UpdatedAt = DateTime.UtcNow
             });
-            logger.LogInformation("Seeded verified test user: testuser2@localhost / {Password}", TestUserPassword);
+            logger.LogInformation("Seeded verified test user: testuser2@localhost (using shared local test password).");
         }
     }
 

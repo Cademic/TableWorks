@@ -222,7 +222,6 @@ builder.Services.AddRateLimiter(options =>
 // ---------------------------------------------------------------------------
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddValidatorsFromAssemblyContaining<ASideNote.Application.Validators.Auth.RegisterRequestValidator>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres");

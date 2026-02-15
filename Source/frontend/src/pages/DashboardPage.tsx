@@ -208,12 +208,17 @@ export function DashboardPage() {
     if (!projectRenameTarget || !projectRenameValue.trim()) return;
     const { id } = projectRenameTarget;
     const newName = projectRenameValue.trim();
+    const project = activeProjects.find((p) => p.id === id);
     setProjectRenameTarget(null);
     setActiveProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
     );
     try {
-      await updateProject(id, { name: newName });
+      await updateProject(id, {
+        name: newName,
+        status: project?.status ?? "Active",
+        progress: project?.progress ?? 0,
+      });
     } catch {
       fetchBoards();
     }

@@ -131,12 +131,17 @@ export function ProjectsPage() {
     if (!renameTarget || !renameValue.trim()) return;
     const { id } = renameTarget;
     const newName = renameValue.trim();
+    const project = projects.find((p) => p.id === id);
     setRenameTarget(null);
     setProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
     );
     try {
-      await updateProject(id, { name: newName });
+      await updateProject(id, {
+        name: newName,
+        status: project?.status ?? "Active",
+        progress: project?.progress ?? 0,
+      });
     } catch {
       fetchProjects();
     }

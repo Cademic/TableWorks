@@ -19,10 +19,10 @@ import type { BoardSummaryDto, ProjectSummaryDto } from "../../types";
 interface BoardCardProps {
   board: BoardSummaryDto;
   onDelete: (id: string) => void;
-  onRename: (id: string, currentName: string) => void;
-  onMoveToProject: (boardId: string, projectId: string) => void;
-  onTogglePin: (id: string, isPinned: boolean) => void;
-  activeProjects: ProjectSummaryDto[];
+  onRename?: (id: string, currentName: string) => void;
+  onMoveToProject?: (boardId: string, projectId: string) => void;
+  onTogglePin?: (id: string, isPinned: boolean) => void;
+  activeProjects?: ProjectSummaryDto[];
 }
 
 const BOARD_TYPE_CONFIG: Record<
@@ -69,13 +69,14 @@ function getBoardRoute(board: BoardSummaryDto): string {
   return `/boards/${board.id}`;
 }
 
-export function BoardCard({ board, onDelete, onRename, onMoveToProject, onTogglePin, activeProjects }: BoardCardProps) {
+export function BoardCard({ board, onDelete, onRename, onMoveToProject, onTogglePin, activeProjects = [] }: BoardCardProps) {
   const navigate = useNavigate();
   const config = BOARD_TYPE_CONFIG[board.boardType] ?? BOARD_TYPE_CONFIG.NoteBoard;
   const Icon = config.icon;
   const projectName = board.projectId
     ? activeProjects.find((p) => p.id === board.projectId)?.name
     : null;
+  const showMenuActions = Boolean(onRename ?? onMoveToProject ?? onTogglePin);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showProjectList, setShowProjectList] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -161,21 +162,22 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
         {/* Dropdown menu */}
         {menuOpen && (
           <div className="absolute right-0 top-7 z-20 w-48 rounded-lg border border-border bg-background py-1 shadow-lg">
-            {/* Rename */}
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMenuOpen(false);
-                onRename(board.id, board.name);
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Rename
-            </button>
+            {onRename && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onRename(board.id, board.name);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </button>
+            )}
 
-            {/* Move to Project */}
+            {onMoveToProject && (
             <div
               className="relative"
               onMouseEnter={() => setShowProjectList(true)}
@@ -194,7 +196,6 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
                 <ChevronRight className="ml-auto h-3 w-3 text-foreground/30" />
               </button>
 
-              {/* Project submenu — pl-1 creates visual gap inside the hover area so it doesn't close prematurely */}
               {showProjectList && (
                 <div className="absolute left-full top-0 z-30 pl-1">
                 <div className="w-44 rounded-lg border border-border bg-background py-1 shadow-lg">
@@ -234,8 +235,9 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
                 </div>
               )}
             </div>
+            )}
 
-            {/* Pin / Unpin */}
+            {onTogglePin && (
             <button
               type="button"
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
@@ -257,9 +259,9 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
                 </>
               )}
             </button>
+            )}
 
-            {/* Divider */}
-            <div className="my-1 border-t border-border/50" />
+            {(showMenuActions) && <div className="my-1 border-t border-border/50" />}
 
             {/* Delete */}
             <button

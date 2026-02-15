@@ -46,6 +46,13 @@ Swagger UI: `http://localhost:5000/swagger`
 dotnet run --project src/TableWorks.API/ASideNote.API.csproj -- --seed
 ```
 
+Seeding creates an admin user and, when the app has a password hasher available, two **verified** test users for localhost:
+
+| Email                 | Password   |
+|-----------------------|------------|
+| `testuser1@localhost` | `Password1!` |
+| `testuser2@localhost` | `Password1!` |
+
 ## Docker Compose Commands
 
 | Action | Command |

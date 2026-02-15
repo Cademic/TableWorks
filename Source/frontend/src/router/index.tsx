@@ -11,6 +11,7 @@ import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
 import { BoardsPage } from "../pages/BoardsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RegisterPage } from "../pages/RegisterPage";
@@ -42,6 +43,8 @@ export function AppRouter() {
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/calendar" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

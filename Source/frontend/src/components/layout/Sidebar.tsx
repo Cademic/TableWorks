@@ -3,7 +3,6 @@ import {
   StickyNote,
   FolderOpen,
   Settings,
-  LogOut,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -65,7 +64,7 @@ function getBoardPath(board: OpenedBoard): string {
 export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const isOnBoardPage = location.pathname.startsWith("/boards/");
   const isOnChalkBoardPage = location.pathname.startsWith("/chalkboards/") && location.pathname !== "/chalkboards";
@@ -106,14 +105,14 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* Brand — logo */}
       <div className="sidebar-brand flex h-14 items-center justify-center px-4">
         <Link
-          to="/dashboard"
-          className="flex items-center justify-center"
+          to="/"
+          className="flex shrink-0 items-center justify-center"
           title="ASideNote"
         >
           <img
-            src="/asidenote-logo.png"
+            src={isOpen ? "/asidenote-logo.png" : "/asidenote-logo-square.png"}
             alt="ASideNote"
-            className={isOpen ? "h-14 w-auto object-contain" : "h-12 w-12 object-contain"}
+            className={["shrink-0 object-contain", isOpen ? "h-14 w-auto" : "h-12 w-12"].join(" ")}
           />
         </Link>
       </div>
@@ -358,24 +357,14 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
       {/* User section */}
       <div className="border-t border-border/40 p-3">
         {isOpen && user && (
-          <div className="mb-2 truncate px-3 text-[10px] font-semibold uppercase tracking-wider text-foreground/35">
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            className="block w-full truncate px-3 text-left text-[10px] font-semibold uppercase tracking-wider text-foreground/35 transition-colors hover:text-foreground/60"
+          >
             {user.username}
-          </div>
+          </button>
         )}
-        <button
-          type="button"
-          onClick={logout}
-          title="Sign out"
-          className={[
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-foreground/60 transition-all hover:bg-red-50/80 hover:text-red-600 dark:hover:bg-red-950/20 dark:hover:text-red-400",
-            !isOpen && "justify-center",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          <LogOut className="h-5 w-5 flex-shrink-0" />
-          {isOpen && <span>Sign Out</span>}
-        </button>
       </div>
 
       {/* Collapse toggle — amber tinted */}

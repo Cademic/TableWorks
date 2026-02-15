@@ -148,7 +148,7 @@ export function LandingPage() {
 <img
               src="/asidenote-logo.png"
               alt="ASideNote"
-              className="h-14 w-auto object-contain"
+              className="h-20 w-auto object-contain"
               />
             </Link>
           </div>
@@ -438,7 +438,7 @@ export function LandingPage() {
             <img
               src="/asidenote-logo.png"
               alt="ASideNote"
-              className="h-10 w-auto object-contain opacity-70"
+              className="h-14 w-auto object-contain opacity-70"
             />
           </Link>
           <p className="text-xs text-foreground/30">

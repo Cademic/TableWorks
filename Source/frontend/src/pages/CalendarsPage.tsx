@@ -263,7 +263,8 @@ export function CalendarsPage() {
             Events
           </span>
           <span className="flex items-center gap-1.5">
-            📝 Notes
+            <span className="inline-block h-2 w-2 rounded-full bg-orange-400" />
+            Notes
           </span>
         </div>
       </div>

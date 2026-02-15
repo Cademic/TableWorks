@@ -282,9 +282,18 @@ public sealed class ProjectService : IProjectService
             .FirstOrDefaultAsync(p => p.Id == projectId && p.OwnerId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Project not found or access denied.");
 
-        var invitedUser = await _userRepo.Query()
-            .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken)
-            ?? throw new KeyNotFoundException("User with that email not found.");
+        User? invitedUser = null;
+        if (request.UserId.HasValue)
+        {
+            invitedUser = await _userRepo.GetByIdAsync(request.UserId.Value, cancellationToken);
+        }
+        if (invitedUser is null && !string.IsNullOrWhiteSpace(request.Email))
+        {
+            invitedUser = await _userRepo.Query()
+                .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
+        }
+        if (invitedUser is null)
+            throw new KeyNotFoundException("User not found. Provide an email or select a friend.");
 
         var alreadyMember = await _memberRepo.Query()
             .AnyAsync(m => m.ProjectId == projectId && m.UserId == invitedUser.Id, cancellationToken);

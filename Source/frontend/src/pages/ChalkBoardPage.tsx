@@ -11,6 +11,7 @@ import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
+const AUTO_SAVE_DELAY_MS = 2 * 60 * 1000; // 2 minutes, fixed default
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
 
@@ -301,7 +302,7 @@ export function ChalkBoardPage() {
           // Silently fail
         });
       }
-    }, 1500);
+    }, AUTO_SAVE_DELAY_MS);
   }, [boardId]);
 
   // Cleanup save timer on unmount

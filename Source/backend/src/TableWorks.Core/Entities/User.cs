@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ASideNote.Core.Entities;
 
 public sealed class User
@@ -15,6 +17,15 @@ public sealed class User
     public bool IsEmailVerified { get; set; }
     public DateTime? EmailVerifiedAt { get; set; }
 
+    // Profile
+    public string? ProfilePictureKey { get; set; }
+    [MaxLength(200)]
+    public string? Bio { get; set; }
+    public DateTime? UsernameChangedAt { get; set; }
+
+    /// <summary>When set, the user is soft-deleted and excluded from all queries.</summary>
+    public DateTime? DeletedAt { get; set; }
+
     public UserPreferences? Preferences { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
     public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
@@ -29,4 +40,6 @@ public sealed class User
     public ICollection<CalendarEvent> CalendarEvents { get; set; } = new List<CalendarEvent>();
     public ICollection<ExternalLogin> ExternalLogins { get; set; } = new List<ExternalLogin>();
     public ICollection<UserPinnedProject> PinnedProjects { get; set; } = new List<UserPinnedProject>();
+    public ICollection<FriendRequest> SentFriendRequests { get; set; } = new List<FriendRequest>();
+    public ICollection<FriendRequest> ReceivedFriendRequests { get; set; } = new List<FriendRequest>();
 }

@@ -30,6 +30,79 @@ export interface AuthUser {
   username: string;
   email: string;
   isEmailVerified: boolean;
+  profilePictureKey?: string | null;
+}
+
+// --- User profile & preferences ---
+
+export interface UserProfileDto {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+  profilePictureKey: string | null;
+  bio: string | null;
+  usernameChangedAt: string | null;
+}
+
+export interface UpdateProfileRequest {
+  username: string;
+  email: string;
+  profilePictureKey?: string | null;
+  bio?: string | null;
+}
+
+export interface UserPreferencesDto {
+  theme: string;
+  emailNotifications: string | null;
+}
+
+export interface UpdatePreferencesRequest {
+  theme: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface DeleteAccountRequest {
+  password?: string;
+}
+
+// --- Friends ---
+
+export interface UserPublicDto {
+  id: string;
+  username: string;
+  profilePictureKey: string | null;
+  bio: string | null;
+}
+
+export interface FriendDto {
+  id: string;
+  username: string;
+  profilePictureKey: string | null;
+  lastLoginAt: string | null;
+}
+
+export interface FriendRequestDto {
+  id: string;
+  requesterId: string;
+  requesterUsername: string;
+  requesterProfilePictureKey: string | null;
+  createdAt: string;
+  status: number;
+}
+
+export interface FriendStatusDto {
+  status: "None" | "PendingSent" | "PendingReceived" | "Friends" | "Self";
+}
+
+export interface SendFriendRequestRequest {
+  receiverId: string;
 }
 
 // --- Board DTOs ---
@@ -280,7 +353,8 @@ export interface UpdateProjectRequest {
 }
 
 export interface AddMemberRequest {
-  email: string;
+  email?: string;
+  userId?: string;
   role: string;
 }
 

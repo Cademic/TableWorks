@@ -22,6 +22,7 @@ const STATUS_FILTERS = [
 ];
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
   const { refreshPinnedProjects } = useOutletContext<AppLayoutContext>();
   const [projects, setProjects] = useState<ProjectSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);

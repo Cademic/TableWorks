@@ -112,7 +112,6 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
         canvas.dispose();
         fabricRef.current = null;
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Listen for path:created to push undo state
@@ -325,7 +324,7 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       } finally {
         isLoadingRef.current = false;
       }
-    }, []);
+    }, [loadParsedJSON]);
 
     useImperativeHandle(
       ref,

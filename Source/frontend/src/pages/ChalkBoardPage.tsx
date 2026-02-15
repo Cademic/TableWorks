@@ -385,7 +385,7 @@ export function ChalkBoardPage() {
     if (board) {
       openBoard({ id: board.id, name: board.name, boardType: board.boardType });
     }
-  }, [board?.id, board?.name, board?.boardType, openBoard]);
+  }, [board, openBoard]);
 
   // Listen for sidebar tool clicks
   useEffect(() => {

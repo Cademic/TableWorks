@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { CalendarEventDto } from "../../types";
 
 const COLOR_MAP: Record<string, { bg: string; text: string; dot: string }> = {

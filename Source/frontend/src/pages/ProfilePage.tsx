@@ -396,7 +396,7 @@ export function ProfilePage() {
   useEffect(() => {
     if (!profile && !publicProfile) return;
     if (isOwnProfile && profile) loadFriendsAndRequests();
-  }, [isOwnProfile, profile?.id, publicProfile?.id, loadFriendsAndRequests]);
+  }, [isOwnProfile, profile, publicProfile, loadFriendsAndRequests]);
 
   function handleEditProfile() {
     navigate("/settings#profile");

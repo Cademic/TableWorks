@@ -43,10 +43,6 @@ function toLocalDateStr(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function toNoonUtc(dateStr: string): string {
-  return `${dateStr}T12:00:00.000Z`;
-}
-
 function parseServerDate(isoStr: string): Date {
   const d = new Date(isoStr);
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());

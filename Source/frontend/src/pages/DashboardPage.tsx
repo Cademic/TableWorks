@@ -7,22 +7,26 @@ import {
   Calendar,
   FolderOpen,
   BookOpen,
-  StickyNote,
-  CreditCard,
   Clock,
   PencilLine,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import axios from "axios";
 import { getBoards, createBoard, deleteBoard, updateBoard, toggleBoardPin } from "../api/boards";
 import { getProjects, createProject, addBoardToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
+import { getNotebooks, createNotebook, deleteNotebook, updateNotebook, toggleNotebookPin } from "../api/notebooks";
+import { getFriends } from "../api/users";
+import { getCalendarEvents } from "../api/calendar-events";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { MiniCalendar } from "../components/dashboard/MiniCalendar";
 import { ProjectCard } from "../components/projects/ProjectCard";
+import { NotebookCard } from "../components/notebooks/NotebookCard";
+import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import { useAuth } from "../context/AuthContext";
-import type { BoardSummaryDto, ProjectSummaryDto } from "../types";
+import type { BoardSummaryDto, CalendarEventDto, FriendDto, NotebookSummaryDto, ProjectSummaryDto } from "../types";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -49,9 +53,10 @@ function formatShortDate(dateStr: string): string {
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { closeBoard, refreshPinnedBoards, refreshPinnedProjects } = useOutletContext<AppLayoutContext>();
+  const { closeBoard, refreshPinnedBoards, refreshPinnedProjects, openNotebook, refreshPinnedNotebooks } = useOutletContext<AppLayoutContext>();
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
   const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
+  const [notebooks, setNotebooks] = useState<NotebookSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -62,16 +67,25 @@ export function DashboardPage() {
   const [projectRenameTarget, setProjectRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [projectRenameValue, setProjectRenameValue] = useState("");
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<ProjectSummaryDto | null>(null);
+  const [isCreateNotebookOpen, setIsCreateNotebookOpen] = useState(false);
+  const [createNotebookError, setCreateNotebookError] = useState<string | null>(null);
+  const [notebookRenameTarget, setNotebookRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [notebookRenameValue, setNotebookRenameValue] = useState("");
+  const [notebookDeleteTarget, setNotebookDeleteTarget] = useState<NotebookSummaryDto | null>(null);
+  const [friends, setFriends] = useState<FriendDto[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventDto[]>([]);
 
   const fetchBoards = useCallback(async () => {
     try {
       setError(null);
-      const [boardResult, projectResult] = await Promise.all([
+      const [boardResult, projectResult, notebookResult] = await Promise.all([
         getBoards({ limit: 100 }),
         getProjects({ status: "Active" }).catch(() => [] as ProjectSummaryDto[]),
+        getNotebooks({ limit: 100 }).catch(() => ({ items: [] as NotebookSummaryDto[] })),
       ]);
       setBoards(boardResult.items);
       setActiveProjects(projectResult);
+      setNotebooks(notebookResult.items);
     } catch {
       setError("Failed to load boards.");
     } finally {
@@ -82,6 +96,23 @@ export function DashboardPage() {
   useEffect(() => {
     fetchBoards();
   }, [fetchBoards]);
+
+  useEffect(() => {
+    getFriends().then(setFriends).catch(() => setFriends([]));
+  }, []);
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const future = new Date(today);
+    future.setDate(future.getDate() + 90);
+    getCalendarEvents({
+      from: today.toISOString(),
+      to: future.toISOString(),
+    })
+      .then(setCalendarEvents)
+      .catch(() => setCalendarEvents([]));
+  }, []);
 
   async function handleCreateBoard(name: string, description: string, boardType: string) {
     try {
@@ -258,6 +289,73 @@ export function DashboardPage() {
     }
   }
 
+  async function handleCreateNotebook(name: string) {
+    try {
+      setCreateNotebookError(null);
+      const created = await createNotebook({ name });
+      setNotebooks((prev) => [created, ...prev]);
+      setIsCreateNotebookOpen(false);
+      openNotebook(created.id);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setCreateNotebookError(err.response.data?.message ?? "A notebook with that name already exists.");
+      } else {
+        setCreateNotebookError("Failed to create notebook. Please try again.");
+        console.error("Failed to create notebook:", err);
+      }
+    }
+  }
+
+  function handleRenameNotebook(id: string, currentName: string) {
+    setNotebookRenameTarget({ id, name: currentName });
+    setNotebookRenameValue(currentName);
+  }
+
+  async function confirmRenameNotebook() {
+    if (!notebookRenameTarget || !notebookRenameValue.trim()) return;
+    const { id } = notebookRenameTarget;
+    const newName = notebookRenameValue.trim();
+    setNotebookRenameTarget(null);
+    setNotebooks((prev) => prev.map((n) => (n.id === id ? { ...n, name: newName } : n)));
+    try {
+      await updateNotebook(id, { name: newName });
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  async function handleToggleNotebookPin(id: string, isPinned: boolean) {
+    setNotebooks((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, isPinned, pinnedAt: isPinned ? new Date().toISOString() : null } : n,
+      ),
+    );
+    try {
+      await toggleNotebookPin(id, isPinned);
+      refreshPinnedNotebooks();
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  function handleDeleteNotebook(id: string) {
+    const notebook = notebooks.find((n) => n.id === id) ?? null;
+    if (notebook) setNotebookDeleteTarget(notebook);
+  }
+
+  async function confirmDeleteNotebook() {
+    if (!notebookDeleteTarget) return;
+    const id = notebookDeleteTarget.id;
+    setNotebookDeleteTarget(null);
+    setNotebooks((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await deleteNotebook(id);
+      refreshPinnedNotebooks();
+    } catch {
+      fetchBoards();
+    }
+  }
+
   /** Boards sorted by last updated (opened recently) */
   const allBoards = useMemo(
     () => [...boards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
@@ -274,15 +372,48 @@ export function DashboardPage() {
     [activeProjects],
   );
 
-  const totalNotes = useMemo(
-    () => boards.reduce((sum, b) => sum + b.noteCount, 0),
-    [boards],
+  /** Notebooks sorted by last updated */
+  const notebooksSorted = useMemo(
+    () => [...notebooks].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [notebooks],
   );
 
-  const totalCards = useMemo(
-    () => boards.reduce((sum, b) => sum + b.indexCardCount, 0),
-    [boards],
-  );
+  const nextUpcomingDisplay = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayMs = todayStart.getTime();
+
+    const candidates: { startMs: number; title: string }[] = [];
+
+    for (const ev of calendarEvents) {
+      const start = new Date(ev.startDate).getTime();
+      if (start >= todayMs) {
+        candidates.push({ startMs: start, title: ev.title });
+      }
+    }
+    for (const proj of activeProjects) {
+      if (proj.startDate) {
+        const start = new Date(proj.startDate).getTime();
+        if (start >= todayMs) {
+          candidates.push({ startMs: start, title: proj.name });
+        }
+      }
+    }
+
+    if (candidates.length === 0) return "No upcoming events";
+    candidates.sort((a, b) => a.startMs - b.startMs);
+    const title = candidates[0].title;
+    const maxLen = 18;
+    return title.length > maxLen ? title.slice(0, maxLen).trim() + "…" : title;
+  }, [calendarEvents, activeProjects]);
+
+  const friendsOnline = useMemo(() => {
+    const ONLINE_MINS = 15;
+    const now = Date.now();
+    return friends.filter(
+      (f) => f.lastLoginAt && now - new Date(f.lastLoginAt).getTime() < ONLINE_MINS * 60 * 1000,
+    ).length;
+  }, [friends]);
 
   const mostRecentBoard = useMemo(() => {
     if (boards.length === 0) return null;
@@ -358,17 +489,18 @@ export function DashboardPage() {
           />
           <StatSticky
             color="rose"
-            icon={StickyNote}
-            label="Sticky Notes"
-            value={totalNotes.toString()}
+            icon={Calendar}
+            label="Next Up"
+            value={nextUpcomingDisplay}
             rotation={1.5}
           />
           <StatSticky
             color="sky"
-            icon={CreditCard}
-            label="Index Cards"
-            value={totalCards.toString()}
+            icon={Users}
+            label="Friends Online"
+            value={friendsOnline.toString()}
             rotation={-1}
+            onClick={() => navigate("/profile")}
           />
           <StatSticky
             color="green"
@@ -440,6 +572,47 @@ export function DashboardPage() {
           )}
         </NotebookSection>
 
+        {/* ── Notebooks ─────────────────────────────────── */}
+        <NotebookSection
+          icon={BookOpen}
+          title="Notebooks"
+          count={notebooksSorted.length}
+          accentColor="amber"
+        >
+          {notebooksSorted.length === 0 ? (
+            <BlankPageEmpty
+              message="No notebooks yet"
+              actionLabel="Create your first notebook"
+              onAction={() => setIsCreateNotebookOpen(true)}
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {notebooksSorted.slice(0, 6).map((notebook) => (
+                  <NotebookCard
+                    key={notebook.id}
+                    notebook={notebook}
+                    onOpen={openNotebook}
+                    onRename={handleRenameNotebook}
+                    onTogglePin={handleToggleNotebookPin}
+                    onDelete={handleDeleteNotebook}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateNotebookOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-amber-400 hover:text-amber-900 hover:border-amber-400/50 dark:hover:bg-amber-500/20 dark:hover:text-amber-300 dark:hover:border-amber-500/30"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New notebook
+                </button>
+              </div>
+            </>
+          )}
+        </NotebookSection>
+
         {/* ── Boards (Note + Chalk) ─────────────────────── */}
         <NotebookSection
           icon={ClipboardList}
@@ -491,6 +664,13 @@ export function DashboardPage() {
         onCreateProject={handleCreateProject}
       />
 
+      <CreateNotebookDialog
+        isOpen={isCreateNotebookOpen}
+        error={createNotebookError}
+        onClose={() => { setIsCreateNotebookOpen(false); setCreateNotebookError(null); }}
+        onCreate={handleCreateNotebook}
+      />
+
       <ConfirmDialog
         isOpen={deleteTarget !== null}
         title="Delete Board"
@@ -511,6 +691,17 @@ export function DashboardPage() {
         variant="danger"
         onConfirm={confirmDeleteProject}
         onCancel={() => setProjectDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={notebookDeleteTarget !== null}
+        title="Delete Notebook"
+        message={`Are you sure you want to delete "${notebookDeleteTarget?.name ?? "this notebook"}"? All pages will be permanently removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Keep It"
+        variant="danger"
+        onConfirm={confirmDeleteNotebook}
+        onCancel={() => setNotebookDeleteTarget(null)}
       />
 
       {/* Rename Board Dialog */}
@@ -591,6 +782,47 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Rename Notebook Dialog */}
+      {notebookRenameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/40"
+            onClick={() => setNotebookRenameTarget(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Rename Notebook</h2>
+            <input
+              type="text"
+              value={notebookRenameValue}
+              onChange={(e) => setNotebookRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmRenameNotebook();
+              }}
+              maxLength={100}
+              className="mb-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNotebookRenameTarget(null)}
+                className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-foreground/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRenameNotebook}
+                disabled={!notebookRenameValue.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -619,19 +851,38 @@ interface StatStickyProps {
   label: string;
   value: string;
   rotation: number;
+  onClick?: () => void;
 }
 
-function StatSticky({ color, icon: Icon, label, value, rotation }: StatStickyProps) {
-  return (
-    <div
-      className={`stat-sticky flex flex-col items-center justify-center px-4 py-5 ${STICKY_BG[color]}`}
-      style={{ transform: `rotate(${rotation}deg)` }}
-    >
+function StatSticky({ color, icon: Icon, label, value, rotation, onClick }: StatStickyProps) {
+  const baseClassName = `stat-sticky flex flex-col items-center justify-center px-4 py-5 ${STICKY_BG[color]}`;
+  const style = { transform: `rotate(${rotation}deg)` };
+  const content = (
+    <>
       <Icon className={`mb-1.5 h-4 w-4 ${STICKY_ACCENT[color]}`} />
       <span className={`text-2xl font-bold leading-none ${STICKY_ACCENT[color]}`}>
         {value}
       </span>
       <span className="mt-1 text-[11px] font-medium text-foreground/45">{label}</span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${baseClassName} cursor-pointer transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2`}
+        style={style}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={baseClassName} style={style}>
+      {content}
     </div>
   );
 }

@@ -72,12 +72,12 @@ export function CalendarDayCell({
 
   return (
     <div
-      className={`navbar-day-cell group relative flex min-h-[100px] flex-col border-b border-r border-border/40 p-1.5 transition-colors hover:brightness-[0.97] dark:hover:brightness-110 ${
+      className={`navbar-day-cell group relative flex min-h-[100px] min-w-0 flex-col overflow-hidden border-b border-r border-border/40 p-1.5 transition-colors hover:brightness-[0.97] dark:hover:brightness-110 ${
         !isCurrentMonth ? "opacity-40" : ""
       }`}
     >
       {/* Day number + add button */}
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex shrink-0 items-center justify-between">
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
             isToday
@@ -101,7 +101,7 @@ export function CalendarDayCell({
       </div>
 
       {/* Project bars */}
-      <div className="flex flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-hidden">
         {visibleProjects.map((project) => (
           <CalendarProjectBar
             key={project.id}
@@ -112,7 +112,7 @@ export function CalendarDayCell({
       </div>
 
       {/* Events — staggered with slight left offset for overlapping items */}
-      <div className="flex flex-col gap-0.5">
+      <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden">
         {visibleEvents.map((event, idx) => (
           <div
             key={event.id}

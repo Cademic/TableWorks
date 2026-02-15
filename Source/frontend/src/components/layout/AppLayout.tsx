@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { getPinnedBoards } from "../../api/boards";
 import { getPinnedProjects } from "../../api/projects";
+import { getPinnedNotebooks } from "../../api/notebooks";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
-import type { BoardSummaryDto, ProjectSummaryDto } from "../../types";
+import { NotebookModal } from "../notebooks/NotebookModal";
+import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../../types";
 
-/** Tailwind `lg` breakpoint — sidebar auto-collapses below this width */
+/** Tailwind `lg` breakpoint — below this: sidebar becomes hamburger drawer */
 const SIDEBAR_BREAKPOINT = 1024;
 
 export interface OpenedBoard {
@@ -22,36 +24,47 @@ export interface AppLayoutContext {
   openedBoards: OpenedBoard[];
   refreshPinnedBoards: () => void;
   refreshPinnedProjects: () => void;
+  openNotebook: (id: string) => void;
+  closeNotebook: () => void;
+  refreshPinnedNotebooks: () => void;
 }
 
 export function AppLayout() {
+  const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= SIDEBAR_BREAKPOINT);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < SIDEBAR_BREAKPOINT);
   const [boardName, setBoardName] = useState<string | null>(null);
   const [openedBoards, setOpenedBoards] = useState<OpenedBoard[]>([]);
   const [pinnedBoards, setPinnedBoards] = useState<BoardSummaryDto[]>([]);
   const [pinnedProjects, setPinnedProjects] = useState<ProjectSummaryDto[]>([]);
+  const [pinnedNotebooks, setPinnedNotebooks] = useState<NotebookSummaryDto[]>([]);
+  const [openNotebookId, setOpenNotebookId] = useState<string | null>(null);
 
   /** Track whether the user has manually toggled the sidebar since the last
    *  automatic resize change. When the breakpoint triggers we reset this flag
    *  so the auto-behaviour takes over again on the next cross. */
   const userToggledRef = useRef(false);
 
-  /* ── Auto-collapse / expand on viewport resize ──────────── */
+  /* ── Mobile vs desktop: hamburger drawer vs inline sidebar ──────────── */
   useEffect(() => {
     const mql = window.matchMedia(`(min-width: ${SIDEBAR_BREAKPOINT}px)`);
 
     function handleChange(e: MediaQueryListEvent | MediaQueryList) {
-      // Always auto-set on breakpoint cross; reset the manual flag
+      const desktop = e.matches;
+      setIsMobile(!desktop);
       userToggledRef.current = false;
-      setIsSidebarOpen(e.matches);
+      setIsSidebarOpen(desktop);
     }
 
-    // Set initial state
     handleChange(mql);
-
     mql.addEventListener("change", handleChange);
     return () => mql.removeEventListener("change", handleChange);
   }, []);
+
+  /* ── Close mobile drawer on route change ──────────── */
+  useEffect(() => {
+    if (isMobile) setIsSidebarOpen(false);
+  }, [isMobile, location.pathname]);
 
   function handleToggleSidebar() {
     userToggledRef.current = true;
@@ -91,11 +104,29 @@ export function AppLayout() {
     }
   }, []);
 
-  // Fetch pinned boards and projects on mount
+  const refreshPinnedNotebooks = useCallback(async () => {
+    try {
+      const result = await getPinnedNotebooks();
+      setPinnedNotebooks(result);
+    } catch {
+      // Fail silently
+    }
+  }, []);
+
+  const openNotebook = useCallback((id: string) => {
+    setOpenNotebookId(id);
+  }, []);
+
+  const closeNotebook = useCallback(() => {
+    setOpenNotebookId(null);
+  }, []);
+
+  // Fetch pinned boards, projects, and notebooks on mount
   useEffect(() => {
     refreshPinnedBoards();
     refreshPinnedProjects();
-  }, [refreshPinnedBoards, refreshPinnedProjects]);
+    refreshPinnedNotebooks();
+  }, [refreshPinnedBoards, refreshPinnedProjects, refreshPinnedNotebooks]);
 
   const outletContext: AppLayoutContext = {
     setBoardName,
@@ -104,24 +135,63 @@ export function AppLayout() {
     openedBoards,
     refreshPinnedBoards,
     refreshPinnedProjects,
+    openNotebook,
+    closeNotebook,
+    refreshPinnedNotebooks,
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={handleToggleSidebar}
-        openedBoards={openedBoards}
-        onCloseBoard={closeBoard}
-        pinnedBoards={pinnedBoards}
-        pinnedProjects={pinnedProjects}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Navbar boardName={boardName} />
+      {/* Desktop: sidebar in flow; mobile: sidebar only as overlay when open */}
+      {!isMobile && (
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onToggle={handleToggleSidebar}
+          isDrawer={false}
+          openedBoards={openedBoards}
+          onCloseBoard={closeBoard}
+          pinnedBoards={pinnedBoards}
+          pinnedProjects={pinnedProjects}
+          pinnedNotebooks={pinnedNotebooks}
+          onOpenNotebook={openNotebook}
+        />
+      )}
+      {isMobile && isSidebarOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={handleToggleSidebar}
+            aria-label="Close menu"
+          />
+          <div className="fixed left-0 top-0 bottom-0 z-50 w-60 shadow-xl">
+            <Sidebar
+              isOpen
+              onToggle={handleToggleSidebar}
+              isDrawer
+              openedBoards={openedBoards}
+              onCloseBoard={closeBoard}
+              pinnedBoards={pinnedBoards}
+              pinnedProjects={pinnedProjects}
+              pinnedNotebooks={pinnedNotebooks}
+              onOpenNotebook={openNotebook}
+            />
+          </div>
+        </>
+      )}
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <Navbar
+          boardName={boardName}
+          onToggleSidebar={isMobile ? handleToggleSidebar : undefined}
+          showMenuButton={isMobile}
+        />
         <main className="flex-1 overflow-auto p-4">
           <Outlet context={outletContext} />
         </main>
       </div>
+      {openNotebookId && (
+        <NotebookModal notebookId={openNotebookId} onClose={closeNotebook} />
+      )}
     </div>
   );
 }

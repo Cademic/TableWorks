@@ -20,10 +20,10 @@ export function CalendarProjectBar({ project, onClick }: CalendarProjectBarProps
     <button
       type="button"
       onClick={() => onClick?.(project)}
-      className={`w-full truncate rounded ${colors.bg} px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight ${colors.text} transition-opacity hover:opacity-80`}
+      className={`w-full min-w-0 overflow-hidden rounded ${colors.bg} px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight ${colors.text} transition-opacity hover:opacity-80`}
       title={`Project: ${project.name}`}
     >
-      📁 {project.name}
+      <span className="block min-w-0 truncate">📁 {project.name}</span>
     </button>
   );
 }

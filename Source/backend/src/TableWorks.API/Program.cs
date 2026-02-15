@@ -55,7 +55,11 @@ builder.Host.UseSerilog((context, loggerConfiguration) =>
 // ---------------------------------------------------------------------------
 // Controllers & API Explorer
 // ---------------------------------------------------------------------------
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 
 // ---------------------------------------------------------------------------
@@ -282,6 +286,7 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
+builder.Services.AddScoped<INotebookService, NotebookService>();
 
 // ---------------------------------------------------------------------------
 // Build

@@ -34,14 +34,16 @@ export function CalendarEventItem({ event, onClick, compact, projectName }: Cale
     <button
       type="button"
       onClick={() => onClick?.(event)}
-      className={`w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight transition-opacity hover:opacity-80 ${colors.bg} ${colors.text}`}
+      className={`w-full min-w-0 overflow-hidden rounded px-1.5 py-0.5 text-left text-[11px] font-medium leading-tight transition-opacity hover:opacity-80 ${colors.bg} ${colors.text}`}
       title={displayTitle}
     >
-      {event.eventType === "Note" && "📝 "}
-      {projectName && (
-        <span className="opacity-60">{projectName}: </span>
-      )}
-      {event.title}
+      <span className="block min-w-0 truncate">
+        {event.eventType === "Note" && "📝 "}
+        {projectName && (
+          <span className="opacity-60">{projectName}: </span>
+        )}
+        {event.title}
+      </span>
     </button>
   );
 }

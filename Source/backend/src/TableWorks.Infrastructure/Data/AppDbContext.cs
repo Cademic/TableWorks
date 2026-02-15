@@ -30,6 +30,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
     public DbSet<UserPinnedProject> UserPinnedProjects => Set<UserPinnedProject>();
     public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
+    public DbSet<Notebook> Notebooks => Set<Notebook>();
+    public DbSet<NotebookPage> NotebookPages => Set<NotebookPage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +69,39 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Boards)
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ----- Notebook -----
+        modelBuilder.Entity<Notebook>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.UpdatedAt);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.Notebooks)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ----- NotebookPage -----
+        modelBuilder.Entity<NotebookPage>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.NotebookId);
+            entity.HasIndex(x => new { x.NotebookId, x.PageIndex }).IsUnique();
+
+            entity.Property(x => x.Content).HasColumnType("text");
+
+            entity.HasOne(x => x.Notebook)
+                .WithMany(x => x.Pages)
+                .HasForeignKey(x => x.NotebookId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----- Note -----

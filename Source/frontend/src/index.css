@@ -205,6 +205,11 @@ body {
     0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* ProseMirror (TipTap) — required for correct rendering */
+.ProseMirror {
+  white-space: pre-wrap;
+}
+
 /* TipTap editor styles */
 .tiptap-editor-area {
   overflow: hidden;
@@ -215,6 +220,7 @@ body {
   word-break: break-word;
   overflow-wrap: anywhere;
   overflow: hidden;
+  white-space: pre-wrap;
 }
 
 .tiptap-editor-area .tiptap p {

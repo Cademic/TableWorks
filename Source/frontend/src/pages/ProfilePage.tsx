@@ -665,7 +665,7 @@ export function ProfilePage() {
             <div className="mb-4 rounded-xl border-2 border-amber-300/60 bg-amber-50/80 p-4 dark:border-amber-600/50 dark:bg-amber-950/30">
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
                 <UserCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                Friend requests (new at top)
+                Friend requests
               </h3>
               <ul className="space-y-2">
                 {pendingRequests.map((req) => (

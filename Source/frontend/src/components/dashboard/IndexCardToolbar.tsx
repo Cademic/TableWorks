@@ -27,6 +27,10 @@ interface IndexCardToolbarProps {
   onCardColorChange: (color: string) => void;
   cardRotation: number;
   onCardRotationChange: (rotation: number) => void;
+  /** When true, hide the card color row (e.g. for notebook) */
+  hideCardColor?: boolean;
+  /** When true, hide the tilt row (e.g. for notebook) */
+  hideTilt?: boolean;
 }
 
 const ROTATION_PRESETS = [-10, -5, -3, 0, 3, 5, 10];
@@ -186,6 +190,8 @@ export function IndexCardToolbar({
   onCardColorChange,
   cardRotation,
   onCardRotationChange,
+  hideCardColor = false,
+  hideTilt = false,
 }: IndexCardToolbarProps) {
   const setFontFamily = useCallback(
     (value: string) => {
@@ -311,60 +317,64 @@ export function IndexCardToolbar({
         </div>
       </div>
 
-      {/* Row 2: Card color */}
-      <div className="flex items-center gap-1">
-        <Palette className="mr-0.5 h-3 w-3 text-gray-500" />
-        <span className="text-[10px] text-gray-500">Card:</span>
-        {CARD_COLOR_SWATCHES.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCardColorChange(c.key);
-            }}
-            title={c.key}
-            className={[
-              "relative flex h-5 w-5 items-center justify-center rounded-full border transition-transform",
-              c.swatch,
-              cardColor === c.key
-                ? "scale-110 border-gray-800 ring-1 ring-gray-400"
-                : "border-black/20 hover:scale-110",
-            ].join(" ")}
-          >
-            {cardColor === c.key && (
-              <Check className="h-3 w-3 text-gray-800" strokeWidth={3} />
-            )}
-          </button>
-        ))}
-      </div>
+      {/* Row 2: Card color (optional) */}
+      {!hideCardColor && (
+        <div className="flex items-center gap-1">
+          <Palette className="mr-0.5 h-3 w-3 text-gray-500" />
+          <span className="text-[10px] text-gray-500">Card:</span>
+          {CARD_COLOR_SWATCHES.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCardColorChange(c.key);
+              }}
+              title={c.key}
+              className={[
+                "relative flex h-5 w-5 items-center justify-center rounded-full border transition-transform",
+                c.swatch,
+                cardColor === c.key
+                  ? "scale-110 border-gray-800 ring-1 ring-gray-400"
+                  : "border-black/20 hover:scale-110",
+              ].join(" ")}
+            >
+              {cardColor === c.key && (
+                <Check className="h-3 w-3 text-gray-800" strokeWidth={3} />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Row 3: Rotation presets */}
-      <div className="flex items-center gap-1">
-        <RotateCw className="mr-0.5 h-3 w-3 text-gray-500" />
-        <span className="text-[10px] text-gray-500">Tilt:</span>
-        {ROTATION_PRESETS.map((deg) => (
-          <button
-            key={deg}
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCardRotationChange(deg);
-            }}
-            title={`${deg}°`}
-            className={[
-              "flex h-5 min-w-[28px] items-center justify-center rounded border px-1 text-[10px] font-medium transition-colors",
-              cardRotation === deg
-                ? "border-gray-800 bg-black/15 text-gray-900"
-                : "border-black/10 bg-white/50 text-gray-600 hover:bg-black/10",
-            ].join(" ")}
-          >
-            {deg === 0 ? "0°" : `${deg > 0 ? "+" : ""}${deg}°`}
-          </button>
-        ))}
-      </div>
+      {/* Row 3: Rotation presets (optional) */}
+      {!hideTilt && (
+        <div className="flex items-center gap-1">
+          <RotateCw className="mr-0.5 h-3 w-3 text-gray-500" />
+          <span className="text-[10px] text-gray-500">Tilt:</span>
+          {ROTATION_PRESETS.map((deg) => (
+            <button
+              key={deg}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCardRotationChange(deg);
+              }}
+              title={`${deg}°`}
+              className={[
+                "flex h-5 min-w-[28px] items-center justify-center rounded border px-1 text-[10px] font-medium transition-colors",
+                cardRotation === deg
+                  ? "border-gray-800 bg-black/15 text-gray-900"
+                  : "border-black/10 bg-white/50 text-gray-600 hover:bg-black/10",
+              ].join(" ")}
+            >
+              {deg === 0 ? "0°" : `${deg > 0 ? "+" : ""}${deg}°`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Row 4: Content blocks — Table, Task List, Bullet List, Ordered List, Horizontal Rule */}
       <div className="flex flex-wrap items-center gap-1">

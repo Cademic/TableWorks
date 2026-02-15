@@ -42,4 +42,5 @@ public sealed class User
     public ICollection<UserPinnedProject> PinnedProjects { get; set; } = new List<UserPinnedProject>();
     public ICollection<FriendRequest> SentFriendRequests { get; set; } = new List<FriendRequest>();
     public ICollection<FriendRequest> ReceivedFriendRequests { get; set; } = new List<FriendRequest>();
+    public ICollection<Notebook> Notebooks { get; set; } = new List<Notebook>();
 }

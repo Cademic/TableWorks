@@ -11,11 +11,12 @@ import {
   ClipboardList,
   PenTool,
   Pin,
+  BookOpen,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import type { OpenedBoard } from "./AppLayout";
-import type { BoardSummaryDto, ProjectSummaryDto } from "../../types";
+import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../../types";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,11 +25,14 @@ interface SidebarProps {
   onCloseBoard: (id: string) => void;
   pinnedBoards: BoardSummaryDto[];
   pinnedProjects: ProjectSummaryDto[];
+  pinnedNotebooks: NotebookSummaryDto[];
+  onOpenNotebook: (id: string) => void;
 }
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
+  { to: "/notebooks", icon: BookOpen, label: "Notebooks" },
   { to: "/calendar", icon: Calendar, label: "Calendar" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
@@ -61,7 +65,7 @@ function getBoardPath(board: OpenedBoard): string {
   return `/boards/${board.id}`;
 }
 
-export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects, pinnedNotebooks, onOpenNotebook }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -76,6 +80,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
 
   function isActive(path: string) {
     if (path === "/dashboard") return location.pathname === "/dashboard";
+    if (path === "/notebooks") return location.pathname === "/notebooks";
     return location.pathname.startsWith(path);
   }
 
@@ -123,7 +128,7 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
           const active = isActive(item.to);
           return (
             <Link
-              key={item.to}
+              key={item.label}
               to={item.to}
               title={item.label}
               className={[
@@ -191,6 +196,47 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Pinned Notebooks */}
+      {pinnedNotebooks.length > 0 && (
+        <div className="flex flex-col border-t border-border/40 overflow-hidden">
+          {isOpen && (
+            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
+              <BookOpen className="h-3 w-3" />
+              Pinned Notebooks
+            </span>
+          )}
+          {!isOpen && (
+            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
+              <BookOpen className="mx-auto h-3 w-3" />
+            </span>
+          )}
+          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
+            {pinnedNotebooks.map((notebook) => (
+              <button
+                key={notebook.id}
+                type="button"
+                onClick={() => onOpenNotebook(notebook.id)}
+                title={notebook.name}
+                className={[
+                  "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 text-left w-full",
+                  "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
+                  !isOpen && "justify-center",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <BookOpen
+                  className="h-4 w-4 flex-shrink-0 text-foreground/40 group-hover:text-foreground/60"
+                />
+                {isOpen && (
+                  <span className="flex-1 truncate text-xs font-medium">{notebook.name}</span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       )}

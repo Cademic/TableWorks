@@ -133,6 +133,40 @@ export interface UpdateBoardRequest {
   description?: string;
 }
 
+// --- Notebook DTOs ---
+
+export interface NotebookSummaryDto {
+  id: string;
+  name: string;
+  isPinned: boolean;
+  pinnedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  pageCount: number;
+}
+
+export interface NotebookDetailDto {
+  id: string;
+  name: string;
+  isPinned: boolean;
+  pinnedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  pages: string[];
+}
+
+export interface CreateNotebookRequest {
+  name: string;
+}
+
+export interface UpdateNotebookRequest {
+  name: string;
+}
+
+export interface UpdateNotebookPagesRequest {
+  pages: string[];
+}
+
 // --- Note DTOs ---
 
 export interface NoteTagDto {

@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CreditCard,
   Calendar,
-  Notebook,
   X,
   ClipboardList,
   PenTool,
@@ -104,20 +103,19 @@ export function Sidebar({ isOpen, onToggle, openedBoards, onCloseBoard, pinnedBo
         isOpen ? "w-60" : "w-16",
       ].join(" ")}
     >
-      {/* Brand — Notebook cover */}
-      <div className="sidebar-brand flex h-14 items-center px-4">
-        {isOpen ? (
-          <div className="flex items-center gap-2.5">
-            <Notebook className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-            <span className="text-lg font-bold tracking-tight text-foreground">
-              ASideNote
-            </span>
-          </div>
-        ) : (
-          <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-            <span className="text-sm font-bold text-amber-700 dark:text-amber-400">TW</span>
-          </div>
-        )}
+      {/* Brand — logo */}
+      <div className="sidebar-brand flex h-14 items-center justify-center px-4">
+        <Link
+          to="/dashboard"
+          className="flex items-center justify-center"
+          title="ASideNote"
+        >
+          <img
+            src="/asidenote-logo.png"
+            alt="ASideNote"
+            className={isOpen ? "h-14 w-auto object-contain" : "h-12 w-12 object-contain"}
+          />
+        </Link>
       </div>
 
       {/* Navigation */}

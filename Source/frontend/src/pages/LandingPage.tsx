@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import {
-  Notebook,
   StickyNote,
   FolderOpen,
   Calendar,
@@ -144,14 +143,17 @@ export function LandingPage() {
       {/* ── Navbar — stationery shelf ─────────────────────── */}
       <header className="navbar-surface sticky top-0 z-30">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-2.5">
-            <Notebook className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <span className="text-lg font-bold tracking-tight text-foreground">
-              ASideNote
-            </span>
+          <div className="flex flex-1 items-center justify-center">
+            <Link to="/" className="flex items-center">
+<img
+              src="/asidenote-logo.png"
+              alt="ASideNote"
+              className="h-14 w-auto object-contain"
+              />
+            </Link>
           </div>
 
-          <nav className="flex items-center gap-3">
+          <nav className="flex flex-1 items-center justify-end gap-3">
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
@@ -431,11 +433,14 @@ export function LandingPage() {
 
       {/* ── Footer ─────────────────────────────────────────── */}
       <footer className="border-t border-border/40">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-          <div className="flex items-center gap-2 text-foreground/40">
-            <Notebook className="h-4 w-4" />
-            <span className="text-xs font-medium">ASideNote</span>
-          </div>
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-2 px-6 py-6 sm:flex-row sm:justify-between">
+          <Link to="/" className="flex items-center text-foreground/40 transition-colors hover:text-foreground/60">
+            <img
+              src="/asidenote-logo.png"
+              alt="ASideNote"
+              className="h-10 w-auto object-contain opacity-70"
+            />
+          </Link>
           <p className="text-xs text-foreground/30">
             &copy; {new Date().getFullYear()} ASideNote. All rights reserved.
           </p>

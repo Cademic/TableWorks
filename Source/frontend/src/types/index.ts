@@ -30,6 +30,79 @@ export interface AuthUser {
   username: string;
   email: string;
   isEmailVerified: boolean;
+  profilePictureKey?: string | null;
+}
+
+// --- User profile & preferences ---
+
+export interface UserProfileDto {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+  profilePictureKey: string | null;
+  bio: string | null;
+  usernameChangedAt: string | null;
+}
+
+export interface UpdateProfileRequest {
+  username: string;
+  email: string;
+  profilePictureKey?: string | null;
+  bio?: string | null;
+}
+
+export interface UserPreferencesDto {
+  theme: string;
+  emailNotifications: string | null;
+}
+
+export interface UpdatePreferencesRequest {
+  theme: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface DeleteAccountRequest {
+  password?: string;
+}
+
+// --- Friends ---
+
+export interface UserPublicDto {
+  id: string;
+  username: string;
+  profilePictureKey: string | null;
+  bio: string | null;
+}
+
+export interface FriendDto {
+  id: string;
+  username: string;
+  profilePictureKey: string | null;
+  lastLoginAt: string | null;
+}
+
+export interface FriendRequestDto {
+  id: string;
+  requesterId: string;
+  requesterUsername: string;
+  requesterProfilePictureKey: string | null;
+  createdAt: string;
+  status: number;
+}
+
+export interface FriendStatusDto {
+  status: "None" | "PendingSent" | "PendingReceived" | "Friends" | "Self";
+}
+
+export interface SendFriendRequestRequest {
+  receiverId: string;
 }
 
 // --- Board DTOs ---
@@ -40,6 +113,8 @@ export interface BoardSummaryDto {
   description: string | null;
   boardType: string;
   projectId: string | null;
+  isPinned: boolean;
+  pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
   noteCount: number;
@@ -137,13 +212,6 @@ export interface CreateBoardConnectionRequest {
   boardId?: string;
 }
 
-/** @deprecated Use BoardConnectionDto instead */
-export interface NoteConnection {
-  id: string;
-  fromNoteId: string;
-  toNoteId: string;
-}
-
 // --- Index Card DTOs ---
 
 export interface IndexCardSummaryDto {
@@ -226,6 +294,8 @@ export interface ProjectSummaryDto {
   memberCount: number;
   boardCount: number;
   createdAt: string;
+  isPinned?: boolean;
+  pinnedAt?: string | null;
 }
 
 export interface ProjectMemberDto {
@@ -276,7 +346,8 @@ export interface UpdateProjectRequest {
 }
 
 export interface AddMemberRequest {
-  email: string;
+  email?: string;
+  userId?: string;
   role: string;
 }
 
@@ -296,6 +367,10 @@ export interface CalendarEventDto {
   isAllDay: boolean;
   color: string;
   eventType: string;
+  recurrenceFrequency: string | null;
+  recurrenceInterval: number;
+  recurrenceEndDate: string | null;
+  recurrenceSourceId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -309,6 +384,9 @@ export interface CreateCalendarEventRequest {
   isAllDay?: boolean;
   color?: string;
   eventType?: string;
+  recurrenceFrequency?: string;
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
 }
 
 export interface UpdateCalendarEventRequest {
@@ -319,4 +397,7 @@ export interface UpdateCalendarEventRequest {
   isAllDay?: boolean;
   color?: string;
   eventType?: string;
+  recurrenceFrequency?: string;
+  recurrenceInterval?: number;
+  recurrenceEndDate?: string;
 }

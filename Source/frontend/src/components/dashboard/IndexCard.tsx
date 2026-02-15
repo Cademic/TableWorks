@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- file exports INDEX_CARD_COLORS constant */
 import { useEffect, useRef, useState, useCallback } from "react";
 import Draggable, { type DraggableEventHandler } from "react-draggable";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -16,6 +17,7 @@ import { TaskItem } from "@tiptap/extension-task-item";
 import { X, GripVertical } from "lucide-react";
 import type { IndexCardSummaryDto } from "../../types";
 import { FontSize } from "../../lib/tiptap-font-size";
+/* eslint-disable react-refresh/only-export-components */
 import { IndexCardToolbar } from "./IndexCardToolbar";
 
 interface IndexCardProps {

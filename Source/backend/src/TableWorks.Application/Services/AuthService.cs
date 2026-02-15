@@ -12,6 +12,12 @@ namespace ASideNote.Application.Services;
 
 public sealed class AuthService : IAuthService
 {
+    /// <summary>Default avatar keys for new users. Must match UserService.AllowedProfilePictureKeys and frontend.</summary>
+    private static readonly string[] DefaultAvatarKeys = { "avatar-1", "avatar-2", "avatar-3", "avatar-4", "avatar-5", "avatar-6", "avatar-7", "avatar-8" };
+
+    private static string GetRandomDefaultAvatarKey() =>
+        DefaultAvatarKeys[RandomNumberGenerator.GetInt32(DefaultAvatarKeys.Length)];
+
     private readonly IRepository<User> _userRepo;
     private readonly IRepository<RefreshToken> _refreshTokenRepo;
     private readonly IRepository<EmailVerificationToken> _verificationTokenRepo;
@@ -73,7 +79,8 @@ public sealed class AuthService : IAuthService
             Role = "User",
             CreatedAt = DateTime.UtcNow,
             IsActive = true,
-            IsEmailVerified = false
+            IsEmailVerified = false,
+            ProfilePictureKey = GetRandomDefaultAvatarKey()
         };
 
         await _userRepo.AddAsync(user, cancellationToken);
@@ -355,7 +362,8 @@ public sealed class AuthService : IAuthService
                     CreatedAt = DateTime.UtcNow,
                     IsActive = true,
                     IsEmailVerified = true, // Google emails are verified
-                    EmailVerifiedAt = DateTime.UtcNow
+                    EmailVerifiedAt = DateTime.UtcNow,
+                    ProfilePictureKey = GetRandomDefaultAvatarKey()
                 };
 
                 await _userRepo.AddAsync(user, cancellationToken);

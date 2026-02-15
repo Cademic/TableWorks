@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
-import { ChalkCanvas, CHALKBOARD_BG, type ChalkCanvasHandle } from "../components/chalkboard/ChalkCanvas";
+import { ChalkCanvas, CHALKBOARD_BG, RESOLUTION_FACTOR, type ChalkCanvasHandle } from "../components/chalkboard/ChalkCanvas";
 import { ChalkToolbar, type ChalkMode, type ChalkTool } from "../components/chalkboard/ChalkToolbar";
 import { StickyNote } from "../components/dashboard/StickyNote";
 import { ZoomControls } from "../components/dashboard/ZoomControls";
@@ -11,6 +11,7 @@ import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
+const AUTO_SAVE_DELAY_MS = 2 * 60 * 1000; // 2 minutes, fixed default
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
 
@@ -110,9 +111,12 @@ export function ChalkBoardPage() {
 
       const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
       const newZoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
+      const vpScale = zoom / RESOLUTION_FACTOR;
+      const newVpScale = newZoom / RESOLUTION_FACTOR;
 
-      const newPanX = panX + (mouseX / newZoom - mouseX / zoom);
-      const newPanY = panY + (mouseY / newZoom - mouseY / zoom);
+      // Keep point under cursor fixed (same formula as Note Board CorkBoard)
+      const newPanX = panX + mouseX * (1 / newVpScale - 1 / vpScale);
+      const newPanY = panY + mouseY * (1 / newVpScale - 1 / vpScale);
 
       handleViewportChange(newZoom, newPanX, newPanY);
     }
@@ -142,8 +146,8 @@ export function ChalkBoardPage() {
     function onMouseMove(e: MouseEvent) {
       const start = panStartRef.current;
       if (!start) return;
-      const dx = (e.clientX - start.x) / zoom;
-      const dy = (e.clientY - start.y) / zoom;
+      const dx = RESOLUTION_FACTOR * (e.clientX - start.x) / zoom;
+      const dy = RESOLUTION_FACTOR * (e.clientY - start.y) / zoom;
       handleViewportChange(zoom, start.panX + dx, start.panY + dy);
     }
 
@@ -237,8 +241,10 @@ export function ChalkBoardPage() {
     }
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-    const newPanX = panX + (centerX / newZoom - centerX / zoom);
-    const newPanY = panY + (centerY / newZoom - centerY / zoom);
+    const vpScale = zoom / RESOLUTION_FACTOR;
+    const newVpScale = newZoom / RESOLUTION_FACTOR;
+    const newPanX = panX + centerX * (1 / newVpScale - 1 / vpScale);
+    const newPanY = panY + centerY * (1 / newVpScale - 1 / vpScale);
     handleViewportChange(newZoom, newPanX, newPanY);
   }
 
@@ -276,8 +282,8 @@ export function ChalkBoardPage() {
 
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const canvasX = (e.clientX - rect.left) / zoom - panX;
-    const canvasY = (e.clientY - rect.top) / zoom - panY;
+    const canvasX = RESOLUTION_FACTOR * (e.clientX - rect.left) / zoom - panX;
+    const canvasY = RESOLUTION_FACTOR * (e.clientY - rect.top) / zoom - panY;
 
     handleAddStickyNoteAt(canvasX, canvasY);
   }
@@ -296,7 +302,7 @@ export function ChalkBoardPage() {
           // Silently fail
         });
       }
-    }, 1500);
+    }, AUTO_SAVE_DELAY_MS);
   }, [boardId]);
 
   // Cleanup save timer on unmount
@@ -325,7 +331,23 @@ export function ChalkBoardPage() {
         setInitialCanvasJson(canvasJson && canvasJson !== "{}" ? canvasJson : null);
       }
       if (notesRes.status === "fulfilled") {
-        setNotes(notesRes.value.items);
+        const items = notesRes.value.items;
+        // Migrate old-format note positions (1x coords) to virtual canvas coords.
+        // Old format: positions typically < 1200x900. New format uses 2x range.
+        const migrated = items.map((n) => {
+          const px = n.positionX ?? 0;
+          const py = n.positionY ?? 0;
+          const isOldFormat = px <= 1200 && py <= 900;
+          if (isOldFormat) {
+            return {
+              ...n,
+              positionX: px * RESOLUTION_FACTOR,
+              positionY: py * RESOLUTION_FACTOR,
+            };
+          }
+          return n;
+        });
+        setNotes(migrated);
       }
 
       if (
@@ -363,7 +385,7 @@ export function ChalkBoardPage() {
     if (board) {
       openBoard({ id: board.id, name: board.name, boardType: board.boardType });
     }
-  }, [board?.id, board?.name, board?.boardType, openBoard]);
+  }, [board, openBoard]);
 
   // Listen for sidebar tool clicks
   useEffect(() => {
@@ -415,8 +437,8 @@ export function ChalkBoardPage() {
   async function handleAddStickyNote() {
     // Place near center of current viewport
     const rect = viewportRef.current?.getBoundingClientRect();
-    const centerX = rect ? (rect.width / 2) / zoom - panX : 200;
-    const centerY = rect ? (rect.height / 2) / zoom - panY : 200;
+    const centerX = rect ? RESOLUTION_FACTOR * (rect.width / 2) / zoom - panX : 400;
+    const centerY = rect ? RESOLUTION_FACTOR * (rect.height / 2) / zoom - panY : 300;
     const positionX = centerX - 135 + Math.random() * 100;
     const positionY = centerY - 135 + Math.random() * 100;
     await handleAddStickyNoteAt(positionX, positionY);
@@ -579,11 +601,11 @@ export function ChalkBoardPage() {
           onChange={handleCanvasChange}
         />
 
-        {/* Layer 2: Sticky notes (uses CSS transform for zoom/pan, same as CorkBoard) */}
+        {/* Layer 2: Sticky notes (uses CSS transform for zoom/pan, matches Fabric viewport) */}
         <div
           className="absolute origin-top-left"
           style={{
-            transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
+            transform: `scale(${zoom / RESOLUTION_FACTOR}) translate(${panX}px, ${panY}px)`,
             width: "10000px",
             height: "10000px",
             pointerEvents: mode === "select" && !isSpaceHeld && !isPanning ? "auto" : "none",
@@ -603,7 +625,7 @@ export function ChalkBoardPage() {
               onColorChange={handleColorChange}
               onRotationChange={handleRotationChange}
               onBringToFront={bringToFront}
-              zoom={zoom}
+              zoom={zoom / RESOLUTION_FACTOR}
             />
           ))}
         </div>

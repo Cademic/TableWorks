@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Calendar } from "lucide-react";
 import {
@@ -101,28 +101,59 @@ export function CalendarsPage() {
     isAllDay: boolean;
     color: string;
     eventType: string;
+    startHour: string;
+    endHour: string;
+    recurrenceFrequency: string;
+    recurrenceInterval: number;
+    recurrenceEndDate: string;
   }) {
     try {
-      const toNoonUtc = (s: string) => `${s}T12:00:00.000Z`;
-      if (editingEvent) {
-        await updateCalendarEvent(editingEvent.id, {
+      const toDateUtc = (dateStr: string, hour: string, allDay: boolean) =>
+        allDay ? `${dateStr}T12:00:00.000Z` : `${dateStr}T${hour}:00:00.000Z`;
+
+      const startIso = toDateUtc(data.startDate, data.startHour, data.isAllDay);
+      const endIso = data.endDate
+        ? toDateUtc(data.endDate, data.endHour, data.isAllDay)
+        : undefined;
+
+      const recurrence = data.recurrenceFrequency
+        ? {
+            recurrenceFrequency: data.recurrenceFrequency,
+            recurrenceInterval: data.recurrenceInterval,
+            recurrenceEndDate: data.recurrenceEndDate
+              ? `${data.recurrenceEndDate}T12:00:00.000Z`
+              : undefined,
+          }
+        : {
+            recurrenceFrequency: undefined,
+            recurrenceInterval: 1,
+            recurrenceEndDate: undefined,
+          };
+
+      // For recurring event instances, edit/delete the source event
+      const eventId = editingEvent?.recurrenceSourceId ?? editingEvent?.id;
+
+      if (editingEvent && eventId) {
+        await updateCalendarEvent(eventId, {
           title: data.title,
           description: data.description || undefined,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       } else {
         await createCalendarEvent({
           title: data.title,
           description: data.description || undefined,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       }
       setDialogOpen(false);
@@ -136,7 +167,8 @@ export function CalendarsPage() {
   async function handleDelete() {
     if (!editingEvent) return;
     try {
-      await deleteCalendarEvent(editingEvent.id);
+      const eventId = editingEvent.recurrenceSourceId ?? editingEvent.id;
+      await deleteCalendarEvent(eventId);
       setDialogOpen(false);
       setEditingEvent(null);
       fetchData();
@@ -144,6 +176,15 @@ export function CalendarsPage() {
       console.error("Failed to delete event");
     }
   }
+
+  // Build a projectId -> projectName map for displaying project names on events
+  const projectNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of projects) {
+      map[p.id] = p.name;
+    }
+    return map;
+  }, [projects]);
 
   function handleClickProject(project: ProjectSummaryDto) {
     navigate(`/projects/${project.id}`);
@@ -197,6 +238,7 @@ export function CalendarsPage() {
             onClickDay={handleClickDay}
             onClickEvent={handleClickEvent}
             onClickProject={handleClickProject}
+            projectNameMap={projectNameMap}
           />
         ) : (
           <CalendarTimeline
@@ -206,6 +248,7 @@ export function CalendarsPage() {
             onClickDay={handleClickDay}
             onClickEvent={handleClickEvent}
             onClickProject={handleClickProject}
+            projectNameMap={projectNameMap}
           />
         )}
 
@@ -220,7 +263,8 @@ export function CalendarsPage() {
             Events
           </span>
           <span className="flex items-center gap-1.5">
-            📝 Notes
+            <span className="inline-block h-2 w-2 rounded-full bg-orange-400" />
+            Notes
           </span>
         </div>
       </div>

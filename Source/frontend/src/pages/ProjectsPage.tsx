@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import {
   FolderOpen,
@@ -6,7 +7,8 @@ import {
   Filter,
   PencilLine,
 } from "lucide-react";
-import { getProjects, createProject, deleteProject } from "../api/projects";
+import type { AppLayoutContext } from "../components/layout/AppLayout";
+import { getProjects, createProject, deleteProject, updateProject, toggleProjectPin } from "../api/projects";
 import { ProjectCard } from "../components/projects/ProjectCard";
 import { CreateProjectDialog } from "../components/projects/CreateProjectDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
@@ -20,6 +22,8 @@ const STATUS_FILTERS = [
 ];
 
 export function ProjectsPage() {
+  const navigate = useNavigate();
+  const { refreshPinnedProjects } = useOutletContext<AppLayoutContext>();
   const [projects, setProjects] = useState<ProjectSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +32,8 @@ export function ProjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummaryDto | null>(
     null,
   );
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
   const fetchProjects = useCallback(async () => {
@@ -87,6 +93,7 @@ export function ProjectsPage() {
         ...prev,
       ]);
       setIsCreateOpen(false);
+      navigate(`/projects/${created.id}`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateError(err.response.data?.message ?? "A project with that name already exists.");
@@ -109,6 +116,48 @@ export function ProjectsPage() {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     try {
       await deleteProject(id);
+      refreshPinnedProjects();
+    } catch {
+      fetchProjects();
+    }
+  }
+
+  function handleRenameProject(id: string, currentName: string) {
+    setRenameTarget({ id, name: currentName });
+    setRenameValue(currentName);
+  }
+
+  async function confirmRenameProject() {
+    if (!renameTarget || !renameValue.trim()) return;
+    const { id } = renameTarget;
+    const newName = renameValue.trim();
+    const project = projects.find((p) => p.id === id);
+    setRenameTarget(null);
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
+    );
+    try {
+      await updateProject(id, {
+        name: newName,
+        status: project?.status ?? "Active",
+        progress: project?.progress ?? 0,
+      });
+    } catch {
+      fetchProjects();
+    }
+  }
+
+  async function handleToggleProjectPin(id: string, isPinned: boolean) {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? { ...p, isPinned, pinnedAt: isPinned ? new Date().toISOString() : undefined }
+          : p,
+      ),
+    );
+    try {
+      await toggleProjectPin(id, isPinned);
+      await refreshPinnedProjects();
     } catch {
       fetchProjects();
     }
@@ -218,6 +267,8 @@ export function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
+                onRename={handleRenameProject}
+                onTogglePin={handleToggleProjectPin}
                 onDelete={handleDelete}
               />
             ))}
@@ -242,6 +293,47 @@ export function ProjectsPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Rename Project Dialog */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/40"
+            onClick={() => setRenameTarget(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Rename Project</h2>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmRenameProject();
+              }}
+              maxLength={100}
+              className="mb-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-foreground/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRenameProject}
+                disabled={!renameValue.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

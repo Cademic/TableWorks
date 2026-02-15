@@ -4,7 +4,6 @@ import type { AppLayoutContext } from "../components/layout/AppLayout";
 import {
   Plus,
   ClipboardList,
-  PenTool,
   Calendar,
   FolderOpen,
   BookOpen,
@@ -15,8 +14,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import axios from "axios";
-import { getBoards, createBoard, deleteBoard } from "../api/boards";
-import { getProjects, createProject } from "../api/projects";
+import { getBoards, createBoard, deleteBoard, updateBoard, toggleBoardPin } from "../api/boards";
+import { getProjects, createProject, addBoardToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { MiniCalendar } from "../components/dashboard/MiniCalendar";
 import { ProjectCard } from "../components/projects/ProjectCard";
@@ -50,7 +49,7 @@ function formatShortDate(dateStr: string): string {
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { closeBoard } = useOutletContext<AppLayoutContext>();
+  const { closeBoard, refreshPinnedBoards, refreshPinnedProjects } = useOutletContext<AppLayoutContext>();
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
   const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +57,11 @@ export function DashboardPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createBoardError, setCreateBoardError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BoardSummaryDto | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [projectRenameTarget, setProjectRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [projectRenameValue, setProjectRenameValue] = useState("");
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<ProjectSummaryDto | null>(null);
 
   const fetchBoards = useCallback(async () => {
     try {
@@ -89,6 +93,11 @@ export function DashboardPage() {
       });
       setBoards((prev) => [created, ...prev]);
       setIsCreateOpen(false);
+      const path =
+        created.boardType === "ChalkBoard"
+          ? `/chalkboards/${created.id}`
+          : `/boards/${created.id}`;
+      navigate(path);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateBoardError(err.response.data?.message ?? "A board with that name already exists.");
@@ -147,8 +156,123 @@ export function DashboardPage() {
     }
   }
 
-  const noteBoards = boards.filter((b) => b.boardType === "NoteBoard");
-  const chalkBoards = boards.filter((b) => b.boardType === "ChalkBoard");
+  function handleRename(id: string, currentName: string) {
+    setRenameTarget({ id, name: currentName });
+    setRenameValue(currentName);
+  }
+
+  async function confirmRename() {
+    if (!renameTarget || !renameValue.trim()) return;
+    const { id } = renameTarget;
+    const newName = renameValue.trim();
+    setRenameTarget(null);
+    setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, name: newName } : b)));
+    try {
+      await updateBoard(id, { name: newName });
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  async function handleMoveToProject(boardId: string, projectId: string) {
+    try {
+      await addBoardToProject(projectId, boardId);
+      setBoards((prev) =>
+        prev.map((b) => (b.id === boardId ? { ...b, projectId } : b)),
+      );
+    } catch {
+      console.error("Failed to move board to project");
+    }
+  }
+
+  async function handleTogglePin(id: string, isPinned: boolean) {
+    setBoards((prev) =>
+      prev.map((b) =>
+        b.id === id ? { ...b, isPinned, pinnedAt: isPinned ? new Date().toISOString() : null } : b,
+      ),
+    );
+    try {
+      await toggleBoardPin(id, isPinned);
+      refreshPinnedBoards();
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  function handleRenameProject(id: string, currentName: string) {
+    setProjectRenameTarget({ id, name: currentName });
+    setProjectRenameValue(currentName);
+  }
+
+  async function confirmRenameProject() {
+    if (!projectRenameTarget || !projectRenameValue.trim()) return;
+    const { id } = projectRenameTarget;
+    const newName = projectRenameValue.trim();
+    const project = activeProjects.find((p) => p.id === id);
+    setProjectRenameTarget(null);
+    setActiveProjects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, name: newName } : p)),
+    );
+    try {
+      await updateProject(id, {
+        name: newName,
+        status: project?.status ?? "Active",
+        progress: project?.progress ?? 0,
+      });
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  async function handleToggleProjectPin(id: string, isPinned: boolean) {
+    setActiveProjects((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? { ...p, isPinned, pinnedAt: isPinned ? new Date().toISOString() : undefined }
+          : p,
+      ),
+    );
+    try {
+      await toggleProjectPin(id, isPinned);
+      await refreshPinnedProjects();
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  function handleDeleteProject(id: string) {
+    const project = activeProjects.find((p) => p.id === id) ?? null;
+    if (project) setProjectDeleteTarget(project);
+  }
+
+  async function confirmDeleteProject() {
+    if (!projectDeleteTarget) return;
+    const id = projectDeleteTarget.id;
+    setProjectDeleteTarget(null);
+    setActiveProjects((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await deleteProject(id);
+      refreshPinnedProjects();
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  /** Boards sorted by last updated (opened recently) */
+  const allBoards = useMemo(
+    () => [...boards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [boards],
+  );
+
+  /** Projects sorted by most recently created/updated (opened recently) */
+  const activeProjectsSorted = useMemo(
+    () =>
+      [...activeProjects].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [activeProjects],
+  );
 
   const totalNotes = useMemo(
     () => boards.reduce((sum, b) => sum + b.noteCount, 0),
@@ -262,17 +386,17 @@ export function DashboardPage() {
           count={0}
           accentColor="sky"
         >
-          <MiniCalendar projects={activeProjects} />
+          <MiniCalendar projects={activeProjectsSorted} />
         </NotebookSection>
 
         {/* ── Active Projects ────────────────────────────── */}
         <NotebookSection
           icon={FolderOpen}
           title="Projects"
-          count={activeProjects.length}
+          count={activeProjectsSorted.length}
           accentColor="violet"
         >
-          {activeProjects.length === 0 ? (
+          {activeProjectsSorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-14">
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5">
                 <FolderOpen className="h-5 w-5 text-foreground/30" />
@@ -292,10 +416,13 @@ export function DashboardPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {activeProjects.slice(0, 3).map((project) => (
+                {activeProjectsSorted.slice(0, 3).map((project) => (
                   <ProjectCard
                     key={project.id}
                     project={project}
+                    onRename={handleRenameProject}
+                    onTogglePin={handleToggleProjectPin}
+                    onDelete={handleDeleteProject}
                   />
                 ))}
               </div>
@@ -313,47 +440,45 @@ export function DashboardPage() {
           )}
         </NotebookSection>
 
-        {/* ── Note Boards ───────────────────────────────── */}
+        {/* ── Boards (Note + Chalk) ─────────────────────── */}
         <NotebookSection
           icon={ClipboardList}
-          title="Note Boards"
-          count={noteBoards.length}
+          title="Boards"
+          count={allBoards.length}
           accentColor="amber"
         >
-          {noteBoards.length === 0 ? (
+          {allBoards.length === 0 ? (
             <BlankPageEmpty
-              message="No note boards yet"
+              message="No boards yet"
               actionLabel="Create your first board"
               onAction={() => setIsCreateOpen(true)}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {noteBoards.map((board) => (
-                <BoardCard key={board.id} board={board} onDelete={handleDelete} />
-              ))}
-            </div>
-          )}
-        </NotebookSection>
-
-        {/* ── Chalk Boards ──────────────────────────────── */}
-        <NotebookSection
-          icon={PenTool}
-          title="Chalk Boards"
-          count={chalkBoards.length}
-          accentColor="emerald"
-        >
-          {chalkBoards.length === 0 ? (
-            <BlankPageEmpty
-              message="No chalkboards yet"
-              actionLabel="Create your first chalkboard"
-              onAction={() => setIsCreateOpen(true)}
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {chalkBoards.map((board) => (
-                <BoardCard key={board.id} board={board} onDelete={handleDelete} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {allBoards.slice(0, 6).map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onDelete={handleDelete}
+                    onRename={handleRename}
+                    onMoveToProject={handleMoveToProject}
+                    onTogglePin={handleTogglePin}
+                    activeProjects={activeProjectsSorted}
+                  />
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => navigate("/boards")}
+                  className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-amber-400 hover:text-amber-900 hover:border-amber-400/50 dark:hover:bg-amber-500/20 dark:hover:text-amber-300 dark:hover:border-amber-500/30"
+                >
+                  View All Boards
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </>
           )}
         </NotebookSection>
       </div>
@@ -376,6 +501,96 @@ export function DashboardPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <ConfirmDialog
+        isOpen={projectDeleteTarget !== null}
+        title="Delete Project"
+        message={`Are you sure you want to delete "${projectDeleteTarget?.name ?? "this project"}"? All boards will be unlinked but not deleted.`}
+        confirmLabel="Delete"
+        cancelLabel="Keep It"
+        variant="danger"
+        onConfirm={confirmDeleteProject}
+        onCancel={() => setProjectDeleteTarget(null)}
+      />
+
+      {/* Rename Board Dialog */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setRenameTarget(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Rename Board</h2>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmRename();
+              }}
+              maxLength={100}
+              className="mb-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-foreground/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRename}
+                disabled={!renameValue.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Project Dialog */}
+      {projectRenameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/40"
+            onClick={() => setProjectRenameTarget(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Rename Project</h2>
+            <input
+              type="text"
+              value={projectRenameValue}
+              onChange={(e) => setProjectRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmRenameProject();
+              }}
+              maxLength={100}
+              className="mb-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setProjectRenameTarget(null)}
+                className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-foreground/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRenameProject}
+                disabled={!projectRenameValue.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+              >
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

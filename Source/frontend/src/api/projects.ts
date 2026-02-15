@@ -87,3 +87,15 @@ export async function removeBoardFromProject(
 ): Promise<void> {
   await apiClient.delete(`/projects/${projectId}/boards/${boardId}`);
 }
+
+export async function getPinnedProjects(): Promise<ProjectSummaryDto[]> {
+  const response = await apiClient.get<ProjectSummaryDto[]>("/projects/pinned");
+  return response.data;
+}
+
+export async function toggleProjectPin(
+  id: string,
+  isPinned: boolean,
+): Promise<void> {
+  await apiClient.put(`/projects/${id}/pin`, { isPinned });
+}

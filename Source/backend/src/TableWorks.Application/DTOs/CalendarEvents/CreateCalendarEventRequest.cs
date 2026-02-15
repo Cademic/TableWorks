@@ -10,4 +10,7 @@ public sealed class CreateCalendarEventRequest
     public bool IsAllDay { get; set; } = true;
     public string Color { get; set; } = "sky";
     public string EventType { get; set; } = "Event";
+    public string? RecurrenceFrequency { get; set; }
+    public int RecurrenceInterval { get; set; } = 1;
+    public DateTime? RecurrenceEndDate { get; set; }
 }

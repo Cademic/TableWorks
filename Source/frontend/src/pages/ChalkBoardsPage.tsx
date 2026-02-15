@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PenTool, Plus, PencilLine } from "lucide-react";
 import { getBoards, createBoard, deleteBoard } from "../api/boards";
 import { BoardCard } from "../components/dashboard/BoardCard";
@@ -29,6 +30,8 @@ export function ChalkBoardsPage() {
     fetchBoards();
   }, [fetchBoards]);
 
+  const navigate = useNavigate();
+
   async function handleCreate(name: string, description: string, boardType: string) {
     try {
       const created = await createBoard({
@@ -37,6 +40,7 @@ export function ChalkBoardsPage() {
         boardType,
       });
       setBoards((prev) => [created, ...prev]);
+      navigate(`/chalkboards/${created.id}`);
     } catch {
       // Silently fail
     }

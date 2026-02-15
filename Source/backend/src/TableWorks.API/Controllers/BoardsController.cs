@@ -65,4 +65,26 @@ public sealed class BoardsController : ControllerBase
         await _boardService.DeleteBoardAsync(_currentUserService.UserId, id, cancellationToken);
         return Ok();
     }
+
+    [HttpPut("{id:guid}/pin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TogglePin(Guid id, [FromBody] TogglePinRequest request, CancellationToken cancellationToken)
+    {
+        await _boardService.TogglePinAsync(_currentUserService.UserId, id, request.IsPinned, cancellationToken);
+        return Ok();
+    }
+
+    [HttpGet("pinned")]
+    [ProducesResponseType(typeof(IReadOnlyList<BoardSummaryDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPinnedBoards(CancellationToken cancellationToken)
+    {
+        var result = await _boardService.GetPinnedBoardsAsync(_currentUserService.UserId, cancellationToken);
+        return Ok(result);
+    }
+}
+
+public sealed class TogglePinRequest
+{
+    public bool IsPinned { get; set; }
 }

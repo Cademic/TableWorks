@@ -17,4 +17,6 @@ public class ProjectSummaryDto
     public int MemberCount { get; set; }
     public int BoardCount { get; set; }
     public DateTime CreatedAt { get; set; }
+    public bool IsPinned { get; set; }
+    public DateTime? PinnedAt { get; set; }
 }

@@ -72,6 +72,45 @@ interface WeekItem {
   isUpcoming: boolean;
   eventDto: CalendarEventDto | null;
   projectId: string | null;
+  lane: number;
+}
+
+/* ─── Lane assignment (stagger overlapping items) ──────── */
+
+function assignLanes(items: Omit<WeekItem, "lane">[]): WeekItem[] {
+  // Sort by startCol then by span descending (wider items first)
+  const sorted = [...items].sort(
+    (a, b) => a.startCol - b.startCol || b.span - a.span,
+  );
+
+  // Track the end column of each lane
+  const laneEnds: number[] = [];
+  const result: WeekItem[] = [];
+
+  for (const item of sorted) {
+    const itemEnd = item.startCol + item.span;
+    let assignedLane = -1;
+
+    // Find the first lane with a gap before this item (strict <).
+    // Using < instead of <= ensures adjacent items stagger to the
+    // row below, then float back up once there is a free column gap.
+    for (let i = 0; i < laneEnds.length; i++) {
+      if (laneEnds[i] < item.startCol) {
+        assignedLane = i;
+        laneEnds[i] = itemEnd;
+        break;
+      }
+    }
+
+    if (assignedLane === -1) {
+      assignedLane = laneEnds.length;
+      laneEnds.push(itemEnd);
+    }
+
+    result.push({ ...item, lane: assignedLane });
+  }
+
+  return result;
 }
 
 interface CalendarTimelineProps {
@@ -81,6 +120,8 @@ interface CalendarTimelineProps {
   onClickDay: (date: Date) => void;
   onClickEvent: (event: CalendarEventDto) => void;
   onClickProject?: (project: ProjectSummaryDto) => void;
+  /** Map of projectId -> project name for displaying on events */
+  projectNameMap?: Record<string, string>;
 }
 
 /* ─── Main Component ───────────────────────────────────── */
@@ -92,6 +133,7 @@ export function CalendarTimeline({
   onClickDay,
   onClickEvent,
   onClickProject,
+  projectNameMap,
 }: CalendarTimelineProps) {
   const navigate = useNavigate();
   const today = useMemo(() => new Date(), []);
@@ -128,7 +170,7 @@ export function CalendarTimeline({
   function getItemsForWeek(weekDays: Date[]): WeekItem[] {
     const weekStart = weekDays[0];
     const weekEnd = weekDays[6];
-    const items: WeekItem[] = [];
+    const rawItems: Omit<WeekItem, "lane">[] = [];
     const seen = new Set<string>();
 
     for (const event of events) {
@@ -153,7 +195,7 @@ export function CalendarTimeline({
 
       if (startCol >= 0 && startCol < 7 && span > 0) {
         seen.add(event.id);
-        items.push({
+        rawItems.push({
           id: event.id,
           title: event.title,
           color: event.color,
@@ -164,7 +206,7 @@ export function CalendarTimeline({
           continuesRight,
           isUpcoming: localDay(evStart) > todayMs,
           eventDto: event,
-          projectId: null,
+          projectId: event.projectId ?? null,
         });
       }
     }
@@ -192,7 +234,7 @@ export function CalendarTimeline({
 
       if (startCol >= 0 && startCol < 7 && span > 0) {
         seen.add(project.id);
-        items.push({
+        rawItems.push({
           id: project.id,
           title: project.name,
           color: project.color || "violet",
@@ -208,7 +250,7 @@ export function CalendarTimeline({
       }
     }
 
-    return items;
+    return assignLanes(rawItems);
   }
 
   function handleItemClick(item: WeekItem) {
@@ -240,6 +282,7 @@ export function CalendarTimeline({
             onDayClick={onClickDay}
             onItemClick={handleItemClick}
             isLast={weekIdx === weeks.length - 1}
+            projectNameMap={projectNameMap}
           />
         );
       })}
@@ -257,9 +300,10 @@ interface WeekRowProps {
   onDayClick: (date: Date) => void;
   onItemClick: (item: WeekItem) => void;
   isLast: boolean;
+  projectNameMap?: Record<string, string>;
 }
 
-function WeekRow({ days, items, today, currentMonth, onDayClick, onItemClick, isLast }: WeekRowProps) {
+function WeekRow({ days, items, today, currentMonth, onDayClick, onItemClick, isLast, projectNameMap }: WeekRowProps) {
   return (
     <div className={!isLast ? "border-b border-border" : ""}>
       {/* Day header row */}
@@ -289,77 +333,85 @@ function WeekRow({ days, items, today, currentMonth, onDayClick, onItemClick, is
         })}
       </div>
 
-      {/* Event bars */}
-      <div className="navbar-surface flex flex-col gap-1.5 py-1.5">
-        {items.map((item) => {
-          const colors = BAR_COLORS[item.color] ?? BAR_COLORS.sky;
-
-          const badge = item.isUpcoming
-            ? "Upcoming"
-            : item.kind === "project"
-              ? "Project"
-              : item.kind === "note"
-                ? "Note"
-                : "Event";
-
-          const roundLeft = !item.continuesLeft;
-          const roundRight = !item.continuesRight;
-
-          return (
+      {/* Event bars — staggered by lane (items go below when overlapping, reuse upper lanes when free) */}
+      <div className="navbar-surface flex flex-col gap-1 py-1.5">
+        {(() => {
+          // Group items by lane, skip empty lanes to avoid gap artifacts
+          const maxLane = items.reduce((m, i) => Math.max(m, i.lane), -1);
+          const lanes: WeekItem[][] = [];
+          for (let l = 0; l <= maxLane; l++) {
+            const laneItems = items.filter((i) => i.lane === l);
+            if (laneItems.length > 0) lanes.push(laneItems);
+          }
+          return lanes.map((laneItems, laneIdx) => (
             <div
-              key={item.id}
+              key={laneIdx}
               className="grid grid-cols-7"
               style={{
                 backgroundImage:
                   "repeating-linear-gradient(90deg, transparent, transparent calc(100% / 7 - 1px), var(--grid-line-color) calc(100% / 7 - 1px), var(--grid-line-color) calc(100% / 7))",
               }}
             >
-              <button
-                type="button"
-                onClick={() => onItemClick(item)}
-                className={`relative flex items-center gap-2 ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
-                  roundLeft ? "border-l-[3px] " + colors.border : ""
-                } ${roundLeft && roundRight ? "rounded" : roundLeft ? "rounded-l" : roundRight ? "rounded-r" : ""}`}
-                style={{
-                  gridColumn: `${item.startCol + 1} / span ${item.span}`,
-                }}
-              >
-                {/* Left continuation chevron */}
-                {item.continuesLeft && (
-                  <ChevronLeft
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text} opacity-60`}
-                  />
-                )}
+              {laneItems.map((item) => {
+                const colors = BAR_COLORS[item.color] ?? BAR_COLORS.sky;
+                // Show truncated project name as badge when event/note belongs to a project
+                const projectLabel = item.kind !== "project" && item.projectId && projectNameMap?.[item.projectId]
+                  ? projectNameMap[item.projectId].length > 10
+                    ? projectNameMap[item.projectId].slice(0, 10) + "…"
+                    : projectNameMap[item.projectId]
+                  : null;
+                const badge = item.kind === "project"
+                  ? "Project"
+                  : projectLabel ?? (item.isUpcoming
+                      ? "Upcoming"
+                      : item.kind === "note"
+                        ? "Note"
+                        : "Event");
+                const roundLeft = !item.continuesLeft;
+                const roundRight = !item.continuesRight;
 
-                {/* Icon */}
-                {item.kind === "project" ? (
-                  <FolderOpen className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
-                ) : item.kind === "note" ? (
-                  <FileText className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
-                ) : (
-                  <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
-                )}
-
-                {/* Title */}
-                <span className={`truncate text-xs font-medium ${colors.text}`}>
-                  {item.title}
-                </span>
-
-                {/* Badge + right chevron */}
-                <span className="ml-auto flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`}
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onItemClick(item)}
+                    className={`relative flex items-center gap-2 ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
+                      roundLeft ? "border-l-[3px] " + colors.border : ""
+                    } ${roundLeft && roundRight ? "rounded" : roundLeft ? "rounded-l" : roundRight ? "rounded-r" : ""}`}
+                    style={{
+                      gridColumn: `${item.startCol + 1} / span ${item.span}`,
+                    }}
                   >
-                    {badge}
-                  </span>
-                  {item.continuesRight && (
-                    <ChevronRight className={`h-3.5 w-3.5 ${colors.text} opacity-60`} />
-                  )}
-                </span>
-              </button>
+                    {item.continuesLeft && (
+                      <ChevronLeft className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text} opacity-60`} />
+                    )}
+                    {item.kind === "project" ? (
+                      <FolderOpen className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    ) : item.kind === "note" ? (
+                      <FileText className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    ) : (
+                      <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    )}
+                    <span className={`truncate text-xs font-medium ${colors.text}`}>
+                      {item.kind !== "project" && item.projectId && projectNameMap?.[item.projectId] && (
+                        <span className="opacity-60">{projectNameMap[item.projectId]}: </span>
+                      )}
+                      {item.title}
+                    </span>
+                    <span className="ml-auto flex items-center gap-1 flex-shrink-0">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`}>
+                        {badge}
+                      </span>
+                      {item.continuesRight && (
+                        <ChevronRight className={`h-3.5 w-3.5 ${colors.text} opacity-60`} />
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
+          ));
+        })()}
 
         {items.length === 0 && <div className="h-6" />}
       </div>

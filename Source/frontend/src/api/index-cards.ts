@@ -12,11 +12,6 @@ export async function getIndexCards(params?: Record<string, string | number>): P
   return response.data;
 }
 
-export async function getIndexCardById(id: string): Promise<IndexCardDetailDto> {
-  const response = await apiClient.get<IndexCardDetailDto>(`/index-cards/${id}`);
-  return response.data;
-}
-
 export async function createIndexCard(data: CreateIndexCardRequest): Promise<IndexCardDetailDto> {
   const response = await apiClient.post<IndexCardDetailDto>("/index-cards", data);
   return response.data;

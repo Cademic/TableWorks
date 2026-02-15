@@ -28,3 +28,12 @@ export async function updateBoard(id: string, data: UpdateBoardRequest): Promise
 export async function deleteBoard(id: string): Promise<void> {
   await apiClient.delete(`/boards/${id}`);
 }
+
+export async function toggleBoardPin(id: string, isPinned: boolean): Promise<void> {
+  await apiClient.put(`/boards/${id}/pin`, { isPinned });
+}
+
+export async function getPinnedBoards(): Promise<BoardSummaryDto[]> {
+  const response = await apiClient.get<BoardSummaryDto[]>("/boards/pinned");
+  return response.data;
+}

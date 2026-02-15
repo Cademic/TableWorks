@@ -13,6 +13,8 @@ interface CalendarDayCellProps {
   onClickEvent: (event: CalendarEventDto) => void;
   onClickProject?: (project: ProjectSummaryDto) => void;
   compact?: boolean;
+  /** Map of projectId -> project name for displaying on events */
+  projectNameMap?: Record<string, string>;
 }
 
 export function CalendarDayCell({
@@ -25,6 +27,7 @@ export function CalendarDayCell({
   onClickEvent,
   onClickProject,
   compact,
+  projectNameMap,
 }: CalendarDayCellProps) {
   const dayNumber = date.getDate();
   const maxItems = compact ? 0 : 3;
@@ -108,14 +111,19 @@ export function CalendarDayCell({
         ))}
       </div>
 
-      {/* Events */}
+      {/* Events — staggered with slight left offset for overlapping items */}
       <div className="flex flex-col gap-0.5">
-        {visibleEvents.map((event) => (
-          <CalendarEventItem
+        {visibleEvents.map((event, idx) => (
+          <div
             key={event.id}
-            event={event}
-            onClick={onClickEvent}
-          />
+            style={{ marginLeft: idx > 0 ? `${Math.min(idx * 4, 12)}px` : undefined }}
+          >
+            <CalendarEventItem
+              event={event}
+              onClick={onClickEvent}
+              projectName={event.projectId && projectNameMap ? projectNameMap[event.projectId] ?? null : null}
+            />
+          </div>
         ))}
       </div>
 

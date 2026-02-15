@@ -9,7 +9,9 @@ import { ProjectsPage } from "../pages/ProjectsPage";
 import { ProjectDetailPage } from "../pages/ProjectDetailPage";
 import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
+import { BoardsPage } from "../pages/BoardsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RegisterPage } from "../pages/RegisterPage";
@@ -17,7 +19,12 @@ import { VerifyEmailPage } from "../pages/VerifyEmailPage";
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
@@ -29,12 +36,15 @@ export function AppRouter() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/boards" element={<BoardsPage />} />
             <Route path="/boards/:boardId" element={<NoteBoardPage />} />
             <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
             <Route path="/calendar" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

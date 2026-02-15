@@ -26,6 +26,40 @@ interface ChalkCanvasProps {
 
 export const CHALKBOARD_BG = "#2d4a3e";
 
+export const RESOLUTION_FACTOR = 2;
+
+const CHALK_JSON_VERSION = 2;
+
+function scaleFabricJSON(obj: Record<string, unknown>, factor: number): void {
+  if (obj.objects && Array.isArray(obj.objects)) {
+    for (const item of obj.objects as Record<string, unknown>[]) {
+      if (typeof item.left === "number") item.left *= factor;
+      if (typeof item.top === "number") item.top *= factor;
+      if (typeof item.width === "number") item.width *= factor;
+      if (typeof item.height === "number") item.height *= factor;
+      if (typeof item.strokeWidth === "number") item.strokeWidth *= factor;
+      if (typeof item.fontSize === "number") item.fontSize *= factor;
+      if (item.path && Array.isArray(item.path)) {
+        for (const cmd of item.path as (string | number)[][]) {
+          if (Array.isArray(cmd)) {
+            for (let i = 1; i < cmd.length; i++) {
+              if (typeof cmd[i] === "number") (cmd as number[])[i] *= factor;
+            }
+          }
+        }
+      }
+      if (item.points && Array.isArray(item.points)) {
+        for (const pt of item.points as { x: number; y: number }[]) {
+          if (pt && typeof pt.x === "number") pt.x *= factor;
+          if (pt && typeof pt.y === "number") pt.y *= factor;
+        }
+      }
+    }
+  }
+  if (typeof obj.width === "number") obj.width *= factor;
+  if (typeof obj.height === "number") obj.height *= factor;
+}
+
 export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
   function ChalkCanvas(
     { isActive, brushColor = "#ffffff", brushSize = 3, zoom = 1, panX = 0, panY = 0, onChange },
@@ -49,12 +83,15 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     useEffect(() => {
       if (!canvasElRef.current || fabricRef.current) return;
 
+      const cw = containerRef.current?.clientWidth ?? 800;
+      const ch = containerRef.current?.clientHeight ?? 600;
       const canvas = new Canvas(canvasElRef.current, {
         isDrawingMode: true,
         backgroundColor: CHALKBOARD_BG,
-        width: containerRef.current?.clientWidth ?? 800,
-        height: containerRef.current?.clientHeight ?? 600,
+        width: cw * RESOLUTION_FACTOR,
+        height: ch * RESOLUTION_FACTOR,
         selection: false,
+        enableRetinaScaling: true,
       });
 
       const brush = new PencilBrush(canvas);
@@ -66,14 +103,15 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
 
       fabricRef.current = canvas;
 
-      // Save initial state to undo stack
-      undoStackRef.current = [JSON.stringify(canvas.toJSON())];
+      // Save initial state to undo stack (with version for new format)
+      const initObj = canvas.toJSON() as Record<string, unknown>;
+      initObj._chalkVersion = CHALK_JSON_VERSION;
+      undoStackRef.current = [JSON.stringify(initObj)];
 
       return () => {
         canvas.dispose();
         fabricRef.current = null;
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Listen for path:created to push undo state
@@ -83,8 +121,9 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
 
       function handlePathCreated() {
         if (isLoadingRef.current) return;
-        const json = JSON.stringify(canvas!.toJSON());
-        undoStackRef.current.push(json);
+        const obj = canvas!.toJSON() as Record<string, unknown>;
+        obj._chalkVersion = CHALK_JSON_VERSION;
+        undoStackRef.current.push(JSON.stringify(obj));
         redoStackRef.current = [];
         onChange?.();
       }
@@ -105,7 +144,10 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
         for (const entry of entries) {
           const { width, height } = entry.contentRect;
           if (width > 0 && height > 0) {
-            canvas.setDimensions({ width, height });
+            canvas.setDimensions({
+              width: width * RESOLUTION_FACTOR,
+              height: height * RESOLUTION_FACTOR,
+            });
             canvas.renderAll();
           }
         }
@@ -119,8 +161,11 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     useEffect(() => {
       const canvas = fabricRef.current;
       if (!canvas) return;
-      // fabric viewportTransform: [scaleX, skewX, skewY, scaleY, translateX, translateY]
-      canvas.setViewportTransform([zoom, 0, 0, zoom, zoom * panX, zoom * panY]);
+      const vpScale = zoom / RESOLUTION_FACTOR;
+      canvas.setViewportTransform([
+        vpScale, 0, 0, vpScale,
+        vpScale * panX, vpScale * panY,
+      ]);
       canvas.renderAll();
     }, [zoom, panX, panY]);
 
@@ -140,7 +185,7 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       canvas.freeDrawingBrush.color = brushColor;
     }, [brushColor]);
 
-    // Update brush size
+    // Update brush size (fixed - virtual canvas keeps resolution constant)
     useEffect(() => {
       const canvas = fabricRef.current;
       if (!canvas?.freeDrawingBrush) return;
@@ -188,8 +233,23 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     const applyViewport = useCallback((z: number, px: number, py: number) => {
       const canvas = fabricRef.current;
       if (!canvas) return;
-      canvas.setViewportTransform([z, 0, 0, z, z * px, z * py]);
+      const vpScale = z / RESOLUTION_FACTOR;
+      canvas.setViewportTransform([
+        vpScale, 0, 0, vpScale,
+        vpScale * px, vpScale * py,
+      ]);
       canvas.renderAll();
+    }, []);
+
+    const loadParsedJSON = useCallback(async (parsed: Record<string, unknown>) => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      const version = parsed._chalkVersion as number | undefined;
+      if (version !== CHALK_JSON_VERSION) {
+        scaleFabricJSON(parsed, RESOLUTION_FACTOR);
+        parsed._chalkVersion = CHALK_JSON_VERSION;
+      }
+      await canvas.loadFromJSON(parsed);
     }, []);
 
     const undo = useCallback(() => {
@@ -201,12 +261,12 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
 
       const previous = undoStackRef.current[undoStackRef.current.length - 1];
       isLoadingRef.current = true;
-      canvas.loadFromJSON(JSON.parse(previous)).then(() => {
+      loadParsedJSON(JSON.parse(previous)).then(() => {
         canvas.renderAll();
         isLoadingRef.current = false;
         onChange?.();
       });
-    }, [onChange]);
+    }, [onChange, loadParsedJSON]);
 
     const redo = useCallback(() => {
       const canvas = fabricRef.current;
@@ -216,12 +276,12 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       undoStackRef.current.push(next);
 
       isLoadingRef.current = true;
-      canvas.loadFromJSON(JSON.parse(next)).then(() => {
+      loadParsedJSON(JSON.parse(next)).then(() => {
         canvas.renderAll();
         isLoadingRef.current = false;
         onChange?.();
       });
-    }, [onChange]);
+    }, [onChange, loadParsedJSON]);
 
     const clear = useCallback(() => {
       const canvas = fabricRef.current;
@@ -231,8 +291,9 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       canvas.backgroundColor = CHALKBOARD_BG;
       canvas.renderAll();
 
-      const json = JSON.stringify(canvas.toJSON());
-      undoStackRef.current.push(json);
+      const obj = canvas.toJSON() as Record<string, unknown>;
+      obj._chalkVersion = CHALK_JSON_VERSION;
+      undoStackRef.current.push(JSON.stringify(obj));
       redoStackRef.current = [];
       onChange?.();
     }, [onChange]);
@@ -240,7 +301,9 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     const toJSON = useCallback(() => {
       const canvas = fabricRef.current;
       if (!canvas) return "{}";
-      return JSON.stringify(canvas.toJSON());
+      const obj = canvas.toJSON() as Record<string, unknown>;
+      obj._chalkVersion = CHALK_JSON_VERSION;
+      return JSON.stringify(obj);
     }, []);
 
     const loadFromJSON = useCallback(async (json: string) => {
@@ -249,18 +312,19 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
 
       isLoadingRef.current = true;
       try {
-        const parsed = JSON.parse(json);
-        await canvas.loadFromJSON(parsed);
+        const parsed = JSON.parse(json) as Record<string, unknown>;
+        await loadParsedJSON(parsed);
+        parsed._chalkVersion = CHALK_JSON_VERSION;
         canvas.backgroundColor = CHALKBOARD_BG;
         canvas.renderAll();
-        undoStackRef.current = [json];
+        undoStackRef.current = [JSON.stringify(parsed)];
         redoStackRef.current = [];
       } catch {
         // If JSON is invalid, keep the current state
       } finally {
         isLoadingRef.current = false;
       }
-    }, []);
+    }, [loadParsedJSON]);
 
     useImperativeHandle(
       ref,
@@ -282,13 +346,16 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
     return (
       <div
         ref={containerRef}
-        className="absolute inset-0"
+        className="absolute inset-0 overflow-hidden"
         style={{
           pointerEvents: isActive ? "auto" : "none",
           backgroundColor: CHALKBOARD_BG,
         }}
       >
-        <canvas ref={canvasElRef} />
+        <canvas
+          ref={canvasElRef}
+          style={{ width: "100%", height: "100%", display: "block" }}
+        />
       </div>
     );
   },

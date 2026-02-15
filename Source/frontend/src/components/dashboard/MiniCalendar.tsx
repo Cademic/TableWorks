@@ -43,10 +43,6 @@ function toLocalDateStr(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function toNoonUtc(dateStr: string): string {
-  return `${dateStr}T12:00:00.000Z`;
-}
-
 function parseServerDate(isoStr: string): Date {
   const d = new Date(isoStr);
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -91,6 +87,38 @@ interface WeekItem {
   isUpcoming: boolean;
   /** The original event DTO (null for projects) */
   eventDto: CalendarEventDto | null;
+  projectId: string | null;
+  lane: number;
+}
+
+/* ─── Lane assignment (stagger overlapping items) ──────── */
+
+function assignLanes(items: Omit<WeekItem, "lane">[]): WeekItem[] {
+  const sorted = [...items].sort(
+    (a, b) => a.startCol - b.startCol || b.span - a.span,
+  );
+  const laneEnds: number[] = [];
+  const result: WeekItem[] = [];
+
+  for (const item of sorted) {
+    const itemEnd = item.startCol + item.span;
+    let assignedLane = -1;
+    // Strict < so adjacent items stagger to the row below,
+    // then float back up once there is a free column gap.
+    for (let i = 0; i < laneEnds.length; i++) {
+      if (laneEnds[i] < item.startCol) {
+        assignedLane = i;
+        laneEnds[i] = itemEnd;
+        break;
+      }
+    }
+    if (assignedLane === -1) {
+      assignedLane = laneEnds.length;
+      laneEnds.push(itemEnd);
+    }
+    result.push({ ...item, lane: assignedLane });
+  }
+  return result;
 }
 
 interface MiniCalendarProps {
@@ -107,6 +135,13 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
   const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
 
   const today = useMemo(() => new Date(), []);
+
+  // Map projectId -> project name for badge display
+  const projectNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of projects) map[p.id] = p.name;
+    return map;
+  }, [projects]);
 
   // Build 14-day range starting from Sunday of the current week
   const days = useMemo(() => {
@@ -141,7 +176,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
     const weekStart = weekDays[0];
     const weekEnd = weekDays[weekDays.length - 1];
     const todayMs = localDay(today);
-    const items: WeekItem[] = [];
+    const rawItems: Omit<WeekItem, "lane">[] = [];
     const seen = new Set<string>();
 
     for (const event of events) {
@@ -166,7 +201,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
 
       if (startCol >= 0 && startCol < 7 && span > 0) {
         seen.add(event.id);
-        items.push({
+        rawItems.push({
           id: event.id,
           title: event.title,
           color: event.color,
@@ -177,6 +212,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
           continuesRight,
           isUpcoming: localDay(evStart) > todayMs,
           eventDto: event,
+          projectId: event.projectId ?? null,
         });
       }
     }
@@ -204,7 +240,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
 
       if (startCol >= 0 && startCol < 7 && span > 0) {
         seen.add(project.id);
-        items.push({
+        rawItems.push({
           id: project.id,
           title: project.name,
           color: project.color || "violet",
@@ -215,11 +251,12 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
           continuesRight,
           isUpcoming: localDay(pStart) > todayMs,
           eventDto: null,
+          projectId: project.id,
         });
       }
     }
 
-    return items;
+    return assignLanes(rawItems);
   }
 
   function handleDayClick(date: Date) {
@@ -246,27 +283,58 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
     isAllDay: boolean;
     color: string;
     eventType: string;
+    startHour: string;
+    endHour: string;
+    recurrenceFrequency: string;
+    recurrenceInterval: number;
+    recurrenceEndDate: string;
   }) {
     try {
-      if (editingEvent) {
-        await updateCalendarEvent(editingEvent.id, {
+      const toDateUtc = (dateStr: string, hour: string, allDay: boolean) =>
+        allDay ? `${dateStr}T12:00:00.000Z` : `${dateStr}T${hour}:00:00.000Z`;
+
+      const startIso = toDateUtc(data.startDate, data.startHour, data.isAllDay);
+      const endIso = data.endDate
+        ? toDateUtc(data.endDate, data.endHour, data.isAllDay)
+        : undefined;
+
+      const recurrence = data.recurrenceFrequency
+        ? {
+            recurrenceFrequency: data.recurrenceFrequency,
+            recurrenceInterval: data.recurrenceInterval,
+            recurrenceEndDate: data.recurrenceEndDate
+              ? `${data.recurrenceEndDate}T12:00:00.000Z`
+              : undefined,
+          }
+        : {
+            recurrenceFrequency: undefined,
+            recurrenceInterval: 1,
+            recurrenceEndDate: undefined,
+          };
+
+      const eventId = editingEvent?.recurrenceSourceId ?? editingEvent?.id;
+
+      if (editingEvent && eventId) {
+        await updateCalendarEvent(eventId, {
           title: data.title,
           description: data.description || undefined,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       } else {
         await createCalendarEvent({
           title: data.title,
           description: data.description || undefined,
-          startDate: toNoonUtc(data.startDate),
-          endDate: data.endDate ? toNoonUtc(data.endDate) : undefined,
+          startDate: startIso,
+          endDate: endIso,
           isAllDay: data.isAllDay,
           color: data.color,
           eventType: data.eventType,
+          ...recurrence,
         });
       }
       setDialogOpen(false);
@@ -280,7 +348,8 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
   async function handleDelete() {
     if (!editingEvent) return;
     try {
-      await deleteCalendarEvent(editingEvent.id);
+      const eventId = editingEvent.recurrenceSourceId ?? editingEvent.id;
+      await deleteCalendarEvent(eventId);
       setDialogOpen(false);
       setEditingEvent(null);
       fetchEvents();
@@ -303,6 +372,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
         today={today}
         onDayClick={handleDayClick}
         onEventClick={handleEventClick}
+        projectNameMap={projectNameMap}
       />
 
       {/* Week 2 */}
@@ -312,6 +382,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
         today={today}
         onDayClick={handleDayClick}
         onEventClick={handleEventClick}
+        projectNameMap={projectNameMap}
       />
 
       {/* No items placeholder */}
@@ -357,9 +428,17 @@ interface WeekSectionProps {
   today: Date;
   onDayClick: (date: Date) => void;
   onEventClick: (item: WeekItem) => void;
+  projectNameMap: Record<string, string>;
 }
 
-function WeekSection({ days, items, today, onDayClick, onEventClick }: WeekSectionProps) {
+function WeekSection({
+  days,
+  items,
+  today,
+  onDayClick,
+  onEventClick,
+  projectNameMap,
+}: WeekSectionProps) {
   return (
     <div className="border-b border-border">
       {/* Day header row */}
@@ -390,92 +469,83 @@ function WeekSection({ days, items, today, onDayClick, onEventClick }: WeekSecti
         })}
       </div>
 
-      {/* Event bars — navbar background with grid lines */}
-      <div className="navbar-surface flex flex-col gap-1.5 py-1.5">
-        {items.map((item) => {
-          const colors = BAR_COLORS[item.color] ?? BAR_COLORS.sky;
-
-          const badge = item.isUpcoming
-            ? "Upcoming"
-            : item.kind === "project"
-              ? "Project"
-              : item.kind === "note"
-                ? "Note"
-                : "Event";
-
-          const roundLeft = !item.continuesLeft;
-          const roundRight = !item.continuesRight;
-
-          return (
+      {/* Event bars — staggered by lane (items go below when overlapping, reuse upper lanes when free) */}
+      <div className="navbar-surface flex flex-col gap-1 py-1.5">
+        {(() => {
+          const maxLane = items.reduce((m, i) => Math.max(m, i.lane), -1);
+          const lanes: WeekItem[][] = [];
+          for (let l = 0; l <= maxLane; l++) {
+            const laneItems = items.filter((i) => i.lane === l);
+            if (laneItems.length > 0) lanes.push(laneItems);
+          }
+          return lanes.map((laneItems, laneIdx) => (
             <div
-              key={item.id}
+              key={laneIdx}
               className="grid grid-cols-7"
               style={{
                 backgroundImage:
                   "repeating-linear-gradient(90deg, transparent, transparent calc(100% / 7 - 1px), var(--grid-line-color) calc(100% / 7 - 1px), var(--grid-line-color) calc(100% / 7))",
               }}
             >
-              <button
-                type="button"
-                onClick={() => onEventClick(item)}
-                className={`relative flex items-center gap-2 ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
-                  roundLeft ? "border-l-[3px] " + colors.border : ""
-                } ${roundLeft && roundRight ? "rounded" : roundLeft ? "rounded-l" : roundRight ? "rounded-r" : ""}`}
-                style={{
-                  gridColumn: `${item.startCol + 1} / span ${item.span}`,
-                }}
-              >
-                {/* Left continuation chevron */}
-                {item.continuesLeft && (
-                  <ChevronLeft
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text} opacity-60`}
-                  />
-                )}
+              {laneItems.map((item) => {
+                const colors = BAR_COLORS[item.color] ?? BAR_COLORS.sky;
+                // Show truncated project name as badge when event/note belongs to a project
+                const projectLabel = item.kind !== "project" && item.projectId && projectNameMap[item.projectId]
+                  ? projectNameMap[item.projectId].length > 10
+                    ? projectNameMap[item.projectId].slice(0, 10) + "…"
+                    : projectNameMap[item.projectId]
+                  : null;
+                const badge = item.kind === "project"
+                  ? "Project"
+                  : projectLabel ?? (item.isUpcoming
+                      ? "Upcoming"
+                      : item.kind === "note"
+                        ? "Note"
+                        : "Event");
+                const roundLeft = !item.continuesLeft;
+                const roundRight = !item.continuesRight;
 
-                {/* Icon */}
-                {item.kind === "project" ? (
-                  <FolderOpen
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`}
-                  />
-                ) : item.kind === "note" ? (
-                  <FileText
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`}
-                  />
-                ) : (
-                  <Calendar
-                    className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`}
-                  />
-                )}
-
-                {/* Title */}
-                <span
-                  className={`truncate text-xs font-medium ${colors.text}`}
-                >
-                  {item.title}
-                </span>
-
-                {/* Badge + right chevron (chevron appears AFTER badge) */}
-                <span className="ml-auto flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`}
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onEventClick(item)}
+                    className={`relative flex items-center gap-2 ${colors.bg} px-3 py-2 text-left transition-colors cursor-pointer hover:brightness-95 dark:hover:brightness-110 ${
+                      roundLeft ? "border-l-[3px] " + colors.border : ""
+                    } ${roundLeft && roundRight ? "rounded" : roundLeft ? "rounded-l" : roundRight ? "rounded-r" : ""}`}
+                    style={{
+                      gridColumn: `${item.startCol + 1} / span ${item.span}`,
+                    }}
                   >
-                    {badge}
-                  </span>
-                  {item.continuesRight && (
-                    <ChevronRight
-                      className={`h-3.5 w-3.5 ${colors.text} opacity-60`}
-                    />
-                  )}
-                </span>
-              </button>
+                    {item.continuesLeft && (
+                      <ChevronLeft className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text} opacity-60`} />
+                    )}
+                    {item.kind === "project" ? (
+                      <FolderOpen className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    ) : item.kind === "note" ? (
+                      <FileText className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    ) : (
+                      <Calendar className={`h-3.5 w-3.5 flex-shrink-0 ${colors.text}`} />
+                    )}
+                    <span className={`truncate text-xs font-medium ${colors.text}`}>
+                      {item.title}
+                    </span>
+                    <span className="ml-auto flex items-center gap-1 flex-shrink-0">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${colors.text} ${colors.bg} border ${colors.border}`}>
+                        {badge}
+                      </span>
+                      {item.continuesRight && (
+                        <ChevronRight className={`h-3.5 w-3.5 ${colors.text} opacity-60`} />
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
+          ));
+        })()}
 
-        {/* Empty spacer when there are no items so the bg shows */}
-        {items.length === 0 && (
-          <div className="h-6" />
-        )}
+        {items.length === 0 && <div className="h-6" />}
       </div>
     </div>
   );

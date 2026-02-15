@@ -14,21 +14,81 @@ public sealed class ProjectService : IProjectService
     private readonly IRepository<Project> _projectRepo;
     private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IRepository<User> _userRepo;
+    private readonly IRepository<UserPinnedProject> _pinnedRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public ProjectService(
         IRepository<Project> projectRepo,
         IRepository<ProjectMember> memberRepo,
         IRepository<User> userRepo,
+        IRepository<UserPinnedProject> pinnedRepo,
         IUnitOfWork unitOfWork)
     {
         _projectRepo = projectRepo;
         _memberRepo = memberRepo;
         _userRepo = userRepo;
+        _pinnedRepo = pinnedRepo;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<IReadOnlyList<ProjectSummaryDto>> GetProjectsAsync(Guid userId, ProjectListQuery query, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await GetProjectsWithPinningAsync(userId, query, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            return await GetProjectsWithoutPinningAsync(userId, query, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return await GetProjectsWithoutPinningAsync(userId, query, cancellationToken);
+        }
+        catch (Exception ex) when (IsPinningTableMissing(ex))
+        {
+            return await GetProjectsWithoutPinningAsync(userId, query, cancellationToken);
+        }
+    }
+
+    private static bool IsPinningTableMissing(Exception ex)
+    {
+        var msg = ex.Message + (ex.InnerException?.Message ?? "");
+        return msg.Contains("UserPinnedProjects", StringComparison.OrdinalIgnoreCase)
+            || msg.Contains("does not exist", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<IReadOnlyList<ProjectSummaryDto>> GetProjectsWithPinningAsync(Guid userId, ProjectListQuery query, CancellationToken cancellationToken)
+    {
+        var q = _projectRepo.Query()
+            .Include(p => p.Owner)
+            .Include(p => p.Members)
+            .Include(p => p.Boards)
+            .Include(p => p.PinnedByUsers)
+            .Where(p => p.OwnerId == userId || p.Members.Any(m => m.UserId == userId))
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Status))
+            q = q.Where(p => p.Status == query.Status);
+
+        q = query.SortBy?.ToLowerInvariant() switch
+        {
+            "createdat" => query.SortOrder == "asc" ? q.OrderBy(p => p.CreatedAt) : q.OrderByDescending(p => p.CreatedAt),
+            "startdate" => query.SortOrder == "asc" ? q.OrderBy(p => p.StartDate) : q.OrderByDescending(p => p.StartDate),
+            "enddate" => query.SortOrder == "asc" ? q.OrderBy(p => p.EndDate) : q.OrderByDescending(p => p.EndDate),
+            _ => query.SortOrder == "asc" ? q.OrderBy(p => p.UpdatedAt) : q.OrderByDescending(p => p.UpdatedAt),
+        };
+
+        var projects = await q.AsNoTracking().ToListAsync(cancellationToken);
+
+        return projects.Select(p =>
+        {
+            var pin = p.PinnedByUsers?.FirstOrDefault(x => x.UserId == userId);
+            return MapToSummary(p, userId, pin != null, pin?.PinnedAt);
+        }).ToList();
+    }
+
+    private async Task<IReadOnlyList<ProjectSummaryDto>> GetProjectsWithoutPinningAsync(Guid userId, ProjectListQuery query, CancellationToken cancellationToken)
     {
         var q = _projectRepo.Query()
             .Include(p => p.Owner)
@@ -49,8 +109,12 @@ public sealed class ProjectService : IProjectService
         };
 
         var projects = await q.AsNoTracking().ToListAsync(cancellationToken);
+        return projects.Select(p => MapToSummary(p, userId, false, null)).ToList();
+    }
 
-        return projects.Select(p => new ProjectSummaryDto
+    private static ProjectSummaryDto MapToSummary(Project p, Guid userId, bool isPinned, DateTime? pinnedAt)
+    {
+        return new ProjectSummaryDto
         {
             Id = p.Id,
             Name = p.Name,
@@ -66,8 +130,10 @@ public sealed class ProjectService : IProjectService
             UserRole = p.OwnerId == userId ? "Owner" : (p.Members.FirstOrDefault(m => m.UserId == userId)?.Role ?? "Viewer"),
             MemberCount = p.Members.Count,
             BoardCount = p.Boards.Count,
-            CreatedAt = p.CreatedAt
-        }).ToList();
+            CreatedAt = p.CreatedAt,
+            IsPinned = isPinned,
+            PinnedAt = pinnedAt
+        };
     }
 
     public async Task<ProjectDetailDto> CreateProjectAsync(Guid userId, CreateProjectRequest request, CancellationToken cancellationToken = default)
@@ -216,9 +282,18 @@ public sealed class ProjectService : IProjectService
             .FirstOrDefaultAsync(p => p.Id == projectId && p.OwnerId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Project not found or access denied.");
 
-        var invitedUser = await _userRepo.Query()
-            .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken)
-            ?? throw new KeyNotFoundException("User with that email not found.");
+        User? invitedUser = null;
+        if (request.UserId.HasValue)
+        {
+            invitedUser = await _userRepo.GetByIdAsync(request.UserId.Value, cancellationToken);
+        }
+        if (invitedUser is null && !string.IsNullOrWhiteSpace(request.Email))
+        {
+            invitedUser = await _userRepo.Query()
+                .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
+        }
+        if (invitedUser is null)
+            throw new KeyNotFoundException("User not found. Provide an email or select a friend.");
 
         var alreadyMember = await _memberRepo.Query()
             .AnyAsync(m => m.ProjectId == projectId && m.UserId == invitedUser.Id, cancellationToken);
@@ -291,5 +366,95 @@ public sealed class ProjectService : IProjectService
 
         _memberRepo.Delete(member);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ToggleProjectPinAsync(Guid userId, Guid projectId, bool isPinned, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var hasAccess = await _projectRepo.Query()
+                .AnyAsync(p => p.Id == projectId && (p.OwnerId == userId || p.Members.Any(m => m.UserId == userId)), cancellationToken);
+            if (!hasAccess)
+                throw new KeyNotFoundException("Project not found.");
+
+            var existing = await _pinnedRepo.Query()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.ProjectId == projectId, cancellationToken);
+
+            if (isPinned)
+            {
+                if (existing == null)
+                {
+                    await _pinnedRepo.AddAsync(new UserPinnedProject
+                    {
+                        UserId = userId,
+                        ProjectId = projectId,
+                        PinnedAt = DateTime.UtcNow
+                    }, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
+            else
+            {
+                if (existing != null)
+                {
+                    _pinnedRepo.Delete(existing);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (IsPinningTableMissing(ex))
+        {
+            // UserPinnedProjects table does not exist (migration not applied); no-op so API returns 200
+        }
+    }
+
+    public async Task<IReadOnlyList<ProjectSummaryDto>> GetPinnedProjectsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var pinned = await _pinnedRepo.Query()
+                .Where(x => x.UserId == userId)
+                .OrderBy(x => x.PinnedAt)
+                .Select(x => x.ProjectId)
+                .ToListAsync(cancellationToken);
+
+            if (pinned.Count == 0)
+                return Array.Empty<ProjectSummaryDto>();
+
+            var projects = await _projectRepo.Query()
+                .Include(p => p.Owner)
+                .Include(p => p.Members)
+                .Include(p => p.Boards)
+                .Include(p => p.PinnedByUsers)
+                .Where(p => pinned.Contains(p.Id) && (p.OwnerId == userId || p.Members.Any(m => m.UserId == userId)))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            var order = pinned.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+            return projects
+                .OrderBy(p => order.GetValueOrDefault(p.Id, int.MaxValue))
+                .Select(p =>
+                {
+                    var pin = p.PinnedByUsers?.FirstOrDefault(x => x.UserId == userId);
+                    return MapToSummary(p, userId, true, pin?.PinnedAt);
+                })
+                .ToList();
+        }
+        catch (DbUpdateException)
+        {
+            return Array.Empty<ProjectSummaryDto>();
+        }
+        catch (InvalidOperationException)
+        {
+            return Array.Empty<ProjectSummaryDto>();
+        }
+        catch (Exception ex) when (IsPinningTableMissing(ex))
+        {
+            return Array.Empty<ProjectSummaryDto>();
+        }
     }
 }

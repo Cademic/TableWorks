@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -8,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { postLogin, postLogout, postRegister, postGoogleLogin, postResendVerification, postVerifyEmail } from "../api/auth";
+import { getProfile } from "../api/users";
 import type { AuthUser } from "../types";
 
 interface AuthContextValue {
@@ -23,6 +25,7 @@ interface AuthContextValue {
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: () => Promise<void>;
   setEmailVerified: () => void;
+  updateUser: (updates: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -76,6 +79,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isEmailVerified: response.isEmailVerified,
     };
     persistAuth(response.token, response.refreshToken, authUser);
+    try {
+      const profile = await getProfile();
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        localStorage.setItem(USER_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    } catch {
+      // Profile fetch optional; avatar will show after settings save
+    }
   }, []);
 
   const register = useCallback(async (username: string, email: string, password: string) => {
@@ -87,6 +101,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isEmailVerified: response.isEmailVerified,
     };
     persistAuth(response.token, response.refreshToken, authUser);
+    try {
+      const profile = await getProfile();
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        localStorage.setItem(USER_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    } catch {
+      // Profile fetch optional; avatar will show after settings save
+    }
   }, []);
 
   const googleLogin = useCallback(async (idToken: string) => {
@@ -98,6 +123,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isEmailVerified: response.isEmailVerified,
     };
     persistAuth(response.token, response.refreshToken, authUser);
+    try {
+      const profile = await getProfile();
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        localStorage.setItem(USER_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    } catch {
+      // Profile fetch optional; avatar will show after settings save
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -141,6 +177,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
   }, []);
 
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isAuthenticated: Boolean(accessToken),
@@ -155,8 +200,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       verifyEmail,
       resendVerification,
       setEmailVerified,
+      updateUser,
     }),
-    [accessToken, isLoading, user, login, register, googleLogin, logout, verifyEmail, resendVerification, setEmailVerified],
+    [accessToken, isLoading, user, login, register, googleLogin, logout, verifyEmail, resendVerification, setEmailVerified, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

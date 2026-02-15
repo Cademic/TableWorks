@@ -26,10 +26,15 @@ public sealed class CalendarEventService : ICalendarEventService
         if (query.ProjectId.HasValue)
             q = q.Where(e => e.ProjectId == query.ProjectId.Value);
 
+        // For recurring events we need a wider fetch window: any recurring event whose
+        // start is <= query.To could produce instances inside the range.
         if (query.From.HasValue)
         {
             var from = query.From.Value;
-            q = q.Where(e => e.StartDate >= from || (e.EndDate != null && e.EndDate >= from));
+            q = q.Where(e =>
+                e.StartDate >= from
+                || (e.EndDate != null && e.EndDate >= from)
+                || e.RecurrenceFrequency != null);
         }
 
         if (query.To.HasValue)
@@ -44,7 +49,21 @@ public sealed class CalendarEventService : ICalendarEventService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        return events.Select(MapToDto).ToList();
+        // Expand recurring events into materialized instances within the requested range
+        var result = new List<CalendarEventDto>();
+        foreach (var e in events)
+        {
+            if (e.RecurrenceFrequency is null)
+            {
+                result.Add(MapToDto(e));
+            }
+            else
+            {
+                result.AddRange(ExpandRecurring(e, query.From, query.To));
+            }
+        }
+
+        return result.OrderBy(d => d.StartDate).ThenBy(d => d.CreatedAt).ToList();
     }
 
     public async Task<CalendarEventDto> CreateEventAsync(Guid userId, CreateCalendarEventRequest request, CancellationToken cancellationToken = default)
@@ -61,6 +80,9 @@ public sealed class CalendarEventService : ICalendarEventService
             IsAllDay = request.IsAllDay,
             Color = request.Color,
             EventType = request.EventType,
+            RecurrenceFrequency = request.RecurrenceFrequency,
+            RecurrenceInterval = request.RecurrenceInterval,
+            RecurrenceEndDate = request.RecurrenceEndDate,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -100,6 +122,9 @@ public sealed class CalendarEventService : ICalendarEventService
         entity.IsAllDay = request.IsAllDay;
         entity.Color = request.Color;
         entity.EventType = request.EventType;
+        entity.RecurrenceFrequency = request.RecurrenceFrequency;
+        entity.RecurrenceInterval = request.RecurrenceInterval;
+        entity.RecurrenceEndDate = request.RecurrenceEndDate;
         entity.UpdatedAt = DateTime.UtcNow;
 
         _eventRepo.Update(entity);
@@ -119,6 +144,85 @@ public sealed class CalendarEventService : ICalendarEventService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    /* ── Recurrence expansion ──────────────────────────────── */
+
+    private static IEnumerable<CalendarEventDto> ExpandRecurring(CalendarEvent e, DateTime? rangeFrom, DateTime? rangeTo)
+    {
+        var duration = e.EndDate.HasValue ? e.EndDate.Value - e.StartDate : TimeSpan.Zero;
+        var interval = Math.Max(1, e.RecurrenceInterval);
+        var hardStop = e.RecurrenceEndDate ?? rangeTo ?? e.StartDate.AddYears(2);
+        var from = rangeFrom ?? DateTime.MinValue;
+        var to = rangeTo ?? DateTime.MaxValue;
+
+        // Limit to a sane number of instances to avoid runaway expansion
+        const int maxInstances = 500;
+        int count = 0;
+
+        var instanceStart = e.StartDate;
+        while (instanceStart <= hardStop && count < maxInstances)
+        {
+            var instanceEnd = duration > TimeSpan.Zero ? instanceStart + duration : (DateTime?)null;
+
+            // Check if this instance overlaps the requested range
+            var effectiveEnd = instanceEnd ?? instanceStart;
+            if (effectiveEnd >= from && instanceStart <= to)
+            {
+                // Build a deterministic ID for this instance based on date offset
+                var instanceId = DeriveInstanceId(e.Id, instanceStart);
+                yield return new CalendarEventDto
+                {
+                    Id = instanceId,
+                    ProjectId = e.ProjectId,
+                    Title = e.Title,
+                    Description = e.Description,
+                    StartDate = instanceStart,
+                    EndDate = instanceEnd,
+                    IsAllDay = e.IsAllDay,
+                    Color = e.Color,
+                    EventType = e.EventType,
+                    RecurrenceFrequency = e.RecurrenceFrequency,
+                    RecurrenceInterval = e.RecurrenceInterval,
+                    RecurrenceEndDate = e.RecurrenceEndDate,
+                    RecurrenceSourceId = e.Id,
+                    CreatedAt = e.CreatedAt,
+                    UpdatedAt = e.UpdatedAt,
+                };
+                count++;
+            }
+
+            // Advance to the next occurrence
+            instanceStart = e.RecurrenceFrequency switch
+            {
+                "Daily" => instanceStart.AddDays(interval),
+                "Weekly" => instanceStart.AddDays(7 * interval),
+                "Monthly" => instanceStart.AddMonths(interval),
+                _ => hardStop.AddDays(1), // Break out for unknown frequency
+            };
+        }
+    }
+
+    /// <summary>
+    /// Derives a deterministic GUID for a recurrence instance so the frontend
+    /// receives a stable ID for the same occurrence across fetches.
+    /// </summary>
+    private static Guid DeriveInstanceId(Guid sourceId, DateTime instanceDate)
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        sourceId.TryWriteBytes(bytes);
+        var dateTicks = instanceDate.Ticks;
+        bytes[8] = (byte)(dateTicks >> 56);
+        bytes[9] = (byte)(dateTicks >> 48);
+        bytes[10] = (byte)(dateTicks >> 40);
+        bytes[11] = (byte)(dateTicks >> 32);
+        bytes[12] = (byte)(dateTicks >> 24);
+        bytes[13] = (byte)(dateTicks >> 16);
+        bytes[14] = (byte)(dateTicks >> 8);
+        bytes[15] = (byte)dateTicks;
+        return new Guid(bytes);
+    }
+
+    /* ── Mapping ───────────────────────────────────────────── */
+
     private static CalendarEventDto MapToDto(CalendarEvent e)
     {
         return new CalendarEventDto
@@ -132,6 +236,10 @@ public sealed class CalendarEventService : ICalendarEventService
             IsAllDay = e.IsAllDay,
             Color = e.Color,
             EventType = e.EventType,
+            RecurrenceFrequency = e.RecurrenceFrequency,
+            RecurrenceInterval = e.RecurrenceInterval,
+            RecurrenceEndDate = e.RecurrenceEndDate,
+            RecurrenceSourceId = null,
             CreatedAt = e.CreatedAt,
             UpdatedAt = e.UpdatedAt,
         };

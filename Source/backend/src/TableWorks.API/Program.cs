@@ -222,7 +222,6 @@ builder.Services.AddRateLimiter(options =>
 // ---------------------------------------------------------------------------
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddValidatorsFromAssemblyContaining<ASideNote.Application.Validators.Auth.RegisterRequestValidator>();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres");
@@ -491,9 +490,10 @@ static async Task SeedDatabaseAsync(WebApplication app)
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("DatabaseSeeder");
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var passwordHasher = scope.ServiceProvider.GetService<IPasswordHasher>();
 
     logger.LogInformation("Running database seed...");
     await dbContext.Database.MigrateAsync();
-    await AppDbContextSeeder.SeedAsync(dbContext, logger);
+    await AppDbContextSeeder.SeedAsync(dbContext, logger, passwordHasher);
     logger.LogInformation("Database seed completed.");
 }

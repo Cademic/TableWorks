@@ -140,6 +140,11 @@ export function ProjectDetailPage() {
         prev ? { ...prev, boards: [...prev.boards, created] } : prev,
       );
       setIsCreateBoardOpen(false);
+      const path =
+        created.boardType === "ChalkBoard"
+          ? `/chalkboards/${created.id}`
+          : `/boards/${created.id}`;
+      navigate(path);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateBoardError(err.response.data?.message ?? "A board with that name already exists.");
@@ -377,6 +382,7 @@ export function ProjectDetailPage() {
             startDate={project.startDate}
             endDate={project.endDate}
             deadline={project.deadline}
+            color={project.color}
           />
         )}
 

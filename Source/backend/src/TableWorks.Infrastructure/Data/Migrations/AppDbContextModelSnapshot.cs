@@ -81,9 +81,15 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("PinnedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
@@ -176,6 +182,18 @@ namespace ASideNote.Infrastructure.Data.Migrations
 
                     b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RecurrenceEndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecurrenceFrequency")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("RecurrenceInterval")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
@@ -332,6 +350,40 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Folders");
+                });
+
+            modelBuilder.Entity("ASideNote.Core.Entities.FriendRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ReceiverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RequesterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("ReceiverId");
+
+                    b.HasIndex("RequesterId", "ReceiverId")
+                        .IsUnique();
+
+                    b.ToTable("FriendRequests");
                 });
 
             modelBuilder.Entity("ASideNote.Core.Entities.IndexCard", b =>
@@ -715,7 +767,14 @@ namespace ASideNote.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("Bio")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
@@ -738,6 +797,9 @@ namespace ASideNote.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("ProfilePictureKey")
+                        .HasColumnType("text");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("text");
@@ -745,6 +807,9 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("UsernameChangedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -757,19 +822,33 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("ASideNote.Core.Entities.UserPinnedProject", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("PinnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "ProjectId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UserId", "ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("UserPinnedProjects");
+                });
+
             modelBuilder.Entity("ASideNote.Core.Entities.UserPreferences", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<int>("AutoSaveInterval")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DefaultView")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("EmailNotificationsJson")
                         .HasColumnType("jsonb");
@@ -913,6 +992,25 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.Navigation("ParentFolder");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ASideNote.Core.Entities.FriendRequest", b =>
+                {
+                    b.HasOne("ASideNote.Core.Entities.User", "Receiver")
+                        .WithMany("ReceivedFriendRequests")
+                        .HasForeignKey("ReceiverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ASideNote.Core.Entities.User", "Requester")
+                        .WithMany("SentFriendRequests")
+                        .HasForeignKey("RequesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Receiver");
+
+                    b.Navigation("Requester");
                 });
 
             modelBuilder.Entity("ASideNote.Core.Entities.IndexCard", b =>
@@ -1069,6 +1167,25 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ASideNote.Core.Entities.UserPinnedProject", b =>
+                {
+                    b.HasOne("ASideNote.Core.Entities.Project", "Project")
+                        .WithMany("PinnedByUsers")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ASideNote.Core.Entities.User", "User")
+                        .WithMany("PinnedProjects")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ASideNote.Core.Entities.UserPreferences", b =>
                 {
                     b.HasOne("ASideNote.Core.Entities.User", "User")
@@ -1119,6 +1236,8 @@ namespace ASideNote.Infrastructure.Data.Migrations
                     b.Navigation("Members");
 
                     b.Navigation("Notes");
+
+                    b.Navigation("PinnedByUsers");
                 });
 
             modelBuilder.Entity("ASideNote.Core.Entities.Tag", b =>
@@ -1152,9 +1271,15 @@ namespace ASideNote.Infrastructure.Data.Migrations
 
                     b.Navigation("OwnedProjects");
 
+                    b.Navigation("PinnedProjects");
+
                     b.Navigation("Preferences");
 
                     b.Navigation("ProjectMemberships");
+
+                    b.Navigation("ReceivedFriendRequests");
+
+                    b.Navigation("SentFriendRequests");
                 });
 #pragma warning restore 612, 618
         }

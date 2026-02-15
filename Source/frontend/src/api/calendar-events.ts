@@ -24,15 +24,6 @@ export async function createCalendarEvent(
   return response.data;
 }
 
-export async function getCalendarEventById(
-  id: string,
-): Promise<CalendarEventDto> {
-  const response = await apiClient.get<CalendarEventDto>(
-    `/calendar-events/${id}`,
-  );
-  return response.data;
-}
-
 export async function updateCalendarEvent(
   id: string,
   data: UpdateCalendarEventRequest,

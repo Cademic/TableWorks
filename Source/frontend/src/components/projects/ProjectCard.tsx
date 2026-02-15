@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   FolderOpen,
   Users,
@@ -7,6 +8,9 @@ import {
   Crown,
   Eye,
   Pencil,
+  MoreVertical,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectSummaryDto } from "../../types";
@@ -14,6 +18,8 @@ import type { ProjectSummaryDto } from "../../types";
 interface ProjectCardProps {
   project: ProjectSummaryDto;
   onDelete?: (id: string) => void;
+  onRename?: (id: string, currentName: string) => void;
+  onTogglePin?: (id: string, isPinned: boolean) => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -69,44 +75,138 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onRename, onTogglePin }: ProjectCardProps) {
   const navigate = useNavigate();
   const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.Active;
   const roleConfig = ROLE_CONFIG[project.userRole] ?? ROLE_CONFIG.Viewer;
   const RoleIcon = roleConfig.icon;
   const isOwner = project.userRole === "Owner";
   const colors = COLOR_MAP[project.color] ?? COLOR_MAP.violet;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => navigate(`/projects/${project.id}`)}
-      className="paper-card group relative flex flex-col rounded-lg p-5 pt-7 text-left transition-all duration-200 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/projects/${project.id}`);
+        }
+      }}
+      className={[
+        "paper-card group relative flex cursor-pointer flex-col rounded-lg p-5 pt-7 text-left transition-all duration-200 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/20",
+        menuOpen ? "z-50 overflow-visible" : "",
+      ].join(" ")}
     >
       {/* Colored tape strip at top */}
       <div className={`absolute inset-x-0 top-0 h-1.5 rounded-t-lg ${colors.strip}`} />
 
-      {/* Delete button -- owner only, when onDelete provided */}
-      {isOwner && onDelete && (
+      {/* Pin indicator */}
+      {project.isPinned && (
+        <div className="absolute left-3 top-3 z-10">
+          <Pin className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+        </div>
+      )}
+
+      {/* Ellipsis menu */}
+      <div
+        ref={menuRef}
+        className="absolute right-3 top-3 z-10"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <div
-          className="absolute right-3 top-3 z-10 opacity-0 transition-opacity group-hover:opacity-100"
+          role="button"
+          tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
-            onDelete(project.id);
+            setMenuOpen((v) => !v);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.stopPropagation();
-              onDelete(project.id);
+              setMenuOpen((v) => !v);
             }
           }}
-          role="button"
-          tabIndex={0}
-          title="Delete project"
+          className="rounded-lg p-1 text-foreground/30 opacity-0 transition-all hover:bg-foreground/5 hover:text-foreground/60 group-hover:opacity-100"
+          title="Project actions"
         >
-          <Trash2 className="h-4 w-4 text-foreground/40 transition-colors hover:text-red-500" />
+          <MoreVertical className="h-4 w-4" />
         </div>
-      )}
+
+        {menuOpen && (
+          <div className="absolute right-0 top-7 z-20 w-48 rounded-lg border border-border bg-background py-1 shadow-lg">
+            {onRename && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onRename(project.id, project.name);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </button>
+            )}
+            {onTogglePin && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onTogglePin(project.id, !project.isPinned);
+                }}
+              >
+                {project.isPinned ? (
+                  <>
+                    <PinOff className="h-3.5 w-3.5" />
+                    Unpin from Sidebar
+                  </>
+                ) : (
+                  <>
+                    <Pin className="h-3.5 w-3.5" />
+                    Pin to Sidebar
+                  </>
+                )}
+              </button>
+            )}
+            {isOwner && onDelete && (
+              <>
+                <div className="my-1 border-t border-border/50" />
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onDelete(project.id);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Icon & Role badge */}
       <div className="mb-3 flex items-center gap-2">
@@ -185,6 +285,6 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             : "Indefinite"}
         </span>
       </div>
-    </button>
+    </div>
   );
 }

@@ -11,6 +11,8 @@ interface CalendarGridProps {
   onClickDay: (date: Date) => void;
   onClickEvent: (event: CalendarEventDto) => void;
   onClickProject?: (project: ProjectSummaryDto) => void;
+  /** Map of projectId -> project name for displaying on events */
+  projectNameMap?: Record<string, string>;
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -72,6 +74,7 @@ export function CalendarGrid({
   onClickDay,
   onClickEvent,
   onClickProject,
+  projectNameMap,
 }: CalendarGridProps) {
   const today = useMemo(() => new Date(), []);
   const month = currentDate.getMonth();
@@ -122,6 +125,7 @@ export function CalendarGrid({
             onClickDay={onClickDay}
             onClickEvent={onClickEvent}
             onClickProject={onClickProject}
+            projectNameMap={projectNameMap}
           />
         ))}
       </div>

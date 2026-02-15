@@ -13,4 +13,6 @@ public interface IProjectService
     Task<IReadOnlyList<ProjectMemberDto>> GetMembersAsync(Guid userId, Guid projectId, CancellationToken cancellationToken = default);
     Task UpdateMemberRoleAsync(Guid userId, Guid projectId, Guid memberId, UpdateMemberRoleRequest request, CancellationToken cancellationToken = default);
     Task RemoveMemberAsync(Guid userId, Guid projectId, Guid memberId, CancellationToken cancellationToken = default);
+    Task ToggleProjectPinAsync(Guid userId, Guid projectId, bool isPinned, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProjectSummaryDto>> GetPinnedProjectsAsync(Guid userId, CancellationToken cancellationToken = default);
 }

@@ -1,4 +1,4 @@
-![ASideNote Logo](Docs/Images/AsideNoteTransparent.png)
+![ASideNote Logo](Docs/Images/ASideNoteTransparent.png)
 
 A productivity web application featuring a visual cork board dashboard where users can create sticky notes, index cards, and connect ideas with red string links -- all in a rich, interactive workspace.
 

@@ -69,6 +69,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Boards)
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(b => Set<User>().Any(u => u.Id == b.UserId));
         });
 
         // ----- Notebook -----
@@ -85,6 +87,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Notebooks)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
         });
 
         // ----- NotebookPage -----
@@ -133,6 +137,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Notes)
                 .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
         });
 
         // ----- Project -----
@@ -150,6 +156,8 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.Owner)
                 .WithMany(x => x.OwnedProjects)
                 .HasForeignKey(x => x.OwnerId);
+
+            entity.HasQueryFilter(p => Set<User>().Any(u => u.Id == p.OwnerId));
         });
 
         // ----- UserPinnedProject -----
@@ -167,6 +175,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.PinnedByUsers)
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(p => Set<User>().Any(u => u.Id == p.UserId));
         });
 
         // ----- ProjectMember -----
@@ -184,6 +194,8 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithMany(x => x.ProjectMemberships)
                 .HasForeignKey(x => x.UserId);
+
+            entity.HasQueryFilter(p => Set<User>().Any(u => u.Id == p.UserId));
         });
 
         // ----- Tag -----
@@ -234,6 +246,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.IndexCards)
                 .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(c => Set<User>().Any(u => u.Id == c.UserId));
         });
 
         // ----- IndexCardTag -----
@@ -261,6 +275,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.ChildFolders)
                 .HasForeignKey(x => x.ParentFolderId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasQueryFilter(f => Set<User>().Any(u => u.Id == f.UserId));
         });
 
         // ----- Notification -----
@@ -277,6 +293,8 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notifications)
                 .HasForeignKey(x => x.UserId);
+
+            entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
         });
 
         // ----- AuditLog -----
@@ -297,6 +315,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.AuditLogs)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(a => a.UserId == null || Set<User>().Any(u => u.Id == a.UserId));
         });
 
         // ----- RefreshToken -----
@@ -312,6 +332,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(r => Set<User>().Any(u => u.Id == r.UserId));
         });
 
         // ----- BoardConnection -----
@@ -334,6 +356,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.BoardConnections)
                 .HasForeignKey(x => x.BoardId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(b => Set<User>().Any(u => u.Id == b.UserId));
         });
 
         // ----- Drawing -----
@@ -356,6 +380,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Drawings)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(d => Set<User>().Any(u => u.Id == d.UserId));
         });
 
         // ----- CalendarEvent -----
@@ -385,6 +411,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasQueryFilter(e => Set<User>().Any(u => u.Id == e.UserId));
         });
 
         // ----- UserPreferences -----
@@ -400,6 +428,8 @@ public sealed class AppDbContext : DbContext
             entity.HasOne(x => x.User)
                 .WithOne(x => x.Preferences)
                 .HasForeignKey<UserPreferences>(x => x.UserId);
+
+            entity.HasQueryFilter(p => Set<User>().Any(u => u.Id == p.UserId));
         });
 
         // ----- EmailVerificationToken -----
@@ -415,6 +445,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(t => Set<User>().Any(u => u.Id == t.UserId));
         });
 
         // ----- ExternalLogin -----
@@ -430,6 +462,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.ExternalLogins)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(e => Set<User>().Any(u => u.Id == e.UserId));
         });
 
         // ----- FriendRequest -----
@@ -452,6 +486,8 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.ReceivedFriendRequests)
                 .HasForeignKey(x => x.ReceiverId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(f => Set<User>().Any(u => u.Id == f.RequesterId) && Set<User>().Any(u => u.Id == f.ReceiverId));
         });
     }
 }

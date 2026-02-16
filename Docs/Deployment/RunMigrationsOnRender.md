@@ -1,6 +1,11 @@
 # How to Update the Database (Run Migrations) on Render
 
-If `/api/v1/notebooks` returns 500, the **Notebooks** and **NotebookPages** tables are usually missing. Follow one of the two options below to apply migrations.
+If `/api/v1/notebooks` returns 500 with **"relation \"Notebooks\" does not exist"**, the **Notebooks** and **NotebookPages** tables are missing in the database that your **Render API** uses. This often happens when:
+
+- Notebooks work locally (your local DB has the tables) but fail on Render.
+- The Render database was never updated with the Notebooks migration.
+
+**Fix:** Run the migration **once** from your computer against the **Render** database (Option A below). Use the **External Database URL** from the **same** PostgreSQL service that is linked to your API in Render. After that, notebooks will work on Render.
 
 ---
 

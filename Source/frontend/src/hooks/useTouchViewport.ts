@@ -85,7 +85,6 @@ export function useTouchViewport(
       if (touchCount === 1) {
         // Start pan gesture
         const touch = touches[0];
-        const rect = viewport!.getBoundingClientRect();
         touchModeRef.current = "pan";
         touchStartRef.current = {
           type: "pan",
@@ -137,7 +136,6 @@ export function useTouchViewport(
         // Update zoom and pan
         const t1 = touches[0];
         const t2 = touches[1];
-        const rect = viewport!.getBoundingClientRect();
         const d1 = getDistance(t1, t2);
         const scale = d1 / start.d0;
         const newZoom = clamp(start.zoom * scale, minZoom, maxZoom);
@@ -173,7 +171,6 @@ export function useTouchViewport(
       } else if (touchCount === 1 && touchModeRef.current === "pinch") {
         // Pinch ended but one finger remains - switch to pan
         const touch = touches[0];
-        const rect = viewport!.getBoundingClientRect();
         touchModeRef.current = "pan";
         touchStartRef.current = {
           type: "pan",

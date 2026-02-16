@@ -92,6 +92,24 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // #region agent log
+    if (error.response?.status === 500) {
+      const url = originalRequest?.baseURL && originalRequest?.url ? `${originalRequest.baseURL}${originalRequest.url}` : originalRequest?.url ?? "unknown";
+      const body = error.response?.data != null ? (typeof error.response.data === "string" ? error.response.data : JSON.stringify(error.response.data)) : "";
+      fetch("http://127.0.0.1:7243/ingest/6eecc1c5-be9e-4248-a3b7-8e1107567fb0", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "client.ts:response interceptor",
+          message: "500 response captured",
+          data: { url, status: error.response.status, responseBody: body },
+          timestamp: Date.now(),
+          hypothesisId: "H1",
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
+
     return Promise.reject(error);
   },
 );

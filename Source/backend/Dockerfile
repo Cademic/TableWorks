@@ -30,6 +30,9 @@ RUN dotnet publish src/TableWorks.API/ASideNote.API.csproj \
     -c Release \
     -o /app/publish \
     --no-restore
+# Entrypoint runs migrations on container start then starts the API
+COPY entrypoint.sh /app/publish/entrypoint.sh
+RUN sed -i 's/\r$//' /app/publish/entrypoint.sh && chmod +x /app/publish/entrypoint.sh
 
 # ---------------------------------------------------------------------------
 # Stage 3: Runtime (minimal image)
@@ -49,4 +52,6 @@ EXPOSE 10000
 
 USER appuser
 
-ENTRYPOINT ["dotnet", "ASideNote.API.dll"]
+# Run migrations on start (creates Notebooks/NotebookPages etc.) then start the API
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD []

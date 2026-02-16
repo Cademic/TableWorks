@@ -28,6 +28,17 @@ public sealed class NotebooksController : ControllerBase
     [ProducesResponseType(typeof(PaginatedResponse<NotebookSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNotebooks([FromQuery] NotebookListQuery query, CancellationToken cancellationToken)
     {
+        // #region agent log
+        try
+        {
+            var logPath = Path.Combine(AppContext.BaseDirectory, ".cursor", "debug.log");
+            var dir = Path.GetDirectoryName(logPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebooksController.GetNotebooks", message = "controller reached", data = new { userId = _currentUserService.UserId.ToString(), limit = query.Limit }, hypothesisId = "H3" }) + Environment.NewLine;
+            await File.AppendAllTextAsync(logPath, line, cancellationToken);
+        }
+        catch { }
+        // #endregion
         var result = await _notebookService.GetNotebooksAsync(_currentUserService.UserId, query, cancellationToken);
         return Ok(result);
     }
@@ -45,6 +56,17 @@ public sealed class NotebooksController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<NotebookSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPinnedNotebooks(CancellationToken cancellationToken)
     {
+        // #region agent log
+        try
+        {
+            var logPath = Path.Combine(AppContext.BaseDirectory, ".cursor", "debug.log");
+            var dir = Path.GetDirectoryName(logPath);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebooksController.GetPinnedNotebooks", message = "controller reached", data = new { userId = _currentUserService.UserId.ToString() }, hypothesisId = "H3" }) + Environment.NewLine;
+            await File.AppendAllTextAsync(logPath, line, cancellationToken);
+        }
+        catch { }
+        // #endregion
         var result = await _notebookService.GetPinnedNotebooksAsync(_currentUserService.UserId, cancellationToken);
         return Ok(result);
     }

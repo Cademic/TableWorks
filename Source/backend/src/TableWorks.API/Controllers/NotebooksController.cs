@@ -35,7 +35,7 @@ public sealed class NotebooksController : ControllerBase
             var dir = Path.GetDirectoryName(logPath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebooksController.GetNotebooks", message = "controller reached", data = new { userId = _currentUserService.UserId.ToString(), limit = query.Limit }, hypothesisId = "H3" }) + Environment.NewLine;
-            await File.AppendAllTextAsync(logPath, line, cancellationToken);
+            await System.IO.File.AppendAllTextAsync(logPath, line, cancellationToken);
         }
         catch { }
         // #endregion
@@ -63,7 +63,7 @@ public sealed class NotebooksController : ControllerBase
             var dir = Path.GetDirectoryName(logPath);
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebooksController.GetPinnedNotebooks", message = "controller reached", data = new { userId = _currentUserService.UserId.ToString() }, hypothesisId = "H3" }) + Environment.NewLine;
-            await File.AppendAllTextAsync(logPath, line, cancellationToken);
+            await System.IO.File.AppendAllTextAsync(logPath, line, cancellationToken);
         }
         catch { }
         // #endregion

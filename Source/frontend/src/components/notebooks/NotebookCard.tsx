@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, MoreVertical, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import { BookOpen, FolderMinus, MoreVertical, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 import type { NotebookSummaryDto } from "../../types";
 
 interface NotebookCardProps {
@@ -8,6 +8,8 @@ interface NotebookCardProps {
   onRename?: (id: string, currentName: string) => void;
   onTogglePin?: (id: string, isPinned: boolean) => void;
   onDelete?: (id: string) => void;
+  /** When in project context: removes notebook from project instead of deleting */
+  onRemoveFromProject?: (id: string) => void;
 }
 
 function formatRelativeDate(dateStr: string): string {
@@ -25,7 +27,7 @@ function formatRelativeDate(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete }: NotebookCardProps) {
+export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete, onRemoveFromProject }: NotebookCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +42,7 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
 
-  const showMenu = Boolean(onRename ?? onTogglePin ?? onDelete);
+  const showMenu = Boolean(onRename ?? onTogglePin ?? onDelete ?? onRemoveFromProject);
 
   return (
     <div
@@ -132,7 +134,24 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
                 )}
               </button>
             )}
-            {onDelete && (
+            {onRemoveFromProject && (
+              <>
+                {showMenu && <div className="my-1 border-t border-border/50" />}
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onRemoveFromProject(notebook.id);
+                  }}
+                >
+                  <FolderMinus className="h-3.5 w-3.5" />
+                  Remove from Project
+                </button>
+              </>
+            )}
+            {onDelete && !onRemoveFromProject && (
               <>
                 {showMenu && <div className="my-1 border-t border-border/50" />}
                 <button

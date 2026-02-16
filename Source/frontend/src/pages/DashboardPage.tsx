@@ -295,6 +295,7 @@ export function DashboardPage() {
       const created = await createNotebook({ name });
       setNotebooks((prev) => [created, ...prev]);
       setIsCreateNotebookOpen(false);
+      setIsCreateOpen(false); // close Get Started modal if it was used
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
@@ -659,9 +660,15 @@ export function DashboardPage() {
       <CreateBoardDialog
         isOpen={isCreateOpen}
         error={createBoardError}
-        onClose={() => { setIsCreateOpen(false); setCreateBoardError(null); }}
+        createNotebookError={createNotebookError}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCreateBoardError(null);
+          setCreateNotebookError(null);
+        }}
         onCreateBoard={handleCreateBoard}
         onCreateProject={handleCreateProject}
+        onCreateNotebook={handleCreateNotebook}
       />
 
       <CreateNotebookDialog

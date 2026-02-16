@@ -1,4 +1,5 @@
 using ASideNote.Application.DTOs.Boards;
+using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Notes;
 
 namespace ASideNote.Application.DTOs.Projects;
@@ -20,5 +21,6 @@ public sealed class ProjectDetailDto
     public DateTime CreatedAt { get; set; }
     public IReadOnlyList<ProjectMemberDto> Members { get; set; } = Array.Empty<ProjectMemberDto>();
     public IReadOnlyList<BoardSummaryDto> Boards { get; set; } = Array.Empty<BoardSummaryDto>();
+    public IReadOnlyList<NotebookSummaryDto> Notebooks { get; set; } = Array.Empty<NotebookSummaryDto>();
     public IReadOnlyList<NoteSummaryDto> Notes { get; set; } = Array.Empty<NoteSummaryDto>();
 }

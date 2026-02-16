@@ -13,16 +13,37 @@ public sealed class NotebookService : INotebookService
 
     private readonly IRepository<Notebook> _notebookRepo;
     private readonly IRepository<NotebookPage> _pageRepo;
+    private readonly IRepository<Project> _projectRepo;
+    private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
         IRepository<NotebookPage> pageRepo,
+        IRepository<Project> projectRepo,
+        IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork)
     {
         _notebookRepo = notebookRepo;
         _pageRepo = pageRepo;
+        _projectRepo = projectRepo;
+        _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
+    }
+
+    private async Task<string?> GetProjectRoleAsync(Guid userId, Guid projectId, CancellationToken cancellationToken)
+    {
+        var project = await _projectRepo.Query()
+            .Where(p => p.Id == projectId)
+            .Select(p => new { p.OwnerId })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (project is null) return null;
+        if (project.OwnerId == userId) return "Owner";
+        var member = await _memberRepo.Query()
+            .Where(m => m.ProjectId == projectId && m.UserId == userId)
+            .Select(m => m.Role)
+            .FirstOrDefaultAsync(cancellationToken);
+        return member ?? null;
     }
 
     public async Task<PaginatedResponse<NotebookSummaryDto>> GetNotebooksAsync(Guid userId, NotebookListQuery query, CancellationToken cancellationToken = default)
@@ -46,6 +67,7 @@ public sealed class NotebookService : INotebookService
             {
                 Id = n.Id,
                 Name = n.Name,
+                ProjectId = n.ProjectId,
                 IsPinned = n.IsPinned,
                 PinnedAt = n.PinnedAt,
                 CreatedAt = n.CreatedAt,
@@ -100,6 +122,7 @@ public sealed class NotebookService : INotebookService
         {
             UserId = userId,
             Name = request.Name.Trim(),
+            ProjectId = request.ProjectId,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -206,6 +229,7 @@ public sealed class NotebookService : INotebookService
             {
                 Id = n.Id,
                 Name = n.Name,
+                ProjectId = n.ProjectId,
                 IsPinned = true,
                 PinnedAt = n.PinnedAt,
                 CreatedAt = n.CreatedAt,
@@ -214,5 +238,39 @@ public sealed class NotebookService : INotebookService
             })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task AddNotebookToProjectAsync(Guid userId, Guid projectId, Guid notebookId, CancellationToken cancellationToken = default)
+    {
+        var role = await GetProjectRoleAsync(userId, projectId, cancellationToken);
+        if (role is null || role == "Viewer")
+            throw new UnauthorizedAccessException("You do not have permission to add notebooks to this project.");
+
+        var notebook = await _notebookRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found or you are not the notebook owner.");
+
+        notebook.ProjectId = projectId;
+        notebook.UpdatedAt = DateTime.UtcNow;
+
+        _notebookRepo.Update(notebook);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveNotebookFromProjectAsync(Guid userId, Guid projectId, Guid notebookId, CancellationToken cancellationToken = default)
+    {
+        var role = await GetProjectRoleAsync(userId, projectId, cancellationToken);
+        if (role is null || role == "Viewer")
+            throw new UnauthorizedAccessException("You do not have permission to remove notebooks from this project.");
+
+        var notebook = await _notebookRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == notebookId && n.ProjectId == projectId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found in this project.");
+
+        notebook.ProjectId = null;
+        notebook.UpdatedAt = DateTime.UtcNow;
+
+        _notebookRepo.Update(notebook);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

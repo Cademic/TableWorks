@@ -138,6 +138,7 @@ export interface UpdateBoardRequest {
 export interface NotebookSummaryDto {
   id: string;
   name: string;
+  projectId?: string | null;
   isPinned: boolean;
   pinnedAt: string | null;
   createdAt: string;
@@ -157,6 +158,7 @@ export interface NotebookDetailDto {
 
 export interface CreateNotebookRequest {
   name: string;
+  projectId?: string;
 }
 
 export interface UpdateNotebookRequest {
@@ -356,6 +358,7 @@ export interface ProjectDetailDto {
   createdAt: string;
   members: ProjectMemberDto[];
   boards: BoardSummaryDto[];
+  notebooks: NotebookSummaryDto[];
   notes: NoteSummaryDto[];
 }
 

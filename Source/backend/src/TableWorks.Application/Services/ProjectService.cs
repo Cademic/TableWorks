@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Boards;
+using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Notes;
 using ASideNote.Application.DTOs.Projects;
 using ASideNote.Application.DTOs.Tags;
@@ -177,6 +178,7 @@ public sealed class ProjectService : IProjectService
             .Include(p => p.Owner)
             .Include(p => p.Members).ThenInclude(m => m.User)
             .Include(p => p.Boards)
+            .Include(p => p.Notebooks).ThenInclude(n => n.Pages)
             .Include(p => p.Notes).ThenInclude(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
@@ -221,6 +223,17 @@ public sealed class ProjectService : IProjectService
                 ProjectId = b.ProjectId,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt
+            }).ToList(),
+            Notebooks = project.Notebooks.Select(n => new NotebookSummaryDto
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ProjectId = n.ProjectId,
+                IsPinned = n.IsPinned,
+                PinnedAt = n.PinnedAt,
+                CreatedAt = n.CreatedAt,
+                UpdatedAt = n.UpdatedAt,
+                PageCount = n.Pages.Count
             }).ToList(),
             Notes = project.Notes.Select(n => new NoteSummaryDto
             {

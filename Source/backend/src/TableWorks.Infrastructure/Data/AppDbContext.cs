@@ -80,6 +80,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
 
             entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.CreatedAt);
             entity.HasIndex(x => x.UpdatedAt);
 
@@ -87,6 +88,11 @@ public sealed class AppDbContext : DbContext
                 .WithMany(x => x.Notebooks)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Project)
+                .WithMany(x => x.Notebooks)
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
         });

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, ClipboardList, PenTool, FolderOpen } from "lucide-react";
+import { X, ClipboardList, PenTool, FolderOpen, BookOpen } from "lucide-react";
 
 const PROJECT_COLORS = [
   { value: "violet", label: "Violet", bg: "bg-violet-400", ring: "ring-violet-500" },
@@ -10,11 +10,12 @@ const PROJECT_COLORS = [
   { value: "orange", label: "Orange", bg: "bg-orange-400", ring: "ring-orange-500" },
 ];
 
-type DialogTab = "board" | "project";
+type DialogTab = "board" | "project" | "notebook";
 
 interface CreateBoardDialogProps {
   isOpen: boolean;
   error?: string | null;
+  createNotebookError?: string | null;
   onClose: () => void;
   onCreateBoard: (name: string, description: string, boardType: string) => void;
   onCreateProject: (
@@ -25,6 +26,7 @@ interface CreateBoardDialogProps {
     endDate?: string,
     deadline?: string,
   ) => void;
+  onCreateNotebook?: (name: string) => void;
   defaultBoardType?: string;
 }
 
@@ -47,9 +49,11 @@ function nextMonthStr(): string {
 export function CreateBoardDialog({
   isOpen,
   error,
+  createNotebookError,
   onClose,
   onCreateBoard,
   onCreateProject,
+  onCreateNotebook,
   defaultBoardType = "NoteBoard",
 }: CreateBoardDialogProps) {
   const [tab, setTab] = useState<DialogTab>("board");
@@ -68,6 +72,9 @@ export function CreateBoardDialog({
   const [endDate, setEndDate] = useState(nextMonthStr());
   const [deadline, setDeadline] = useState("");
 
+  // Notebook fields
+  const [notebookName, setNotebookName] = useState("");
+
   function resetFields() {
     setTab("board");
     setBoardName("");
@@ -80,6 +87,7 @@ export function CreateBoardDialog({
     setStartDate(todayStr());
     setEndDate(nextMonthStr());
     setDeadline("");
+    setNotebookName("");
   }
 
   function handleClose() {
@@ -107,7 +115,15 @@ export function CreateBoardDialog({
     );
   }
 
+  function handleSubmitNotebook(e: React.FormEvent) {
+    e.preventDefault();
+    if (!notebookName.trim() || !onCreateNotebook) return;
+    onCreateNotebook(notebookName.trim());
+  }
+
   if (!isOpen) return null;
+
+  const displayError = tab === "notebook" ? createNotebookError : error;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -137,33 +153,47 @@ export function CreateBoardDialog({
           <button
             type="button"
             onClick={() => setTab("board")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${
               tab === "board"
                 ? "bg-primary text-primary-foreground"
                 : "bg-background text-foreground/50 hover:text-foreground hover:bg-foreground/5"
             }`}
           >
-            <ClipboardList className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4 shrink-0" />
             Board
           </button>
           <button
             type="button"
             onClick={() => setTab("project")}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${
               tab === "project"
                 ? "bg-primary text-primary-foreground"
                 : "bg-background text-foreground/50 hover:text-foreground hover:bg-foreground/5"
             }`}
           >
-            <FolderOpen className="h-4 w-4" />
+            <FolderOpen className="h-4 w-4 shrink-0" />
             Project
           </button>
+          {onCreateNotebook && (
+            <button
+              type="button"
+              onClick={() => setTab("notebook")}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                tab === "notebook"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-foreground/50 hover:text-foreground hover:bg-foreground/5"
+              }`}
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              Notebook
+            </button>
+          )}
         </div>
 
         {/* Error message */}
-        {error && (
+        {displayError && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400">
-            {error}
+            {displayError}
           </div>
         )}
 
@@ -382,6 +412,44 @@ export function CreateBoardDialog({
             </div>
           </form>
         )}
+
+        {/* ─── Notebook Tab ─────────────────────── */}
+        {tab === "notebook" && onCreateNotebook && (
+          <form onSubmit={handleSubmitNotebook} className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="notebook-name" className="mb-1.5 block text-xs font-medium text-foreground/60">
+                Notebook Name
+              </label>
+              <input
+                id="notebook-name"
+                type="text"
+                value={notebookName}
+                onChange={(e) => setNotebookName(e.target.value)}
+                placeholder="My notebook"
+                maxLength={100}
+                autoFocus
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-background transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!notebookName.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Create Notebook
+              </button>
+            </div>
+          </form>
+        )}
+
       </div>
     </div>
   );

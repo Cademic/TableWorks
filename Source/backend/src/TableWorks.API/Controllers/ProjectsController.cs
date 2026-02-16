@@ -14,12 +14,14 @@ public sealed class ProjectsController : ControllerBase
 {
     private readonly IProjectService _projectService;
     private readonly IBoardService _boardService;
+    private readonly INotebookService _notebookService;
     private readonly ICurrentUserService _currentUserService;
 
-    public ProjectsController(IProjectService projectService, IBoardService boardService, ICurrentUserService currentUserService)
+    public ProjectsController(IProjectService projectService, IBoardService boardService, INotebookService notebookService, ICurrentUserService currentUserService)
     {
         _projectService = projectService;
         _boardService = boardService;
+        _notebookService = notebookService;
         _currentUserService = currentUserService;
     }
 
@@ -126,6 +128,24 @@ public sealed class ProjectsController : ControllerBase
     public async Task<IActionResult> RemoveBoardFromProject(Guid id, Guid boardId, CancellationToken cancellationToken)
     {
         await _boardService.RemoveBoardFromProjectAsync(_currentUserService.UserId, id, boardId, cancellationToken);
+        return Ok();
+    }
+
+    [HttpPost("{id:guid}/notebooks/{notebookId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddNotebookToProject(Guid id, Guid notebookId, CancellationToken cancellationToken)
+    {
+        await _notebookService.AddNotebookToProjectAsync(_currentUserService.UserId, id, notebookId, cancellationToken);
+        return Ok();
+    }
+
+    [HttpDelete("{id:guid}/notebooks/{notebookId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveNotebookFromProject(Guid id, Guid notebookId, CancellationToken cancellationToken)
+    {
+        await _notebookService.RemoveNotebookFromProjectAsync(_currentUserService.UserId, id, notebookId, cancellationToken);
         return Ok();
     }
 

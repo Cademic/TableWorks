@@ -1,3 +1,4 @@
+using System.Data;
 using System.Threading.RateLimiting;
 using System.Text;
 using Asp.Versioning;
@@ -525,6 +526,7 @@ static async Task ApplyMigrationsAsync(WebApplication app)
         .CreateLogger("DatabaseSetup");
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+    await EnsureNotebooksMigrationHistoryConsistentAsync(dbContext, logger);
     logger.LogInformation("Applying EF Core migrations on startup (Development mode).");
     await dbContext.Database.MigrateAsync();
     logger.LogInformation("EF Core migrations applied successfully.");
@@ -539,19 +541,77 @@ static async Task RunMigrateOnlyAsync(WebApplication app)
 
     var pending = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
 
-    if (pending.Count == 0)
+    if (pending.Count > 0)
+    {
+        logger.LogInformation(
+            "Applying {Count} pending migration(s): {Migrations}",
+            pending.Count,
+            string.Join(", ", pending));
+    }
+    else
     {
         logger.LogInformation("No pending migrations. Database is up to date.");
-        return;
     }
 
-    logger.LogInformation(
-        "Applying {Count} pending migration(s): {Migrations}",
-        pending.Count,
-        string.Join(", ", pending));
-
+    await EnsureNotebooksMigrationHistoryConsistentAsync(dbContext, logger);
+    // Always call MigrateAsync: applies any pending migrations (creates new tables); no-op if already up to date.
     await dbContext.Database.MigrateAsync();
-    logger.LogInformation("All migrations applied successfully.");
+    logger.LogInformation("Migrations complete.");
+}
+
+/// <summary>
+/// If __EFMigrationsHistory says 20260215120000_AddNotebooksAndNotebookPages was applied
+/// but the Notebooks table is missing (e.g. table was dropped or DB restored without tables),
+/// remove that row so EF will re-apply the migration and create Notebooks/NotebookPages.
+/// </summary>
+static async Task EnsureNotebooksMigrationHistoryConsistentAsync(
+    AppDbContext dbContext,
+    Microsoft.Extensions.Logging.ILogger logger)
+{
+    const string notebooksMigrationId = "20260215120000_AddNotebooksAndNotebookPages";
+    try
+    {
+        var conn = dbContext.Database.GetDbConnection();
+        if (conn.State != ConnectionState.Open)
+            await conn.OpenAsync();
+
+        await using var checkTableCmd = conn.CreateCommand();
+        checkTableCmd.CommandText = """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'Notebooks'
+            )
+            """;
+        var tableExists = (bool)(await checkTableCmd.ExecuteScalarAsync() ?? false);
+
+        if (tableExists)
+            return;
+
+        // Use literal in SQL (migration ID is a fixed constant, not user input) to avoid Npgsql parameter binding issues with DbCommand.
+        var escapedId = notebooksMigrationId.Replace("'", "''", StringComparison.Ordinal);
+        await using var checkHistoryCmd = conn.CreateCommand();
+        checkHistoryCmd.CommandText = $"""
+            SELECT 1 FROM "__EFMigrationsHistory"
+            WHERE "MigrationId" = '{escapedId}'
+            LIMIT 1
+            """;
+        var migrationInHistory = await checkHistoryCmd.ExecuteScalarAsync() != null;
+
+        if (!migrationInHistory)
+            return;
+
+        var deleted = await dbContext.Database.ExecuteSqlRawAsync(
+            """DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = {0}""",
+            notebooksMigrationId);
+        if (deleted > 0)
+            logger.LogWarning(
+                "Removed migration {MigrationId} from __EFMigrationsHistory (Notebooks table was missing). It will be re-applied.",
+                notebooksMigrationId);
+    }
+    catch (Exception ex)
+    {
+        logger.LogDebug(ex, "Could not check/fix Notebooks migration history consistency.");
+    }
 }
 
 static async Task SeedDatabaseAsync(WebApplication app)

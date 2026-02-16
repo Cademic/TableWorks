@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  BookOpen,
   ClipboardList,
   Users,
   Settings,
@@ -21,23 +22,32 @@ import {
   deleteProject,
   addBoardToProject,
   removeBoardFromProject,
+  addNotebookToProject,
+  removeNotebookFromProject,
 } from "../api/projects";
 import axios from "axios";
 import { createBoard } from "../api/boards";
+import { createNotebook } from "../api/notebooks";
 import { BoardCard } from "../components/dashboard/BoardCard";
+import { NotebookCard } from "../components/notebooks/NotebookCard";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { ProjectCalendar } from "../components/calendar/ProjectCalendar";
 import { MemberList } from "../components/projects/MemberList";
 import { AddMemberDialog } from "../components/projects/AddMemberDialog";
 import { AddExistingBoardDialog } from "../components/projects/AddExistingBoardDialog";
-import type { ProjectDetailDto, BoardSummaryDto } from "../types";
+import { AddExistingNotebookDialog } from "../components/projects/AddExistingNotebookDialog";
+import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDialog";
+import type { ProjectDetailDto, BoardSummaryDto, NotebookSummaryDto } from "../types";
+import { useOutletContext } from "react-router-dom";
+import type { AppLayoutContext } from "../components/layout/AppLayout";
 
-type TabId = "calendar" | "boards" | "members" | "settings";
+type TabId = "calendar" | "boards" | "notebooks" | "members" | "settings";
 
 const TABS: { id: TabId; label: string; icon: typeof ClipboardList }[] = [
   { id: "calendar", label: "Calendar", icon: Calendar },
   { id: "boards", label: "Boards", icon: ClipboardList },
+  { id: "notebooks", label: "Notebooks", icon: BookOpen },
   { id: "members", label: "Members", icon: Users },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -69,6 +79,7 @@ function toInputDate(dateStr: string | null): string {
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { openNotebook } = useOutletContext<AppLayoutContext>();
 
   const [project, setProject] = useState<ProjectDetailDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,9 +88,13 @@ export function ProjectDetailPage() {
   const [isCreateBoardOpen, setIsCreateBoardOpen] = useState(false);
   const [createBoardError, setCreateBoardError] = useState<string | null>(null);
   const [isAddExistingBoardOpen, setIsAddExistingBoardOpen] = useState(false);
+  const [isCreateNotebookOpen, setIsCreateNotebookOpen] = useState(false);
+  const [createNotebookError, setCreateNotebookError] = useState<string | null>(null);
+  const [isAddExistingNotebookOpen, setIsAddExistingNotebookOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [removeBoardTarget, setRemoveBoardTarget] = useState<BoardSummaryDto | null>(null);
+  const [removeNotebookTarget, setRemoveNotebookTarget] = useState<NotebookSummaryDto | null>(null);
 
   // Settings form state
   const [editName, setEditName] = useState("");
@@ -182,6 +197,60 @@ export function ProjectDetailPage() {
     );
     try {
       await removeBoardFromProject(projectId, boardId);
+    } catch {
+      fetchProject();
+    }
+  }
+
+  async function handleCreateNotebook(name: string) {
+    if (!projectId) return;
+    try {
+      setCreateNotebookError(null);
+      const created = await createNotebook({ name, projectId });
+      setProject((prev) =>
+        prev
+          ? { ...prev, notebooks: [...(prev.notebooks ?? []), created] }
+          : prev,
+      );
+      setIsCreateNotebookOpen(false);
+      openNotebook(created.id);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setCreateNotebookError(err.response.data?.message ?? "A notebook with that name already exists.");
+      } else {
+        setCreateNotebookError("Failed to create notebook. Please try again.");
+        console.error("Failed to create notebook:", err);
+      }
+    }
+  }
+
+  async function handleAddExistingNotebook(notebookId: string) {
+    if (!projectId) return;
+    try {
+      await addNotebookToProject(projectId, notebookId);
+      await fetchProject();
+      setIsAddExistingNotebookOpen(false);
+    } catch (err) {
+      console.error("Failed to add notebook to project:", err);
+    }
+  }
+
+  function handleRemoveNotebook(notebookId: string) {
+    const notebook = project?.notebooks?.find((n) => n.id === notebookId) ?? null;
+    if (notebook) setRemoveNotebookTarget(notebook);
+  }
+
+  async function confirmRemoveNotebook() {
+    if (!removeNotebookTarget || !projectId) return;
+    const notebookId = removeNotebookTarget.id;
+    setRemoveNotebookTarget(null);
+    setProject((prev) =>
+      prev
+        ? { ...prev, notebooks: (prev.notebooks ?? []).filter((n) => n.id !== notebookId) }
+        : prev,
+    );
+    try {
+      await removeNotebookFromProject(projectId, notebookId);
     } catch {
       fetchProject();
     }
@@ -364,6 +433,11 @@ export function ProjectDetailPage() {
                     {project.boards.length}
                   </span>
                 )}
+                {tab.id === "notebooks" && (
+                  <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
+                    {(project.notebooks ?? []).length}
+                  </span>
+                )}
                 {tab.id === "members" && (
                   <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
                     {project.members.length + 1}
@@ -393,6 +467,17 @@ export function ProjectDetailPage() {
             onCreateBoard={() => setIsCreateBoardOpen(true)}
             onAddExisting={() => setIsAddExistingBoardOpen(true)}
             onRemoveBoard={handleRemoveBoard}
+          />
+        )}
+
+        {activeTab === "notebooks" && (
+          <NotebooksTab
+            notebooks={project.notebooks ?? []}
+            canEdit={canEdit}
+            onCreateNotebook={() => setIsCreateNotebookOpen(true)}
+            onAddExisting={() => setIsAddExistingNotebookOpen(true)}
+            onRemoveNotebook={handleRemoveNotebook}
+            onOpenNotebook={openNotebook}
           />
         )}
 
@@ -446,6 +531,20 @@ export function ProjectDetailPage() {
         onAdd={handleAddExistingBoard}
       />
 
+      <CreateNotebookDialog
+        isOpen={isCreateNotebookOpen}
+        error={createNotebookError}
+        onClose={() => { setIsCreateNotebookOpen(false); setCreateNotebookError(null); }}
+        onCreate={handleCreateNotebook}
+      />
+
+      <AddExistingNotebookDialog
+        isOpen={isAddExistingNotebookOpen}
+        projectNotebookIds={(project.notebooks ?? []).map((n) => n.id)}
+        onClose={() => setIsAddExistingNotebookOpen(false)}
+        onAdd={handleAddExistingNotebook}
+      />
+
       <AddMemberDialog
         isOpen={isAddMemberOpen}
         projectId={projectId ?? ""}
@@ -465,9 +564,20 @@ export function ProjectDetailPage() {
       />
 
       <ConfirmDialog
+        isOpen={removeNotebookTarget !== null}
+        title="Remove Notebook from Project"
+        message={`Remove "${removeNotebookTarget?.name ?? "this notebook"}" from the project? The notebook itself will not be deleted.`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        variant="default"
+        onConfirm={confirmRemoveNotebook}
+        onCancel={() => setRemoveNotebookTarget(null)}
+      />
+
+      <ConfirmDialog
         isOpen={deleteConfirmOpen}
         title="Delete Project"
-        message={`Are you sure you want to delete "${project.name}"? Boards will be unlinked but not deleted.`}
+        message={`Are you sure you want to delete "${project.name}"? Boards and notebooks will be unlinked but not deleted.`}
         confirmLabel="Delete Project"
         cancelLabel="Keep It"
         variant="danger"
@@ -581,6 +691,96 @@ function BoardsTab({ boards, canEdit, onCreateBoard, onAddExisting, onRemoveBoar
               key={board.id}
               board={board}
               onDelete={canEdit ? onRemoveBoard : () => {}}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface NotebooksTabProps {
+  notebooks: NotebookSummaryDto[];
+  canEdit: boolean;
+  onCreateNotebook: () => void;
+  onAddExisting: () => void;
+  onRemoveNotebook: (id: string) => void;
+  onOpenNotebook: (id: string) => void;
+}
+
+function NotebooksTab({
+  notebooks,
+  canEdit,
+  onCreateNotebook,
+  onAddExisting,
+  onRemoveNotebook,
+  onOpenNotebook,
+}: NotebooksTabProps) {
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">
+          Notebooks ({notebooks.length})
+        </h3>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onAddExisting}
+              className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/70 transition-all hover:border-amber-400 hover:text-amber-600 hover:shadow-sm dark:hover:text-amber-400"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Add Existing
+            </button>
+            <button
+              type="button"
+              onClick={onCreateNotebook}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Notebook
+            </button>
+          </div>
+        )}
+      </div>
+
+      {notebooks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/50 bg-background/40 py-14">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5">
+            <BookOpen className="h-5 w-5 text-foreground/30" />
+          </div>
+          <p className="mb-4 text-sm text-foreground/40">
+            No notebooks in this project yet
+          </p>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onAddExisting}
+                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-amber-400 hover:text-amber-600 hover:shadow-sm dark:hover:text-amber-400"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                Add Existing Notebook
+              </button>
+              <button
+                type="button"
+                onClick={onCreateNotebook}
+                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Create New Notebook
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {notebooks.map((notebook) => (
+            <NotebookCard
+              key={notebook.id}
+              notebook={notebook}
+              onOpen={onOpenNotebook}
+              onRemoveFromProject={canEdit ? onRemoveNotebook : undefined}
             />
           ))}
         </div>
@@ -806,8 +1006,8 @@ function SettingsTab({
           Danger Zone
         </h4>
         <p className="mt-1 text-xs text-foreground/50">
-          Deleting this project will unlink all boards. The boards themselves
-          will not be deleted.
+          Deleting this project will unlink all boards and notebooks. The
+          boards and notebooks themselves will not be deleted.
         </p>
         <button
           type="button"

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ASideNote.Infrastructure.Data.Migrations
 {
     /// <inheritdoc />
+    [Migration("20260215120000_AddNotebooksAndNotebookPages")]
     public partial class AddNotebooksAndNotebookPages : Migration
     {
         /// <inheritdoc />

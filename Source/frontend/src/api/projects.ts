@@ -88,6 +88,20 @@ export async function removeBoardFromProject(
   await apiClient.delete(`/projects/${projectId}/boards/${boardId}`);
 }
 
+export async function addNotebookToProject(
+  projectId: string,
+  notebookId: string,
+): Promise<void> {
+  await apiClient.post(`/projects/${projectId}/notebooks/${notebookId}`);
+}
+
+export async function removeNotebookFromProject(
+  projectId: string,
+  notebookId: string,
+): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}/notebooks/${notebookId}`);
+}
+
 export async function getPinnedProjects(): Promise<ProjectSummaryDto[]> {
   const response = await apiClient.get<ProjectSummaryDto[]>("/projects/pinned");
   return response.data;

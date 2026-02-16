@@ -1,11 +1,12 @@
 # How to Update the Database (Run Migrations) on Render
 
-If `/api/v1/notebooks` returns 500 with **"relation \"Notebooks\" does not exist"**, the **Notebooks** and **NotebookPages** tables are missing in the database that your **Render API** uses. This often happens when:
+If `/api/v1/notebooks` returns **500** or **503** with a message about the database schema or **"relation \"Notebooks\" does not exist"**, the **Notebooks** and **NotebookPages** tables are missing in the database that your **Render API** uses. The API may return **503 Service Unavailable** with `code: "SchemaOutOfDate"` when it detects missing tables; check Render **Logs** for the full exception if needed. This often happens when:
 
 - Notebooks work locally (your local DB has the tables) but fail on Render.
 - The Render database was never updated with the Notebooks migration.
+- **Docker services:** Render’s Pre-Deploy Command runs on a **separate instance** (the build runner), not inside your Docker image, so `dotnet ASideNote.API.dll --migrate` there often fails or doesn’t run. Migrations for this app are meant to run **inside the container** via `entrypoint.sh` when the container starts. Use the repo’s **Dockerfile** (path `Dockerfile` in the backend root, not `.Dockerfile`) so the image includes that entrypoint.
 
-**Fix:** Run the migration **once** from your computer against the **Render** database (Option A below). Use the **External Database URL** from the **same** PostgreSQL service that is linked to your API in Render. After that, notebooks will work on Render.
+**Fix:** Run the migration **once** from your computer against the **Render** database (Option A below). Use the **External Database URL** from the **same** PostgreSQL service that is linked to your API in Render. Ensure the API uses the repo’s **Dockerfile** (path `Dockerfile`) so future deploys run migrations in the container at startup.
 
 ---
 

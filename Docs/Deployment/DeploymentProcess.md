@@ -245,6 +245,12 @@ If new code requires a new environment variable:
 | TLS certificate not provisioning | DNS propagation delay | Waited for propagation; added `CAA` record for `letsencrypt.org` |
 | All authenticated API requests returning 401 | JWT tokens signed with `appsettings.json` default secret, but validated against `JWT_SECRET` env var | Fixed `TokenService.cs` to read `JWT_SECRET` env var first |
 | Token refresh failing on deployed site | Refresh endpoint called relative URL (frontend domain) instead of API domain | Changed `client.ts` to use `apiClient` instead of raw `axios` for refresh calls |
+| 500 on `/api/v1/notebooks` and `/api/v1/notebooks/pinned` | Notebooks/NotebookPages tables missing — migrations not run in Docker | Use Docker image with `entrypoint.sh` that runs `dotnet ASideNote.API.dll --migrate` on container start; ensure API service has been redeployed with that image |
+
+### If 500 on notebooks persists after redeploy
+
+1. In Render → API service → **Logs**, confirm you see `Running database migrations...` and `Migrations complete. Starting API.` when the container starts. If you see `Migrations failed...`, check `INTERNAL_DATABASE_URL` / `DATABASE_URL` and that the API is linked to the Postgres service.
+2. In the same logs, when a notebooks request fails, look for the exception (e.g. `relation "Notebooks" does not exist`). That confirms missing migrations; ensure the Dockerfile uses the entrypoint and the service has been redeployed.
 
 ---
 

@@ -1,5 +1,3 @@
-using System.IO;
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Common;
@@ -136,19 +134,6 @@ public sealed class NotebookService : INotebookService
 
     public async Task UpdateNotebookPagesAsync(Guid userId, Guid notebookId, UpdateNotebookPagesRequest request, CancellationToken cancellationToken = default)
     {
-        // #region agent log
-        const string logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
-        try
-        {
-            var dir = Path.GetDirectoryName(logPath);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            var pagesCount = request.Pages?.Count ?? -1;
-            var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebookService.cs:UpdateNotebookPagesAsync", message = "service entered", data = new { userId = userId.ToString(), notebookId = notebookId.ToString(), pagesCount }, hypothesisId = "H4" }) + Environment.NewLine;
-            await File.AppendAllTextAsync(logPath, line, cancellationToken);
-        }
-        catch { }
-        // #endregion
-
         var notebook = await _notebookRepo.Query()
             .Include(n => n.Pages)
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
@@ -184,42 +169,8 @@ public sealed class NotebookService : INotebookService
         }
 
         notebook.UpdatedAt = now;
-        // Notebook already tracked; change tracker will persist updates.
 
-        // #region agent log
-        try
-        {
-            var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebookService.cs:UpdateNotebookPagesAsync", message = "before SaveChangesAsync", hypothesisId = "H5" }) + Environment.NewLine;
-            await File.AppendAllTextAsync(logPath, line, cancellationToken);
-        }
-        catch { }
-        // #endregion
-
-        try
-        {
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // #region agent log
-            try
-            {
-                var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebookService.cs:UpdateNotebookPagesAsync", message = "after SaveChangesAsync", hypothesisId = "H5" }) + Environment.NewLine;
-                await File.AppendAllTextAsync(logPath, line, cancellationToken);
-            }
-            catch { }
-            // #endregion
-        }
-        catch (Exception ex)
-        {
-            // #region agent log
-            try
-            {
-                var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "NotebookService.cs:UpdateNotebookPagesAsync", message = "SaveChangesAsync threw", data = new { exType = ex.GetType().Name, exMessage = ex.Message }, hypothesisId = "H5" }) + Environment.NewLine;
-                await File.AppendAllTextAsync(logPath, line, cancellationToken);
-            }
-            catch { }
-            // #endregion
-            throw;
-        }
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteNotebookAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)

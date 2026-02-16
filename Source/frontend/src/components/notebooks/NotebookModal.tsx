@@ -266,7 +266,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
     leftEditor.commands.setContent(toEditorHtml(pages[leftPageIndex] ?? ""), { emitUpdate: false });
     rightEditor.commands.setContent(toEditorHtml(pages[rightPageIndex] ?? ""), { emitUpdate: false });
     prevSpreadRef.current = spreadIndex;
-  }, [isSinglePage, spreadIndex, leftPageIndex, rightPageIndex, pages.length, leftEditor, rightEditor]);
+  }, [isSinglePage, spreadIndex, leftPageIndex, rightPageIndex, pages, leftEditor, rightEditor]);
 
   // Sync single page: when singlePageIndex changes or when switching to single mode or when pages load
   useEffect(() => {
@@ -274,7 +274,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
     if (prevSinglePageRef.current === singlePageIndex && prevSinglePageRef.current !== -1) return;
     leftEditor.commands.setContent(toEditorHtml(pages[singlePageIndex] ?? ""), { emitUpdate: false });
     prevSinglePageRef.current = singlePageIndex;
-  }, [isSinglePage, singlePageIndex, pages.length, leftEditor]);
+  }, [isSinglePage, singlePageIndex, pages, leftEditor]);
 
   if (error) {
     return (

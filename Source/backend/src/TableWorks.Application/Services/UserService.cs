@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using ASideNote.Application.DTOs.Users;
 using ASideNote.Application.Interfaces;
 using ASideNote.Core.Entities;
@@ -23,6 +24,7 @@ public sealed class UserService : IUserService
     private readonly IRepository<FriendRequest> _friendRequestRepo;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IConfiguration _configuration;
 
     public UserService(
         IRepository<User> userRepo,
@@ -30,7 +32,8 @@ public sealed class UserService : IUserService
         IRepository<RefreshToken> refreshTokenRepo,
         IRepository<FriendRequest> friendRequestRepo,
         IUnitOfWork unitOfWork,
-        IPasswordHasher passwordHasher)
+        IPasswordHasher passwordHasher,
+        IConfiguration configuration)
     {
         _userRepo = userRepo;
         _prefsRepo = prefsRepo;
@@ -38,6 +41,7 @@ public sealed class UserService : IUserService
         _friendRequestRepo = friendRequestRepo;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
+        _configuration = configuration;
     }
 
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -45,18 +49,27 @@ public sealed class UserService : IUserService
         var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException("User not found.");
 
+        var effectiveRole = GetEffectiveRole(user.Email, user.Role);
+
         return new UserProfileDto
         {
             Id = user.Id,
             Username = user.Username,
             Email = user.Email,
-            Role = user.Role,
+            Role = effectiveRole,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
             ProfilePictureKey = user.ProfilePictureKey,
             Bio = user.Bio,
             UsernameChangedAt = user.UsernameChangedAt
         };
+    }
+
+    private string GetEffectiveRole(string email, string dbRole)
+    {
+        var allowedEmails = _configuration.GetSection("Admin:AllowedEmails").Get<string[]>() ?? [];
+        var adminEmails = new HashSet<string>(allowedEmails, StringComparer.OrdinalIgnoreCase);
+        return adminEmails.Contains(email) ? "Admin" : dbRole;
     }
 
     public async Task UpdateProfileAsync(Guid userId, UpdateProfileRequest request, CancellationToken cancellationToken = default)

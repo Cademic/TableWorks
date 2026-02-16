@@ -16,6 +16,9 @@ public sealed class AdminService : IAdminService
     private readonly IRepository<Note> _noteRepo;
     private readonly IRepository<AuditLog> _auditLogRepo;
     private readonly IRepository<Project> _projectRepo;
+    private readonly IRepository<Board> _boardRepo;
+    private readonly IRepository<Notebook> _notebookRepo;
+    private readonly IRepository<CalendarEvent> _calendarEventRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminService(
@@ -23,12 +26,18 @@ public sealed class AdminService : IAdminService
         IRepository<Note> noteRepo,
         IRepository<AuditLog> auditLogRepo,
         IRepository<Project> projectRepo,
+        IRepository<Board> boardRepo,
+        IRepository<Notebook> notebookRepo,
+        IRepository<CalendarEvent> calendarEventRepo,
         IUnitOfWork unitOfWork)
     {
         _userRepo = userRepo;
         _noteRepo = noteRepo;
         _auditLogRepo = auditLogRepo;
         _projectRepo = projectRepo;
+        _boardRepo = boardRepo;
+        _notebookRepo = notebookRepo;
+        _calendarEventRepo = calendarEventRepo;
         _unitOfWork = unitOfWork;
     }
 
@@ -82,15 +91,94 @@ public sealed class AdminService : IAdminService
         };
     }
 
+    public async Task<AdminStatsDto> GetAdminStatsAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        var last24h = now.AddHours(-24);
+        var last7d = now.AddDays(-7);
+
+        var totalUsers = await _userRepo.Query().CountAsync(cancellationToken);
+        var activeUsersCount = await _userRepo.Query().CountAsync(u => u.IsActive, cancellationToken);
+        var usersActiveLast24h = await _userRepo.Query().CountAsync(u => u.LastLoginAt.HasValue && u.LastLoginAt.Value >= last24h, cancellationToken);
+        var usersActiveLast7d = await _userRepo.Query().CountAsync(u => u.LastLoginAt.HasValue && u.LastLoginAt.Value >= last7d, cancellationToken);
+
+        return new AdminStatsDto
+        {
+            TotalUsers = totalUsers,
+            ActiveUsersCount = activeUsersCount,
+            UsersActiveLast24h = usersActiveLast24h,
+            UsersActiveLast7d = usersActiveLast7d
+        };
+    }
+
+    public async Task<AdminAnalyticsDto> GetAdminAnalyticsAsync(CancellationToken cancellationToken = default)
+    {
+        var eventsCount = await _calendarEventRepo.Query().CountAsync(cancellationToken);
+        var noteBoardsCount = await _boardRepo.Query().CountAsync(b => b.BoardType == "NoteBoard", cancellationToken);
+        var chalkBoardsCount = await _boardRepo.Query().CountAsync(b => b.BoardType == "ChalkBoard", cancellationToken);
+        var notebooksCount = await _notebookRepo.Query().CountAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var creationByMonth = new List<AdminPeriodCountDto>();
+        var loginsByMonth = new List<AdminPeriodCountDto>();
+
+        for (var i = 11; i >= 0; i--)
+        {
+            var date = now.AddMonths(-i);
+            var year = date.Year;
+            var month = date.Month;
+            var periodLabel = date.ToString("MMM yyyy");
+
+            var startOfMonth = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var endOfMonth = startOfMonth.AddMonths(1);
+
+            var usersCreatedInMonth = await _userRepo.Query()
+                .CountAsync(u => u.CreatedAt >= startOfMonth && u.CreatedAt < endOfMonth, cancellationToken);
+            creationByMonth.Add(new AdminPeriodCountDto { Period = periodLabel, Count = usersCreatedInMonth });
+
+            var usersLoggedInMonth = await _userRepo.Query()
+                .CountAsync(u => u.LastLoginAt.HasValue && u.LastLoginAt.Value >= startOfMonth && u.LastLoginAt.Value < endOfMonth, cancellationToken);
+            loginsByMonth.Add(new AdminPeriodCountDto { Period = periodLabel, Count = usersLoggedInMonth });
+        }
+
+        return new AdminAnalyticsDto
+        {
+            CreationCounts = new AdminCreationCountsDto
+            {
+                EventsCount = eventsCount,
+                NoteBoardsCount = noteBoardsCount,
+                ChalkBoardsCount = chalkBoardsCount,
+                NotebooksCount = notebooksCount
+            },
+            UserCreationByMonth = creationByMonth,
+            UserLoginsByMonth = loginsByMonth
+        };
+    }
+
     public async Task<AdminUserDetailDto> GetUserDetailAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var user = await _userRepo.Query()
             .Include(u => u.Notes).ThenInclude(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Include(u => u.OwnedProjects).ThenInclude(p => p.Members)
             .Include(u => u.AuditLogs)
+            .Include(u => u.SentFriendRequests).ThenInclude(f => f.Receiver)
+            .Include(u => u.ReceivedFriendRequests).ThenInclude(f => f.Requester)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
             ?? throw new KeyNotFoundException("User not found.");
+
+        var friends = new List<AdminFriendDto>();
+        foreach (var f in user.SentFriendRequests.Where(x => x.Status == FriendRequestStatus.Accepted))
+        {
+            if (f.Receiver is null) continue;
+            friends.Add(new AdminFriendDto { UserId = f.Receiver.Id, Username = f.Receiver.Username, LastLoginAt = f.Receiver.LastLoginAt });
+        }
+        foreach (var f in user.ReceivedFriendRequests.Where(x => x.Status == FriendRequestStatus.Accepted))
+        {
+            if (f.Requester is null) continue;
+            friends.Add(new AdminFriendDto { UserId = f.Requester.Id, Username = f.Requester.Username, LastLoginAt = f.Requester.LastLoginAt });
+        }
+        friends = friends.DistinctBy(f => f.UserId).ToList();
 
         return new AdminUserDetailDto
         {
@@ -145,7 +233,8 @@ public sealed class AdminService : IAdminService
                 Details = a.DetailsJson,
                 IpAddress = a.IpAddress,
                 Timestamp = a.Timestamp
-            }).ToList()
+            }).ToList(),
+            Friends = friends
         };
     }
 
@@ -154,7 +243,31 @@ public sealed class AdminService : IAdminService
         var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException("User not found.");
 
+        if (!request.IsActive && user.Role == "Admin")
+            throw new InvalidOperationException("Cannot ban an admin account.");
+
         user.IsActive = request.IsActive;
+        _userRepo.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateUserRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default)
+    {
+        var role = request.Role?.Trim() ?? string.Empty;
+        if (role != "User" && role != "Admin")
+            throw new ArgumentException("Role must be 'User' or 'Admin'.", nameof(request));
+
+        var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        if (user.Role == "Admin" && role == "User")
+        {
+            var adminCount = await _userRepo.Query().CountAsync(u => u.Role == "Admin", cancellationToken);
+            if (adminCount <= 1)
+                throw new InvalidOperationException("Cannot demote the last admin.");
+        }
+
+        user.Role = role;
         _userRepo.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
@@ -163,6 +276,9 @@ public sealed class AdminService : IAdminService
     {
         var user = await _userRepo.GetByIdAsync(userId, cancellationToken)
             ?? throw new KeyNotFoundException("User not found.");
+
+        if (user.Role == "Admin")
+            throw new InvalidOperationException("Cannot delete an admin account.");
 
         _userRepo.Delete(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

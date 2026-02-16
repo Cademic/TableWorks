@@ -17,6 +17,8 @@ import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { VerifyEmailPage } from "../pages/VerifyEmailPage";
+import { AdminRoute } from "../components/auth/AdminRoute";
+import { AdminPage } from "../pages/AdminPage";
 
 export function AppRouter() {
   return (
@@ -48,6 +50,11 @@ export function AppRouter() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="/admin" element={<AdminRoute />}>
+            <Route element={<AppLayout />}>
+              <Route index element={<AdminPage />} />
+            </Route>
           </Route>
         </Route>
 

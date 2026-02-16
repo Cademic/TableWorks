@@ -31,6 +31,7 @@ export interface AuthUser {
   email: string;
   isEmailVerified: boolean;
   profilePictureKey?: string | null;
+  role?: string;
 }
 
 // --- User profile & preferences ---
@@ -437,4 +438,96 @@ export interface UpdateCalendarEventRequest {
   recurrenceFrequency?: string;
   recurrenceInterval?: number;
   recurrenceEndDate?: string;
+}
+
+// --- Admin DTOs ---
+
+export interface AdminStatsDto {
+  totalUsers: number;
+  activeUsersCount: number;
+  usersActiveLast24h: number;
+  usersActiveLast7d: number;
+}
+
+export interface AdminUserStatsDto {
+  noteCount: number;
+  projectCount: number;
+}
+
+export interface AdminUserDto {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  stats: AdminUserStatsDto;
+}
+
+export interface AdminFriendDto {
+  userId: string;
+  username: string;
+  lastLoginAt: string | null;
+}
+
+export interface AuditLogDto {
+  id: string;
+  userId: string | null;
+  actionType: string;
+  entityType: string;
+  entityId: string | null;
+  details: string | null;
+  ipAddress: string | null;
+  timestamp: string;
+}
+
+export interface AdminUserDetailDto {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  stats: AdminUserStatsDto;
+  notes: NoteSummaryDto[];
+  projects: ProjectSummaryDto[];
+  activityLog: AuditLogDto[];
+  friends: AdminFriendDto[];
+}
+
+export interface AdminUserListQuery {
+  search?: string;
+  role?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+export interface UpdateUserStatusRequest {
+  isActive: boolean;
+  reason?: string | null;
+}
+
+export interface UpdateUserRoleRequest {
+  role: string;
+}
+
+export interface AdminCreationCountsDto {
+  eventsCount: number;
+  noteBoardsCount: number;
+  chalkBoardsCount: number;
+  notebooksCount: number;
+}
+
+export interface AdminPeriodCountDto {
+  period: string;
+  count: number;
+}
+
+export interface AdminAnalyticsDto {
+  creationCounts: AdminCreationCountsDto;
+  userCreationByMonth: AdminPeriodCountDto[];
+  userLoginsByMonth: AdminPeriodCountDto[];
 }

@@ -6,6 +6,7 @@ using DotNetEnv;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -375,17 +376,19 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
 });
 app.MapHealthChecks("/health/ready"); // readiness: includes DB check
 
-// Diagnostic: which database this instance is using (host + database name only, no credentials)
-app.MapGet("/health/db", (AppDbContext db) =>
+// Diagnostic: which database this instance is using (host + database name only). Development only to avoid info disclosure.
+app.MapGet("/health/db", (AppDbContext db, IWebHostEnvironment env) =>
 {
+    if (env.IsProduction())
+        return Results.NotFound();
     var conn = db.Database.GetDbConnection();
     var cs = conn?.ConnectionString;
     if (string.IsNullOrEmpty(cs))
         return Results.Json(new { host = (string?)null, database = (string?)null });
     try
     {
-        var builder = new NpgsqlConnectionStringBuilder(cs);
-        return Results.Json(new { host = builder.Host, database = builder.Database });
+        var connBuilder = new NpgsqlConnectionStringBuilder(cs);
+        return Results.Json(new { host = connBuilder.Host, database = connBuilder.Database });
     }
     catch
     {

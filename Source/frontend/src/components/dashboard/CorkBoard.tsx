@@ -215,6 +215,17 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
     onViewportChange(1, 0, 0);
   }
 
+  function handleCenterView() {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    // Center the middle of the canvas (5000, 5000) in the viewport
+    const centerCanvasX = 5000;
+    const centerCanvasY = 5000;
+    const newPanX = rect.width / (2 * zoom) - centerCanvasX;
+    const newPanY = rect.height / (2 * zoom) - centerCanvasY;
+    onViewportChange(zoom, newPanX, newPanY);
+  }
+
   const cursorClass = isPanning ? "cursor-grabbing" : isSpaceHeld ? "cursor-grab" : "";
 
   return (
@@ -253,6 +264,7 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onReset={handleZoomReset}
+          onCenterView={handleCenterView}
         />
       </div>
     </div>

@@ -29,6 +29,16 @@
   background-color: rgba(255, 255, 255, 0.15);
 }
 
+/* Hide scrollbar while keeping scroll behavior (e.g. tab strip) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 :root {
   color-scheme: light;
   --color-background: 0 0% 100%;

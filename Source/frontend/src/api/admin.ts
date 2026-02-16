@@ -59,3 +59,7 @@ export async function updateUserRole(
 export async function deleteUser(id: string): Promise<void> {
   await apiClient.delete(`/admin/users/${id}`);
 }
+
+export async function removeUserFriend(userId: string, friendId: string): Promise<void> {
+  await apiClient.delete(`/admin/users/${userId}/friends/${friendId}`);
+}

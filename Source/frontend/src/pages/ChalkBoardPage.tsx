@@ -284,6 +284,16 @@ export function ChalkBoardPage() {
     handleViewportChange(1, 0, 0);
   }
 
+  function handleCenterView() {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const vpScale = zoom / RESOLUTION_FACTOR;
+    // Center the origin (0, 0) of the chalk canvas in the viewport
+    const newPanX = rect.width / (2 * vpScale);
+    const newPanY = rect.height / (2 * vpScale);
+    handleViewportChange(zoom, newPanX, newPanY);
+  }
+
   // --- Drag-and-drop from sidebar ---
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -674,6 +684,7 @@ export function ChalkBoardPage() {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onReset={handleZoomReset}
+          onCenterView={handleCenterView}
         />
       </div>
 

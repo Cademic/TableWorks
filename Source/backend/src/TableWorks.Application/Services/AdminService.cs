@@ -19,6 +19,7 @@ public sealed class AdminService : IAdminService
     private readonly IRepository<Board> _boardRepo;
     private readonly IRepository<Notebook> _notebookRepo;
     private readonly IRepository<CalendarEvent> _calendarEventRepo;
+    private readonly IRepository<FriendRequest> _friendRequestRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public AdminService(
@@ -29,6 +30,7 @@ public sealed class AdminService : IAdminService
         IRepository<Board> boardRepo,
         IRepository<Notebook> notebookRepo,
         IRepository<CalendarEvent> calendarEventRepo,
+        IRepository<FriendRequest> friendRequestRepo,
         IUnitOfWork unitOfWork)
     {
         _userRepo = userRepo;
@@ -38,6 +40,7 @@ public sealed class AdminService : IAdminService
         _boardRepo = boardRepo;
         _notebookRepo = notebookRepo;
         _calendarEventRepo = calendarEventRepo;
+        _friendRequestRepo = friendRequestRepo;
         _unitOfWork = unitOfWork;
     }
 
@@ -281,6 +284,20 @@ public sealed class AdminService : IAdminService
             throw new InvalidOperationException("Cannot delete an admin account.");
 
         _userRepo.Delete(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveUserFriendAsync(Guid userId, Guid friendId, CancellationToken cancellationToken = default)
+    {
+        var request = await _friendRequestRepo.Query()
+            .FirstOrDefaultAsync(f => (f.RequesterId == userId && f.ReceiverId == friendId) || (f.RequesterId == friendId && f.ReceiverId == userId), cancellationToken)
+            ?? throw new KeyNotFoundException("Friend relationship not found.");
+        if (request.Status != FriendRequestStatus.Accepted)
+            throw new InvalidOperationException("These users are not friends.");
+
+        request.Status = FriendRequestStatus.Rejected;
+        request.RespondedAt = DateTime.UtcNow;
+        _friendRequestRepo.Update(request);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

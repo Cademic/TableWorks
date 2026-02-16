@@ -65,6 +65,10 @@ export async function rejectFriendRequest(requestId: string): Promise<void> {
   await apiClient.post(`/users/me/friend-requests/${requestId}/reject`);
 }
 
+export async function removeFriend(friendId: string): Promise<void> {
+  await apiClient.delete(`/users/me/friends/${friendId}`);
+}
+
 export async function updateProfile(data: UpdateProfileRequest): Promise<void> {
   await apiClient.put("/users/me", data);
 }

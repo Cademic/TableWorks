@@ -1,13 +1,14 @@
-import { Minus, Plus, Maximize } from "lucide-react";
+import { Minus, Plus, Maximize, Crosshair } from "lucide-react";
 
 interface ZoomControlsProps {
   zoom: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
+  onCenterView?: () => void;
 }
 
-export function ZoomControls({ zoom, onZoomIn, onZoomOut, onReset }: ZoomControlsProps) {
+export function ZoomControls({ zoom, onZoomIn, onZoomOut, onReset, onCenterView }: ZoomControlsProps) {
   const pct = Math.round(zoom * 100);
 
   return (
@@ -43,10 +44,21 @@ export function ZoomControls({ zoom, onZoomIn, onZoomOut, onReset }: ZoomControl
 
       <div className="mx-0.5 h-4 w-px bg-border" />
 
+      {onCenterView && (
+        <button
+          type="button"
+          onClick={onCenterView}
+          title="Center view"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-foreground/60 hover:bg-background hover:text-foreground transition-colors"
+        >
+          <Crosshair className="h-3.5 w-3.5" />
+        </button>
+      )}
+
       <button
         type="button"
         onClick={onReset}
-        title="Fit to center"
+        title="Reset zoom"
         className="flex h-7 w-7 items-center justify-center rounded-lg text-foreground/60 hover:bg-background hover:text-foreground transition-colors"
       >
         <Maximize className="h-3.5 w-3.5" />

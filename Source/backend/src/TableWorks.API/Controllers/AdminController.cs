@@ -81,6 +81,16 @@ public sealed class AdminController : ControllerBase
         return Ok();
     }
 
+    [HttpDelete("users/{id:guid}/friends/{friendId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveUserFriend(Guid id, Guid friendId, CancellationToken cancellationToken)
+    {
+        await _adminService.RemoveUserFriendAsync(id, friendId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet("notes")]
     [ProducesResponseType(typeof(PaginatedResponse<AdminNoteDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNotes([FromQuery] AdminNoteListQuery query, CancellationToken cancellationToken)

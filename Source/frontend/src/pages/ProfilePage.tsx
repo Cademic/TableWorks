@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { User, Calendar, Clock, PencilLine, UserPlus, Users, UserCheck, X } from "lucide-react";
+import { User, Calendar, Clock, PencilLine, UserPlus, Users, UserCheck, X, MoreVertical } from "lucide-react";
 import {
   getProfile,
   getPublicProfile,
@@ -11,6 +11,7 @@ import {
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,
+  removeFriend,
 } from "../api/users";
 import { useAuth } from "../context/AuthContext";
 import { getAvatarUrl } from "../constants/avatars";
@@ -148,6 +149,135 @@ function PendingRequestRow({
         >
           {rejecting ? "…" : "Reject"}
         </button>
+      </div>
+    </li>
+  );
+}
+
+function FriendCard({
+  friend: f,
+  onUnadd,
+  formatRelative,
+  getAvatarUrl,
+}: {
+  friend: FriendDto;
+  onUnadd: () => void;
+  formatRelative: (dateStr: string) => string;
+  getAvatarUrl: (key: string | null) => string | null;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [unadding, setUnadding] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [menuOpen]);
+
+  async function handleUnadd(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(false);
+    setUnadding(true);
+    try {
+      await removeFriend(f.id);
+      onUnadd();
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        onUnadd();
+      } else {
+        throw err;
+      }
+    } finally {
+      setUnadding(false);
+    }
+  }
+
+  return (
+    <li className="group relative">
+      <Link
+        to={`/profile/${f.id}`}
+        className="flex items-center gap-3 rounded-lg border border-border/40 p-3 transition-colors hover:bg-muted/50"
+      >
+        <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+          {getAvatarUrl(f.profilePictureKey) ? (
+            <img
+              src={getAvatarUrl(f.profilePictureKey)!}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="text-sm font-medium text-foreground/60">
+              {f.username.charAt(0).toUpperCase()}
+            </span>
+          )}
+          {f.lastLoginAt &&
+            Date.now() - new Date(f.lastLoginAt).getTime() < 15 * 60 * 1000 && (
+              <span
+                className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500"
+                title="Online"
+              />
+            )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">
+            {f.username}
+          </span>
+          <span className="block truncate text-xs text-foreground/50">
+            {f.lastLoginAt
+              ? Date.now() - new Date(f.lastLoginAt).getTime() < 15 * 60 * 1000
+                ? "Online"
+                : `Last active ${formatRelative(f.lastLoginAt)}`
+              : "Never logged in"}
+          </span>
+        </div>
+      </Link>
+      <div
+        ref={menuRef}
+        className="absolute right-2 top-2 z-10"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMenuOpen((v) => !v);
+          }}
+          className="rounded-lg p-1 text-foreground/40 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground/60 group-hover:opacity-100"
+          title="Friend options"
+          aria-label="Friend options"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-8 z-20 w-40 rounded-lg border border-border bg-background py-1 shadow-lg">
+            <Link
+              to={`/profile/${f.id}`}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
+              onClick={() => setMenuOpen(false)}
+            >
+              <User className="h-3.5 w-3.5" />
+              View Profile
+            </Link>
+            <button
+              type="button"
+              disabled={unadding}
+              onClick={handleUnadd}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
+            >
+              {unadding ? "…" : "Unadd"}
+            </button>
+          </div>
+        )}
       </div>
     </li>
   );
@@ -713,45 +843,13 @@ export function ProfilePage() {
                     return bTime - aTime;
                   })
                   .map((f) => (
-                    <li key={f.id}>
-                      <Link
-                        to={`/profile/${f.id}`}
-                        className="flex items-center gap-3 rounded-lg border border-border/40 p-3 transition-colors hover:bg-muted/50"
-                      >
-                        <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
-                          {getAvatarUrl(f.profilePictureKey) ? (
-                            <img
-                              src={getAvatarUrl(f.profilePictureKey)!}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-sm font-medium text-foreground/60">
-                              {f.username.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                          {f.lastLoginAt &&
-                            Date.now() - new Date(f.lastLoginAt).getTime() < 15 * 60 * 1000 && (
-                              <span
-                                className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500"
-                                title="Online"
-                              />
-                            )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">
-                            {f.username}
-                          </span>
-                          <span className="block truncate text-xs text-foreground/50">
-                            {f.lastLoginAt
-                              ? Date.now() - new Date(f.lastLoginAt).getTime() < 15 * 60 * 1000
-                                ? "Online"
-                                : `Last active ${formatRelative(f.lastLoginAt)}`
-                              : "Never logged in"}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
+                    <FriendCard
+                      key={f.id}
+                      friend={f}
+                      onUnadd={() => loadFriendsAndRequests()}
+                      formatRelative={formatRelative}
+                      getAvatarUrl={getAvatarUrl}
+                    />
                   ))}
               </ul>
             )}

@@ -20,6 +20,7 @@ import {
   updateUserStatus,
   updateUserRole,
   deleteUser,
+  removeUserFriend,
 } from "../api/admin";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import type {
@@ -79,6 +80,7 @@ export function AdminPage() {
   const [roleEditUserId, setRoleEditUserId] = useState<string | null>(null);
   const [roleEditValue, setRoleEditValue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [unaddingFriendId, setUnaddingFriendId] = useState<string | null>(null);
 
   const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -860,13 +862,37 @@ export function AdminPage() {
                   ) : (
                     <ul className="mt-2 space-y-1">
                       {detailUser.friends.map((f) => (
-                        <li key={f.userId}>
+                        <li
+                          key={f.userId}
+                          className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-foreground/5"
+                        >
                           <Link
                             to={`/profile/${f.userId}`}
-                            className="text-sm text-primary hover:underline"
+                            className="flex-1 truncate text-sm text-primary hover:underline"
                           >
                             {f.username}
                           </Link>
+                          <button
+                            type="button"
+                            disabled={unaddingFriendId === f.userId}
+                            onClick={async () => {
+                              setActionError(null);
+                              setUnaddingFriendId(f.userId);
+                              try {
+                                await removeUserFriend(detailUser.id, f.userId);
+                                const updated = await getAdminUserDetail(detailUser.id);
+                                setDetailUser(updated);
+                              } catch {
+                                setActionError("Failed to unadd friend.");
+                              } finally {
+                                setUnaddingFriendId(null);
+                              }
+                            }}
+                            title="Unadd friend"
+                            className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                          >
+                            {unaddingFriendId === f.userId ? "…" : "Unadd"}
+                          </button>
                         </li>
                       ))}
                     </ul>

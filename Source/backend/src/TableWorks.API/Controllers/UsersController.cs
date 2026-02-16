@@ -128,6 +128,16 @@ public sealed class UsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpDelete("me/friends/{friendId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveFriend([FromRoute] Guid friendId, CancellationToken cancellationToken)
+    {
+        await _userService.RemoveFriendAsync(_currentUserService.UserId, friendId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet("search")]
     [ProducesResponseType(typeof(IReadOnlyList<UserPublicDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SearchUsers([FromQuery] string q, [FromQuery] int limit = 20, CancellationToken cancellationToken = default)

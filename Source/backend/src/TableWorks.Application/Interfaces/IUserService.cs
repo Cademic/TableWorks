@@ -18,5 +18,6 @@ public interface IUserService
     Task SendFriendRequestAsync(Guid requesterId, Guid receiverId, CancellationToken cancellationToken = default);
     Task AcceptFriendRequestAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default);
     Task RejectFriendRequestAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default);
+    Task RemoveFriendAsync(Guid userId, Guid friendId, CancellationToken cancellationToken = default);
     Task<FriendStatusDto?> GetFriendStatusAsync(Guid currentUserId, Guid otherUserId, CancellationToken cancellationToken = default);
 }

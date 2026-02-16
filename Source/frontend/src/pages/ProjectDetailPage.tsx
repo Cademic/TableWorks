@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Users,
   Settings,
@@ -95,6 +97,66 @@ export function ProjectDetailPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [removeBoardTarget, setRemoveBoardTarget] = useState<BoardSummaryDto | null>(null);
   const [removeNotebookTarget, setRemoveNotebookTarget] = useState<NotebookSummaryDto | null>(null);
+
+  // Tab strip scroll (arrows when tabs overflow on small screens)
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const [hasTabOverflow, setHasTabOverflow] = useState(false);
+
+  const updateTabScrollState = useCallback(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const overflow = scrollWidth > clientWidth;
+    setHasTabOverflow(overflow);
+    setCanScrollLeft(overflow && scrollLeft > 0);
+    setCanScrollRight(overflow && scrollLeft < scrollWidth - clientWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    updateTabScrollState();
+    const ro = new ResizeObserver(updateTabScrollState);
+    ro.observe(el);
+    el.addEventListener("scroll", updateTabScrollState);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", updateTabScrollState);
+    };
+  }, [updateTabScrollState]);
+
+  function scrollTabs(direction: "left" | "right") {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const step = el.clientWidth * 0.6;
+    el.scrollBy({ left: direction === "left" ? -step : step, behavior: "smooth" });
+  }
+
+  const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  function scrollTabIntoCenter(tabId: TabId) {
+    const container = tabsScrollRef.current;
+    const tabEl = tabButtonRefs.current[tabId];
+    if (!container || !tabEl) return;
+    const { scrollWidth, clientWidth } = container;
+    if (scrollWidth <= clientWidth) return;
+    const tabLeft = tabEl.offsetLeft;
+    const tabWidth = tabEl.offsetWidth;
+    const desiredScroll = tabLeft - clientWidth / 2 + tabWidth / 2;
+    const maxScroll = scrollWidth - clientWidth;
+    container.scrollTo({
+      left: Math.max(0, Math.min(desiredScroll, maxScroll)),
+      behavior: "smooth",
+    });
+  }
+
+  function handleTabClick(tabId: TabId) {
+    setActiveTab(tabId);
+    requestAnimationFrame(() => scrollTabIntoCenter(tabId));
+  }
 
   // Settings form state
   const [editName, setEditName] = useState("");
@@ -408,44 +470,73 @@ export function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="mb-6 flex gap-1 border-b border-border/40">
-          {TABS.map((tab) => {
-            // Hide settings tab for non-owners
-            if (tab.id === "settings" && !isOwner) return null;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={[
-                  "flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-all",
-                  isActive
-                    ? "border-violet-500 text-violet-600 dark:text-violet-400"
-                    : "border-transparent text-foreground/50 hover:text-foreground",
-                ].join(" ")}
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-                {tab.id === "boards" && (
-                  <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
-                    {project.boards.length}
-                  </span>
-                )}
-                {tab.id === "notebooks" && (
-                  <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
-                    {(project.notebooks ?? []).length}
-                  </span>
-                )}
-                {tab.id === "members" && (
-                  <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
-                    {project.members.length + 1}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Tabs — scrollable with arrows when screen is narrow */}
+        <div className="relative mb-6">
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("left")}
+              aria-label="Scroll tabs left"
+              className="absolute left-0 top-0 z-10 flex h-full w-8 items-center justify-center border-r border-border/40 bg-background/95 text-foreground/70 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] transition-colors hover:bg-foreground/5 hover:text-foreground dark:shadow-[4px_0_8px_-2px_rgba(0,0,0,0.3)]"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("right")}
+              aria-label="Scroll tabs right"
+              className="absolute right-0 top-0 z-10 flex h-full w-8 items-center justify-center border-l border-border/40 bg-background/95 text-foreground/70 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.08)] transition-colors hover:bg-foreground/5 hover:text-foreground dark:shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.3)]"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
+          <div
+            ref={tabsScrollRef}
+            className={[
+              "flex gap-1 overflow-x-auto scroll-smooth scrollbar-hide py-px",
+              hasTabOverflow && "pl-8 pr-8",
+            ].filter(Boolean).join(" ")}
+          >
+            {TABS.map((tab) => {
+              // Hide settings tab for non-owners
+              if (tab.id === "settings" && !isOwner) return null;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => { tabButtonRefs.current[tab.id] = el; }}
+                  type="button"
+                  onClick={() => handleTabClick(tab.id)}
+                  className={[
+                    "flex flex-shrink-0 items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "border-violet-500 text-violet-600 dark:text-violet-400"
+                      : "border-transparent text-foreground/50 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  <tab.icon className="h-4 w-4" />
+                  {tab.label}
+                  {tab.id === "boards" && (
+                    <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
+                      {project.boards.length}
+                    </span>
+                  )}
+                  {tab.id === "notebooks" && (
+                    <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
+                      {(project.notebooks ?? []).length}
+                    </span>
+                  )}
+                  {tab.id === "members" && (
+                    <span className="ml-1 rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px]">
+                      {project.members.length + 1}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Tab content */}

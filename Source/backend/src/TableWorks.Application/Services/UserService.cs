@@ -449,6 +449,23 @@ public sealed class UserService : IUserService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RemoveFriendAsync(Guid userId, Guid friendId, CancellationToken cancellationToken = default)
+    {
+        if (userId == friendId)
+            throw new InvalidOperationException("You cannot remove yourself as a friend.");
+
+        var request = await _friendRequestRepo.Query()
+            .FirstOrDefaultAsync(f => (f.RequesterId == userId && f.ReceiverId == friendId) || (f.RequesterId == friendId && f.ReceiverId == userId), cancellationToken)
+            ?? throw new KeyNotFoundException("Friend relationship not found.");
+        if (request.Status != FriendRequestStatus.Accepted)
+            throw new InvalidOperationException("You are not friends with this user.");
+
+        request.Status = FriendRequestStatus.Rejected;
+        request.RespondedAt = DateTime.UtcNow;
+        _friendRequestRepo.Update(request);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<FriendStatusDto?> GetFriendStatusAsync(Guid currentUserId, Guid otherUserId, CancellationToken cancellationToken = default)
     {
         if (currentUserId == otherUserId)

@@ -8,10 +8,11 @@ import { ZoomControls } from "../components/dashboard/ZoomControls";
 import { getBoardById } from "../api/boards";
 import { getDrawing, saveDrawing } from "../api/drawings";
 import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
+import { useTouchViewport } from "../hooks/useTouchViewport";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
-const AUTO_SAVE_DELAY_MS = 2 * 60 * 1000; // 2 minutes, fixed default
+const AUTO_SAVE_DELAY_MS = 15 * 1000; // 15 seconds after last change
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
 
@@ -56,6 +57,7 @@ export function ChalkBoardPage() {
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
+  const [isTouchPanning, setIsTouchPanning] = useState(false);
   const [isSpaceHeld, setIsSpaceHeld] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
@@ -164,16 +166,16 @@ export function ChalkBoardPage() {
     };
   }, [isPanning, zoom]);
 
-  // Re-enable drawing after panning ends
+  // Re-enable drawing after panning ends (mouse or touch)
   useEffect(() => {
-    if (!isPanning && mode === "draw") {
+    if (!isPanning && !isTouchPanning && mode === "draw") {
       if (tool === "eraser") {
         canvasRef.current?.setEraserMode(true);
       } else {
         canvasRef.current?.setDrawingMode(true);
       }
     }
-  }, [isPanning, mode, tool]);
+  }, [isPanning, isTouchPanning, mode, tool]);
 
   // Suppress context menu after right-click pan
   useEffect(() => {
@@ -190,6 +192,30 @@ export function ChalkBoardPage() {
     viewport.addEventListener("contextmenu", onContextMenu);
     return () => viewport.removeEventListener("contextmenu", onContextMenu);
   }, []);
+
+  // --- Touch pan and pinch zoom ---
+  useTouchViewport(
+    viewportRef,
+    zoom,
+    panX,
+    panY,
+    handleViewportChange,
+    {
+      resolutionFactor: RESOLUTION_FACTOR,
+      minZoom: MIN_ZOOM,
+      maxZoom: MAX_ZOOM,
+      onTouchPanStart: () => {
+        setIsTouchPanning(true);
+        // Disable drawing while touch panning
+        if (mode === "draw") {
+          canvasRef.current?.setDrawingMode(false);
+        }
+      },
+      onTouchPanEnd: () => {
+        setIsTouchPanning(false);
+      },
+    },
+  );
 
   // Track space bar for space-to-pan
   useEffect(() => {
@@ -291,26 +317,36 @@ export function ChalkBoardPage() {
   // --- Auto-save drawing (debounced) ---
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const flushSave = useCallback(() => {
+    if (!boardId || !canvasRef.current) return;
+    const json = canvasRef.current.toJSON();
+    if (json) {
+      saveDrawing(boardId, { canvasJson: json }).catch(() => {
+        // Silently fail
+      });
+    }
+  }, [boardId]);
+
   const handleCanvasChange = useCallback(() => {
     if (!boardId || !canvasRef.current) return;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      const json = canvasRef.current?.toJSON();
-      if (json) {
-        saveDrawing(boardId, { canvasJson: json }).catch(() => {
-          // Silently fail
-        });
-      }
+      saveTimerRef.current = null;
+      flushSave();
     }, AUTO_SAVE_DELAY_MS);
-  }, [boardId]);
+  }, [boardId, flushSave]);
 
-  // Cleanup save timer on unmount
+  // Cleanup: flush pending save on unmount so data is not lost when navigating away
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        flushSave();
+      }
     };
-  }, []);
+  }, [flushSave]);
 
   // --- Fetch all data on mount ---
   const fetchData = useCallback(async () => {

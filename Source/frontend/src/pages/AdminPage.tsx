@@ -472,7 +472,7 @@ export function AdminPage() {
                     #10b981 0% ${p1}%,
                     #8b5cf6 ${p1}% ${p1 + p2}%,
                     #f59e0b ${p1 + p2}% ${p1 + p2 + p3}%,
-                    #3b82f6 ${p1 + p2 + p3}% 100%
+                    #3b82f6 ${p1 + p2 + p3}% ${p1 + p2 + p3 + p4}%
                   )`;
                   const segments = [
                     { label: "Events", count: c.eventsCount, color: "bg-emerald-500" },

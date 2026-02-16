@@ -82,7 +82,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, user?.userId]);
+  }, [accessToken, user, user?.userId]);
 
   function persistAuth(token: string, refreshToken: string, authUser: AuthUser) {
     localStorage.setItem(TOKEN_KEY, token);

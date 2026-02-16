@@ -58,14 +58,14 @@ export function ProjectCalendar({
             deadline,
             status: "Active",
             progress: 0,
-            color: color || "#6366f1",
+            color: color && color.trim() ? color : "#6366f1",
             ownerId: "",
             ownerUsername: "",
             userRole: "",
             memberCount: 0,
             boardCount: 0,
             createdAt: "",
-          },
+          } satisfies ProjectSummaryDto,
         ]
       : [];
 

@@ -74,7 +74,8 @@ builder.Services.AddApiVersioning(options =>
 })
 .AddApiExplorer(options =>
 {
-    options.GroupNameFormat = "'v'VVV";
+    // Use 'V' (major only) so URLs are /api/v1/... not /api/v1.0/... to match frontend and docs.
+    options.GroupNameFormat = "'v'V";
     options.SubstituteApiVersionInUrl = true;
 });
 

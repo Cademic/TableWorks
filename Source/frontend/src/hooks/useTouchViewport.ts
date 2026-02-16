@@ -88,6 +88,10 @@ export function useTouchViewport(
       // Only handle 2-finger gestures (pan and pinch zoom)
       // 1-finger touches pass through for drawing and moving sticky notes
       if (touchCount === 2) {
+        // Prevent default and stop propagation to prevent canvas from receiving these touches
+        e.preventDefault();
+        e.stopPropagation();
+        
         const t1 = touches[0];
         const t2 = touches[1];
         const rect = viewport!.getBoundingClientRect();
@@ -95,20 +99,23 @@ export function useTouchViewport(
         const midpoint = getMidpoint(t1, t2, rect);
 
         // Start with pan mode (can switch to pinch if distance changes)
+        // Capture current pan/zoom state at gesture start
         touchModeRef.current = "pan";
+        const startMidpointX = midpoint.x + rect.left;
+        const startMidpointY = midpoint.y + rect.top;
         touchStartRef.current = {
           type: "pan",
-          x: midpoint.x + rect.left,
-          y: midpoint.y + rect.top,
-          panX: panXRef.current,
-          panY: panYRef.current,
+          x: startMidpointX,
+          y: startMidpointY,
+          panX: panXRef.current, // Capture current pan state
+          panY: panYRef.current, // Capture current pan state
           initialDistance: d0,
           initialMidpoint: midpoint,
         };
         onTouchPanStart?.();
       } else if (touchCount === 1 && touchModeRef.current !== null) {
         // If we had a 2-finger gesture and one finger lifted, end it
-        if (touchModeRef.current === "pan") {
+        if (touchModeRef.current === "pan" || touchModeRef.current === "pinch") {
           onTouchPanEnd?.();
         }
         touchModeRef.current = null;
@@ -129,7 +136,9 @@ export function useTouchViewport(
       }
 
       // Prevent default scrolling/zooming when we're handling 2-finger gesture
+      // Also stop propagation to prevent canvas from receiving these touches
       e.preventDefault();
+      e.stopPropagation();
 
       const t1 = touches[0];
       const t2 = touches[1];
@@ -162,6 +171,8 @@ export function useTouchViewport(
         }
       } else if (distanceChange > PINCH_THRESHOLD && initialDistance && initialMidpoint && mode === "pan") {
         // Switch from pan to pinch mode - use current distance as pinch start
+        // Note: We're still in a gesture, so drawing should remain disabled
+        // Don't call onTouchPanEnd here - we're just switching modes
         touchModeRef.current = "pinch";
         const pinchStartZoom = zoomRef.current;
         const pinchStartPanX = panXRef.current;
@@ -176,27 +187,31 @@ export function useTouchViewport(
           panX: pinchStartPanX,
           panY: pinchStartPanY,
         };
-        onTouchPanEnd?.();
         
         // No zoom change on switch - just establish the pinch baseline
         // The next touchmove will start zooming from this point
       } else if (mode === "pan" && start.type === "pan") {
         // Update pan (2-finger pan) - use midpoint movement
+        // Calculate incremental delta from last touch position for smooth continuous movement
         const midpointX = currentMidpoint.x + rect.left;
         const midpointY = currentMidpoint.y + rect.top;
         const dx = (resolutionFactor * (midpointX - start.x)) / zoomRef.current;
         const dy = (resolutionFactor * (midpointY - start.y)) / zoomRef.current;
+        
+        // Calculate new pan by adding delta to the last known pan position (from start state)
+        // This ensures smooth incremental updates without relying on async state updates
         const newPanX = start.panX + dx;
         const newPanY = start.panY + dy;
         onViewportChangeRef.current(zoomRef.current, newPanX, newPanY);
         
-        // Update start position for next move (use current pan values)
+        // Update start position for next move (use current touch position and newly calculated pan)
+        // This creates a smooth chain of incremental updates
         touchStartRef.current = {
           type: "pan",
           x: midpointX,
           y: midpointY,
-          panX: newPanX,
-          panY: newPanY,
+          panX: newPanX, // Track the pan we just set
+          panY: newPanY, // Next delta will be calculated from here
           initialDistance: start.initialDistance,
           initialMidpoint: start.initialMidpoint,
         };
@@ -209,19 +224,27 @@ export function useTouchViewport(
 
       if (touchCount < 2) {
         // Less than 2 fingers - end gesture (1 finger or 0 fingers)
+        // Prevent default and stop propagation if we were handling a gesture
         if (touchModeRef.current === "pan" || touchModeRef.current === "pinch") {
+          e.preventDefault();
+          e.stopPropagation();
           onTouchPanEnd?.();
         }
         touchModeRef.current = null;
         touchStartRef.current = null;
+      } else if (touchCount === 2 && (touchModeRef.current === "pan" || touchModeRef.current === "pinch")) {
+        // Still have 2 fingers but one was lifted - prevent default to avoid canvas interference
+        e.preventDefault();
+        e.stopPropagation();
       }
       // If touchCount >= 2, we still have 2+ fingers, so keep the gesture active
     }
 
-    viewport.addEventListener("touchstart", handleTouchStart, { passive: false });
-    viewport.addEventListener("touchmove", handleTouchMove, { passive: false });
-    viewport.addEventListener("touchend", handleTouchEnd, { passive: false });
-    viewport.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+    // Use capture phase to intercept events before they reach child elements (like canvas)
+    viewport.addEventListener("touchstart", handleTouchStart, { passive: false, capture: true });
+    viewport.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+    viewport.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
+    viewport.addEventListener("touchcancel", handleTouchEnd, { passive: false, capture: true });
 
     return () => {
       viewport.removeEventListener("touchstart", handleTouchStart);

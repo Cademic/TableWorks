@@ -155,7 +155,7 @@ export function NotebooksPage() {
             <div>
               <h1 className="text-xl font-bold text-foreground">Notebooks</h1>
               <p className="text-sm text-foreground/50">
-                Your notebooks — up to 999 pages each
+                Your notebooks
               </p>
             </div>
           </div>

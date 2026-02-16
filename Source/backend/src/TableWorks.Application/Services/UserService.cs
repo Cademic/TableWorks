@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Users;
 using ASideNote.Application.Interfaces;
@@ -224,19 +225,41 @@ public sealed class UserService : IUserService
 
     public async Task<IReadOnlyList<UserPublicDto>> SearchUsersAsync(Guid currentUserId, string query, int limit, CancellationToken cancellationToken = default)
     {
+        // #region agent log
+        try
+        {
+            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
+            var entry = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:entry", ["message"] = "Search entry", ["data"] = new Dictionary<string, object> { ["currentUserId"] = currentUserId.ToString(), ["query"] = query ?? "", ["limit"] = limit }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H2" };
+            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry) + "\n");
+        }
+        catch { }
+        // #endregion
+
         if (string.IsNullOrWhiteSpace(query) || limit <= 0)
             return Array.Empty<UserPublicDto>();
 
         var q = query.Trim().ToLowerInvariant();
         var excludeUserIds = new HashSet<Guid> { currentUserId };
 
+        // Exclude only friends and users with a pending request (either direction). Rejected requests do not exclude so users can find each other and send again.
         var friendOrPendingUserIds = await _friendRequestRepo.Query()
-            .Where(f => f.RequesterId == currentUserId || f.ReceiverId == currentUserId)
+            .Where(f => (f.RequesterId == currentUserId || f.ReceiverId == currentUserId) && (f.Status == FriendRequestStatus.Accepted || f.Status == FriendRequestStatus.Pending))
             .Select(f => f.RequesterId == currentUserId ? f.ReceiverId : f.RequesterId)
             .Distinct()
             .ToListAsync(cancellationToken);
         foreach (var id in friendOrPendingUserIds)
             excludeUserIds.Add(id);
+
+        // #region agent log
+        try
+        {
+            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
+            var allRequestCount = await _friendRequestRepo.Query().CountAsync(f => f.RequesterId == currentUserId || f.ReceiverId == currentUserId, cancellationToken);
+            var entry2 = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:exclude", ["message"] = "Exclude list built", ["data"] = new Dictionary<string, object> { ["friendOrPendingCount"] = friendOrPendingUserIds.Count, ["excludeCount"] = excludeUserIds.Count, ["allFriendRequestsForUser"] = allRequestCount }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H1" };
+            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry2) + "\n");
+        }
+        catch { }
+        // #endregion
 
         var users = await _userRepo.Query()
             .Where(u => (u.Username.ToLower().Contains(q) || u.Email.ToLower().Contains(q)) && !excludeUserIds.Contains(u.Id))
@@ -251,6 +274,16 @@ public sealed class UserService : IUserService
                 Bio = u.Bio
             })
             .ToListAsync(cancellationToken);
+
+        // #region agent log
+        try
+        {
+            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
+            var entry3 = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:exit", ["message"] = "Search result", ["data"] = new Dictionary<string, object> { ["resultCount"] = users.Count, ["resultIds"] = users.Take(5).Select(u => u.Id.ToString()).ToList() }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H2" };
+            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry3) + "\n");
+        }
+        catch { }
+        // #endregion
 
         return users;
     }
@@ -295,8 +328,8 @@ public sealed class UserService : IUserService
             {
                 Id = f.Id,
                 RequesterId = f.RequesterId,
-                RequesterUsername = f.Requester!.Username,
-                RequesterProfilePictureKey = f.Requester.ProfilePictureKey,
+                RequesterUsername = f.Requester != null ? f.Requester.Username : "",
+                RequesterProfilePictureKey = f.Requester != null ? f.Requester.ProfilePictureKey : null,
                 CreatedAt = f.CreatedAt,
                 Status = (int)f.Status
             })
@@ -317,7 +350,49 @@ public sealed class UserService : IUserService
         {
             if (existing.Status == FriendRequestStatus.Accepted)
                 throw new InvalidOperationException("You are already friends with this user.");
-            throw new InvalidOperationException("A friend request already exists between you and this user.");
+            if (existing.Status == FriendRequestStatus.Pending)
+                throw new InvalidOperationException("A friend request already exists between you and this user.");
+            // Rejected: reuse one row. Unique index is on (RequesterId, ReceiverId), so (A,B) and (B,A) can both exist.
+            // If we flip direction we must not duplicate (B,A); consolidate to the row with the desired direction.
+            var rowHasDesiredDirection = existing.RequesterId == requesterId && existing.ReceiverId == receiverId;
+            if (rowHasDesiredDirection)
+            {
+                var toUpdate = await _friendRequestRepo.GetByIdAsync(existing.Id, cancellationToken)
+                    ?? throw new KeyNotFoundException("Friend request not found.");
+                toUpdate.Status = FriendRequestStatus.Pending;
+                toUpdate.RespondedAt = null;
+                toUpdate.CreatedAt = DateTime.UtcNow;
+                _friendRequestRepo.Update(toUpdate);
+            }
+            else
+            {
+                // Flip direction: (receiverId, requesterId) -> (requesterId, receiverId). Avoid duplicate by using the row that already has (requesterId, receiverId) if it exists.
+                var rowWithDesiredDirection = await _friendRequestRepo.Query()
+                    .FirstOrDefaultAsync(f => f.RequesterId == requesterId && f.ReceiverId == receiverId, cancellationToken);
+                if (rowWithDesiredDirection is not null)
+                {
+                    var toUpdate = await _friendRequestRepo.GetByIdAsync(rowWithDesiredDirection.Id, cancellationToken)
+                        ?? throw new KeyNotFoundException("Friend request not found.");
+                    toUpdate.Status = FriendRequestStatus.Pending;
+                    toUpdate.RespondedAt = null;
+                    toUpdate.CreatedAt = DateTime.UtcNow;
+                    _friendRequestRepo.Update(toUpdate);
+                    _friendRequestRepo.Delete(existing);
+                }
+                else
+                {
+                    var toUpdate = await _friendRequestRepo.GetByIdAsync(existing.Id, cancellationToken)
+                        ?? throw new KeyNotFoundException("Friend request not found.");
+                    toUpdate.RequesterId = requesterId;
+                    toUpdate.ReceiverId = receiverId;
+                    toUpdate.Status = FriendRequestStatus.Pending;
+                    toUpdate.RespondedAt = null;
+                    toUpdate.CreatedAt = DateTime.UtcNow;
+                    _friendRequestRepo.Update(toUpdate);
+                }
+            }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return;
         }
 
         var request = new FriendRequest

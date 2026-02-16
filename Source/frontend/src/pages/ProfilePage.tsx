@@ -201,7 +201,13 @@ function AddFriendDialog({
     setSearchError(null);
     setIsSearching(true);
     try {
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/6eecc1c5-be9e-4248-a3b7-8e1107567fb0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "ProfilePage.tsx:doSearch:before", message: "Add friend search request", data: { query: query.trim(), limit: 15 }, timestamp: Date.now(), hypothesisId: "H4" }) }).catch(() => {});
+      // #endregion
       const list = await searchUsers(query.trim(), 15);
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/6eecc1c5-be9e-4248-a3b7-8e1107567fb0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "ProfilePage.tsx:doSearch:after", message: "Add friend search response", data: { resultCount: list.length, resultIds: list.map((u) => u.id) }, timestamp: Date.now(), hypothesisId: "H3" }) }).catch(() => {});
+      // #endregion
       setResults(list);
     } catch {
       setSearchError("Search failed.");

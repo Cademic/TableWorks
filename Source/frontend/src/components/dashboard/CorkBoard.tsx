@@ -218,9 +218,10 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
   function handleCenterView() {
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
-    // Center the middle of the canvas (5000, 5000) in the viewport
-    const centerCanvasX = 5000;
-    const centerCanvasY = 5000;
+    // Center on the same area shown when board is first created (zoom=1, pan=0).
+    // At creation, viewport center corresponds to canvas (rect.width/2, rect.height/2).
+    const centerCanvasX = rect.width / 2;
+    const centerCanvasY = rect.height / 2;
     const newPanX = rect.width / (2 * zoom) - centerCanvasX;
     const newPanY = rect.height / (2 * zoom) - centerCanvasY;
     onViewportChange(zoom, newPanX, newPanY);

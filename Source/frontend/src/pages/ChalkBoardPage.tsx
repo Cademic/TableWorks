@@ -288,9 +288,12 @@ export function ChalkBoardPage() {
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
     const vpScale = zoom / RESOLUTION_FACTOR;
-    // Center the origin (0, 0) of the chalk canvas in the viewport
-    const newPanX = rect.width / (2 * vpScale);
-    const newPanY = rect.height / (2 * vpScale);
+    // Center on the same area shown when board is first created (zoom=1, pan=0).
+    // At creation, viewport center corresponds to canvas (rect.width, rect.height) due to vpScale=0.5.
+    const centerCanvasX = rect.width;
+    const centerCanvasY = rect.height;
+    const newPanX = rect.width / (2 * vpScale) - centerCanvasX;
+    const newPanY = rect.height / (2 * vpScale) - centerCanvasY;
     handleViewportChange(zoom, newPanX, newPanY);
   }
 

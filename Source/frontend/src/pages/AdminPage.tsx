@@ -531,25 +531,34 @@ export function AdminPage() {
                     ...data.map((d) => d.count)
                   );
                   return (
-                    <div className="flex h-48 items-end justify-between gap-0.5">
-                      {data.map((d) => (
-                        <div
-                          key={d.period}
-                          className="flex flex-1 flex-col items-center gap-1"
-                          title={`${d.period}: ${d.count}`}
-                        >
+                    <div className="flex h-48 flex-col">
+                      <div className="flex min-h-0 flex-1 items-end justify-between gap-0.5">
+                        {data.map((d) => (
                           <div
-                            className="w-full min-w-0 rounded-t bg-violet-500 transition-all duration-300 hover:bg-violet-600 dark:bg-violet-500 dark:hover:bg-violet-400"
-                            style={{
-                              height: `${Math.round((d.count / maxCount) * 100)}%`,
-                              minHeight: d.count > 0 ? "4px" : "0",
-                            }}
-                          />
-                          <span className="truncate text-[10px] text-foreground/50">
+                            key={d.period}
+                            className="flex h-full flex-1 flex-col justify-end"
+                            title={`${d.period}: ${d.count}`}
+                          >
+                            <div
+                              className="w-full min-w-0 rounded-t bg-violet-500 transition-all duration-300 hover:bg-violet-600 dark:bg-violet-500 dark:hover:bg-violet-400"
+                              style={{
+                                height: `${Math.round((d.count / maxCount) * 100)}%`,
+                                minHeight: d.count > 0 ? "4px" : "0",
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex shrink-0 justify-between gap-0.5 pt-1">
+                        {data.map((d) => (
+                          <span
+                            key={d.period}
+                            className="flex-1 truncate text-center text-[10px] text-foreground/50"
+                          >
                             {d.period.split(" ")[0]}
                           </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   );
                 })()
@@ -577,25 +586,34 @@ export function AdminPage() {
                     ...data.map((d) => d.count)
                   );
                   return (
-                    <div className="flex h-48 items-end justify-between gap-0.5">
-                      {data.map((d) => (
-                        <div
-                          key={d.period}
-                          className="flex flex-1 flex-col items-center gap-1"
-                          title={`${d.period}: ${d.count} logins`}
-                        >
+                    <div className="flex h-48 flex-col">
+                      <div className="flex min-h-0 flex-1 items-end justify-between gap-0.5">
+                        {data.map((d) => (
                           <div
-                            className="w-full min-w-0 rounded-t bg-emerald-500 transition-all duration-300 hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400"
-                            style={{
-                              height: `${Math.round((d.count / maxCount) * 100)}%`,
-                              minHeight: d.count > 0 ? "4px" : "0",
-                            }}
-                          />
-                          <span className="truncate text-[10px] text-foreground/50">
+                            key={d.period}
+                            className="flex h-full flex-1 flex-col justify-end"
+                            title={`${d.period}: ${d.count} logins`}
+                          >
+                            <div
+                              className="w-full min-w-0 rounded-t bg-emerald-500 transition-all duration-300 hover:bg-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                              style={{
+                                height: `${Math.round((d.count / maxCount) * 100)}%`,
+                                minHeight: d.count > 0 ? "4px" : "0",
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex shrink-0 justify-between gap-0.5 pt-1">
+                        {data.map((d) => (
+                          <span
+                            key={d.period}
+                            className="flex-1 truncate text-center text-[10px] text-foreground/50"
+                          >
                             {d.period.split(" ")[0]}
                           </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   );
                 })()

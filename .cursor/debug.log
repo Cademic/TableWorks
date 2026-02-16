@@ -103,3 +103,5 @@
 {"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":1,"excludeCount":2,"allFriendRequestsForUser":2},"timestamp":1771217950772,"hypothesisId":"H1"}
 {"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":1,"resultIds":["00000000-0000-0000-0000-000000000002"]},"timestamp":1771217950791,"hypothesisId":"H2"}
 {"location":"ProfilePage.tsx:doSearch:after","message":"Add friend search response","data":{"resultCount":1,"resultIds":["00000000-0000-0000-0000-000000000002"]},"timestamp":1771217950804,"hypothesisId":"H3"}
+{"location":"NotebookModal.tsx:scheduleSave","message":"save debounce fired, calling updateNotebookPages","data":{"notebookId":"d2d3f418-5f04-47d3-8b2b-281a99242fe5","pagesLength":1,"firstPageLen":38},"timestamp":1771228240190,"hypothesisId":"H1"}
+{"location":"notebooks.ts:updateNotebookPages","message":"PUT request sent","data":{"id":"d2d3f418-5f04-47d3-8b2b-281a99242fe5","pagesLength":1},"timestamp":1771228240190,"hypothesisId":"H2"}

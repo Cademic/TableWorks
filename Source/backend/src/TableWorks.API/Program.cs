@@ -374,6 +374,24 @@ app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthC
 });
 app.MapHealthChecks("/health/ready"); // readiness: includes DB check
 
+// Diagnostic: which database this instance is using (host + database name only, no credentials)
+app.MapGet("/health/db", (AppDbContext db) =>
+{
+    var conn = db.Database.GetDbConnection();
+    var cs = conn?.ConnectionString;
+    if (string.IsNullOrEmpty(cs))
+        return Results.Json(new { host = (string?)null, database = (string?)null });
+    try
+    {
+        var builder = new NpgsqlConnectionStringBuilder(cs);
+        return Results.Json(new { host = builder.Host, database = builder.Database });
+    }
+    catch
+    {
+        return Results.Json(new { host = (string?)null, database = (string?)null });
+    }
+}).AllowAnonymous();
+
 app.MapControllers();
 
 app.Run();

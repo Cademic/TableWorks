@@ -95,15 +95,16 @@ public sealed class ExceptionHandlingMiddleware
             context.Response.ContentType = "application/json";
 
             // Missing table (e.g. Notebooks/NotebookPages) = schema out of date; return 503 so deployers know to run migrations
-            if (IsMissingTableError(exception))
+            if (TryGetMissingTableDetails(exception, out var relationMessage))
             {
-                _logger.LogWarning("Database schema is out of date (missing table). Run EF Core migrations. See Docs/Deployment/RunMigrationsOnRender.md");
+                _logger.LogWarning("Database schema is out of date (missing table): {Relation}. Run EF Core migrations. See Docs/Deployment/RunMigrationsOnRender.md", relationMessage);
                 context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
                 var payload = new
                 {
                     error = "ServiceUnavailable",
                     message = "Database schema is out of date. Please run EF Core migrations (see deployment docs).",
-                    code = "SchemaOutOfDate"
+                    code = "SchemaOutOfDate",
+                    relation = relationMessage
                 };
                 await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
                 return;
@@ -119,13 +120,17 @@ public sealed class ExceptionHandlingMiddleware
         }
     }
 
-    /// <summary>True if the exception chain indicates a PostgreSQL "relation does not exist" (e.g. migrations not applied).</summary>
-    private static bool IsMissingTableError(Exception ex)
+    /// <summary>True if the exception is a PostgreSQL "relation does not exist"; sets relationMessage to the DB error message (e.g. relation "Notebooks" does not exist).</summary>
+    private static bool TryGetMissingTableDetails(Exception ex, out string? relationMessage)
     {
+        relationMessage = null;
         for (var e = ex; e != null; e = e.InnerException)
         {
             if (e is PostgresException pg && pg.SqlState == "42P01")
+            {
+                relationMessage = pg.Message;
                 return true;
+            }
         }
         return false;
     }

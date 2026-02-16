@@ -30,12 +30,14 @@ public sealed class TokenService : ITokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        var effectiveRole = GetEffectiveRole(user.Email, user.Role);
+
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Role, user.Role),
+            new Claim(ClaimTypes.Role, effectiveRole),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -47,6 +49,13 @@ public sealed class TokenService : ITokenService
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private string GetEffectiveRole(string email, string dbRole)
+    {
+        var allowedEmails = _configuration.GetSection("Admin:AllowedEmails").Get<string[]>() ?? [];
+        var adminEmails = new HashSet<string>(allowedEmails, StringComparer.OrdinalIgnoreCase);
+        return adminEmails.Contains(email) ? "Admin" : dbRole;
     }
 
     public string GenerateRefreshToken()

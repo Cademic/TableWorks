@@ -16,4 +16,5 @@ public sealed class AdminUserDetailDto
     public IReadOnlyList<NoteSummaryDto> Notes { get; set; } = Array.Empty<NoteSummaryDto>();
     public IReadOnlyList<ProjectSummaryDto> Projects { get; set; } = Array.Empty<ProjectSummaryDto>();
     public IReadOnlyList<AuditLogDto> ActivityLog { get; set; } = Array.Empty<AuditLogDto>();
+    public IReadOnlyList<AdminFriendDto> Friends { get; set; } = Array.Empty<AdminFriendDto>();
 }

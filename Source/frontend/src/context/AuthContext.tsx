@@ -62,6 +62,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(false);
   }, []);
 
+  // Refetch profile when authenticated so role is set (e.g. on page reload)
+  useEffect(() => {
+    if (!accessToken || !user) return;
+    if (user.role !== undefined && user.role !== "") return;
+
+    let cancelled = false;
+    getProfile()
+      .then((profile) => {
+        if (cancelled) return;
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, role: profile.role, profilePictureKey: profile.profilePictureKey ?? prev.profilePictureKey };
+          localStorage.setItem(USER_KEY, JSON.stringify(updated));
+          return updated;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, user?.userId]);
+
   function persistAuth(token: string, refreshToken: string, authUser: AuthUser) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(REFRESH_KEY, refreshToken);
@@ -83,7 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const profile = await getProfile();
       setUser((prev) => {
         if (!prev) return prev;
-        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined, role: profile.role };
         localStorage.setItem(USER_KEY, JSON.stringify(updated));
         return updated;
       });
@@ -105,7 +127,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const profile = await getProfile();
       setUser((prev) => {
         if (!prev) return prev;
-        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined, role: profile.role };
         localStorage.setItem(USER_KEY, JSON.stringify(updated));
         return updated;
       });
@@ -127,7 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const profile = await getProfile();
       setUser((prev) => {
         if (!prev) return prev;
-        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined };
+        const updated = { ...prev, profilePictureKey: profile.profilePictureKey ?? undefined, role: profile.role };
         localStorage.setItem(USER_KEY, JSON.stringify(updated));
         return updated;
       });

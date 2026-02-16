@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   StickyNote,
   FolderOpen,
-  Settings,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -12,6 +11,7 @@ import {
   PenTool,
   Pin,
   BookOpen,
+  ShieldCheck,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -36,7 +36,6 @@ const NAV_ITEMS = [
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/notebooks", icon: BookOpen, label: "Notebooks" },
   { to: "/calendar", icon: Calendar, label: "Calendar" },
-  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 const BOARD_TOOLS = [
@@ -169,6 +168,28 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
             </Link>
           );
         })}
+        {user?.role === "Admin" && (
+          <Link
+            to="/admin"
+            title="Admin"
+            className={[
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+              isActive("/admin")
+                ? "sidebar-nav-active bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                : "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
+              !expanded && "justify-center",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <ShieldCheck
+              className={`h-5 w-5 flex-shrink-0 ${
+                isActive("/admin") ? "text-amber-600 dark:text-amber-400" : ""
+              }`}
+            />
+            {expanded && <span>Admin</span>}
+          </Link>
+        )}
       </nav>
 
       {/* Pinned Projects */}

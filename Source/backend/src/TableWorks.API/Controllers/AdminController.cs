@@ -20,6 +20,22 @@ public sealed class AdminController : ControllerBase
         _adminService = adminService;
     }
 
+    [HttpGet("stats")]
+    [ProducesResponseType(typeof(AdminStatsDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStats(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAdminStatsAsync(cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpGet("analytics")]
+    [ProducesResponseType(typeof(AdminAnalyticsDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAnalytics(CancellationToken cancellationToken)
+    {
+        var result = await _adminService.GetAdminAnalyticsAsync(cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("users")]
     [ProducesResponseType(typeof(PaginatedResponse<AdminUserDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUsers([FromQuery] AdminUserListQuery query, CancellationToken cancellationToken)
@@ -43,6 +59,16 @@ public sealed class AdminController : ControllerBase
     public async Task<IActionResult> UpdateUserStatus(Guid id, [FromBody] UpdateUserStatusRequest request, CancellationToken cancellationToken)
     {
         await _adminService.UpdateUserStatusAsync(id, request, cancellationToken);
+        return Ok();
+    }
+
+    [HttpPut("users/{id:guid}/role")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateUserRole(Guid id, [FromBody] UpdateUserRoleRequest request, CancellationToken cancellationToken)
+    {
+        await _adminService.UpdateUserRoleAsync(id, request, cancellationToken);
         return Ok();
     }
 

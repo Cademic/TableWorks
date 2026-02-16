@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ZoomControls } from "./ZoomControls";
+import { useTouchViewport } from "../../hooks/useTouchViewport";
 
 interface CorkBoardProps {
   children: ReactNode;
@@ -179,6 +180,13 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
       document.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+
+  // --- Touch pan and pinch zoom ---
+  useTouchViewport(viewportRef, zoom, panX, panY, onViewportChange, {
+    resolutionFactor: 1,
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+  });
 
   // ---- Zoom controls ----
 

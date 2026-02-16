@@ -8,6 +8,7 @@ import { ZoomControls } from "../components/dashboard/ZoomControls";
 import { getBoardById } from "../api/boards";
 import { getDrawing, saveDrawing } from "../api/drawings";
 import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
+import { useTouchViewport } from "../hooks/useTouchViewport";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
@@ -56,6 +57,7 @@ export function ChalkBoardPage() {
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
+  const [isTouchPanning, setIsTouchPanning] = useState(false);
   const [isSpaceHeld, setIsSpaceHeld] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
@@ -164,16 +166,16 @@ export function ChalkBoardPage() {
     };
   }, [isPanning, zoom]);
 
-  // Re-enable drawing after panning ends
+  // Re-enable drawing after panning ends (mouse or touch)
   useEffect(() => {
-    if (!isPanning && mode === "draw") {
+    if (!isPanning && !isTouchPanning && mode === "draw") {
       if (tool === "eraser") {
         canvasRef.current?.setEraserMode(true);
       } else {
         canvasRef.current?.setDrawingMode(true);
       }
     }
-  }, [isPanning, mode, tool]);
+  }, [isPanning, isTouchPanning, mode, tool]);
 
   // Suppress context menu after right-click pan
   useEffect(() => {
@@ -190,6 +192,30 @@ export function ChalkBoardPage() {
     viewport.addEventListener("contextmenu", onContextMenu);
     return () => viewport.removeEventListener("contextmenu", onContextMenu);
   }, []);
+
+  // --- Touch pan and pinch zoom ---
+  useTouchViewport(
+    viewportRef,
+    zoom,
+    panX,
+    panY,
+    handleViewportChange,
+    {
+      resolutionFactor: RESOLUTION_FACTOR,
+      minZoom: MIN_ZOOM,
+      maxZoom: MAX_ZOOM,
+      onTouchPanStart: () => {
+        setIsTouchPanning(true);
+        // Disable drawing while touch panning
+        if (mode === "draw") {
+          canvasRef.current?.setDrawingMode(false);
+        }
+      },
+      onTouchPanEnd: () => {
+        setIsTouchPanning(false);
+      },
+    },
+  );
 
   // Track space bar for space-to-pan
   useEffect(() => {

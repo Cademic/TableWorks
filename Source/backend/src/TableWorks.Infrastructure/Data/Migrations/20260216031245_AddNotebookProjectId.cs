@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -17,12 +17,11 @@ namespace ASideNote.Infrastructure.Data.Migrations
                 type: "uuid",
                 nullable: true);
 
-            migrationBuilder.AddColumn<DateTime>(
-                name: "CreatedAt",
-                table: "NotebookPages",
-                type: "timestamp with time zone",
-                nullable: false,
-                defaultValue: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
+            // Idempotent: column may already exist (e.g. from create-notebooks-tables script or prior migration)
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""NotebookPages""
+                ADD COLUMN IF NOT EXISTS ""CreatedAt"" timestamp with time zone NOT NULL DEFAULT TIMESTAMPTZ '-infinity';
+            ");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Notebooks_ProjectId",
@@ -53,9 +52,10 @@ namespace ASideNote.Infrastructure.Data.Migrations
                 name: "ProjectId",
                 table: "Notebooks");
 
-            migrationBuilder.DropColumn(
-                name: "CreatedAt",
-                table: "NotebookPages");
+            // Only drop if we own the column (e.g. we added it in this migration); avoid failing if it was created elsewhere
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""NotebookPages"" DROP COLUMN IF EXISTS ""CreatedAt"";
+            ");
         }
     }
 }

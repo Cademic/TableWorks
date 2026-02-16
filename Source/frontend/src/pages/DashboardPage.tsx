@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { getBoards, createBoard, deleteBoard, updateBoard, toggleBoardPin } from "../api/boards";
-import { getProjects, createProject, addBoardToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
+import { getProjects, createProject, addBoardToProject, addNotebookToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
 import { getNotebooks, createNotebook, deleteNotebook, updateNotebook, toggleNotebookPin } from "../api/notebooks";
 import { getFriends } from "../api/users";
 import { getCalendarEvents } from "../api/calendar-events";
@@ -213,6 +213,17 @@ export function DashboardPage() {
       );
     } catch {
       console.error("Failed to move board to project");
+    }
+  }
+
+  async function handleAddNotebookToProject(notebookId: string, projectId: string) {
+    try {
+      await addNotebookToProject(projectId, notebookId);
+      setNotebooks((prev) =>
+        prev.map((n) => (n.id === notebookId ? { ...n, projectId } : n)),
+      );
+    } catch {
+      console.error("Failed to add notebook to project");
     }
   }
 
@@ -584,7 +595,7 @@ export function DashboardPage() {
             <BlankPageEmpty
               message="No notebooks yet"
               actionLabel="Create your first notebook"
-              onAction={() => setIsCreateNotebookOpen(true)}
+              onAction={() => navigate("/notebooks")}
             />
           ) : (
             <>
@@ -597,17 +608,19 @@ export function DashboardPage() {
                     onRename={handleRenameNotebook}
                     onTogglePin={handleToggleNotebookPin}
                     onDelete={handleDeleteNotebook}
+                    onAddToProject={handleAddNotebookToProject}
+                    activeProjects={activeProjectsSorted}
                   />
                 ))}
               </div>
               <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setIsCreateNotebookOpen(true)}
+                  onClick={() => navigate("/notebooks")}
                   className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-colors hover:bg-amber-400 hover:text-amber-900 hover:border-amber-400/50 dark:hover:bg-amber-500/20 dark:hover:text-amber-300 dark:hover:border-amber-500/30"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  New notebook
+                  View all Notebooks
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </>

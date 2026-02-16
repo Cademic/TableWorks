@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, FolderMinus, MoreVertical, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
-import type { NotebookSummaryDto } from "../../types";
+import { BookOpen, ChevronRight, FolderMinus, FolderOpen, MoreVertical, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import type { NotebookSummaryDto, ProjectSummaryDto } from "../../types";
 
 interface NotebookCardProps {
   notebook: NotebookSummaryDto;
@@ -10,6 +10,10 @@ interface NotebookCardProps {
   onDelete?: (id: string) => void;
   /** When in project context: removes notebook from project instead of deleting */
   onRemoveFromProject?: (id: string) => void;
+  /** Add notebook to a project (dashboard context). */
+  onAddToProject?: (notebookId: string, projectId: string) => void;
+  /** Projects available for "Add to Project" (when onAddToProject is set). */
+  activeProjects?: ProjectSummaryDto[];
 }
 
 function formatRelativeDate(dateStr: string): string {
@@ -27,22 +31,27 @@ function formatRelativeDate(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete, onRemoveFromProject }: NotebookCardProps) {
+export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete, onRemoveFromProject, onAddToProject, activeProjects = [] }: NotebookCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showProjectList, setShowProjectList] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const projectName = notebook.projectId
+    ? activeProjects.find((p) => p.id === notebook.projectId)?.name
+    : null;
 
   useEffect(() => {
     if (!menuOpen) return;
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+        setShowProjectList(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
 
-  const showMenu = Boolean(onRename ?? onTogglePin ?? onDelete ?? onRemoveFromProject);
+  const showMenu = Boolean(onRename ?? onTogglePin ?? onDelete ?? onRemoveFromProject ?? onAddToProject);
 
   return (
     <div
@@ -69,6 +78,15 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
         </div>
       )}
 
+      {projectName && (
+        <div
+          className="absolute right-12 top-3 z-10 max-w-[9rem] truncate rounded bg-foreground/10 px-2 py-0.5 text-right text-[10px] font-medium text-foreground/60"
+          title={projectName}
+        >
+          {projectName}
+        </div>
+      )}
+
       {/* Ellipsis menu */}
       <div
         ref={menuRef}
@@ -82,6 +100,7 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
           onClick={(e) => {
             e.stopPropagation();
             setMenuOpen((v) => !v);
+            setShowProjectList(false);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -111,6 +130,67 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
                 Rename
               </button>
             )}
+
+            {onAddToProject && (
+              <div
+                className="relative"
+                onMouseEnter={() => setShowProjectList(true)}
+                onMouseLeave={() => setShowProjectList(false)}
+              >
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowProjectList((v) => !v);
+                  }}
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  Add to Project
+                  <ChevronRight className="ml-auto h-3 w-3 text-foreground/30" />
+                </button>
+
+                {showProjectList && (
+                  <div className="absolute left-full top-0 z-30 pl-1">
+                    <div className="w-44 rounded-lg border border-border bg-background py-1 shadow-lg">
+                      {activeProjects.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-foreground/40">
+                          No active projects
+                        </div>
+                      ) : (
+                        activeProjects.map((project) => (
+                          <button
+                            key={project.id}
+                            type="button"
+                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium transition-colors hover:bg-foreground/5 ${
+                              notebook.projectId === project.id
+                                ? "text-primary"
+                                : "text-foreground/70"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpen(false);
+                              setShowProjectList(false);
+                              onAddToProject(notebook.id, project.id);
+                            }}
+                          >
+                            <div
+                              className="h-2 w-2 rounded-full"
+                              style={{ backgroundColor: project.color || "#8b5cf6" }}
+                            />
+                            <span className="truncate">{project.name}</span>
+                            {notebook.projectId === project.id && (
+                              <span className="ml-auto text-[10px] text-foreground/40">Current</span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {onTogglePin && (
               <button
                 type="button"

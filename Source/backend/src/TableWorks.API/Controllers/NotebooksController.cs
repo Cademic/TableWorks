@@ -41,6 +41,14 @@ public sealed class NotebooksController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
+    [HttpGet("pinned")]
+    [ProducesResponseType(typeof(IReadOnlyList<NotebookSummaryDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPinnedNotebooks(CancellationToken cancellationToken)
+    {
+        var result = await _notebookService.GetPinnedNotebooksAsync(_currentUserService.UserId, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(NotebookDetailDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -97,14 +105,6 @@ public sealed class NotebooksController : ControllerBase
     {
         await _notebookService.TogglePinAsync(_currentUserService.UserId, id, request.IsPinned, cancellationToken);
         return Ok();
-    }
-
-    [HttpGet("pinned")]
-    [ProducesResponseType(typeof(IReadOnlyList<NotebookSummaryDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPinnedNotebooks(CancellationToken cancellationToken)
-    {
-        var result = await _notebookService.GetPinnedNotebooksAsync(_currentUserService.UserId, cancellationToken);
-        return Ok(result);
     }
 }
 

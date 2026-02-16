@@ -49,6 +49,7 @@
 | Runtime | Docker or .NET | Docker or .NET |
 | Build Command | `dotnet publish src/TableWorks.API/ASideNote.API.csproj -c Release -o out` | Same |
 | Start Command | `dotnet out/ASideNote.API.dll` | Same |
+| **Pre-Deploy Command** | `dotnet out/ASideNote.API.dll --migrate` | Same (required so Notebooks and other tables exist) |
 | Health Check Path | `/health/ready` | `/health/ready` |
 | Auto-Deploy | Yes | Yes |
 | Instance Type | Free/Starter | Starter+ |

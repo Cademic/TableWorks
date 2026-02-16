@@ -143,38 +143,43 @@ export function useTouchViewport(
       const distanceChange = initialDistance ? Math.abs(currentDistance - initialDistance) / initialDistance : 0;
       const PINCH_THRESHOLD = 0.05; // 5% change indicates pinch
 
-      if (distanceChange > PINCH_THRESHOLD && initialDistance && initialMidpoint) {
-        // Switch to pinch mode
-        if (mode !== "pinch") {
-          touchModeRef.current = "pinch";
-          touchStartRef.current = {
-            type: "pinch",
-            d0: initialDistance,
-            centerX: initialMidpoint.x,
-            centerY: initialMidpoint.y,
-            zoom: zoomRef.current,
-            panX: panXRef.current,
-            panY: panYRef.current,
-          };
-          onTouchPanEnd?.();
-        }
-
-        // Update zoom and pan for pinch
-        const scale = currentDistance / initialDistance;
-        const newZoom = clamp(zoomRef.current * scale, minZoom, maxZoom);
+      if (mode === "pinch" && start.type === "pinch") {
+        // Already in pinch mode - use pinch start state
+        const scale = currentDistance / start.d0;
+        const newZoom = clamp(start.zoom * scale, minZoom, maxZoom);
 
         // Adjust pan to keep the midpoint fixed
         if (resolutionFactor === 1) {
-          const newPanX = panXRef.current + initialMidpoint.x * (1 / newZoom - 1 / zoomRef.current);
-          const newPanY = panYRef.current + initialMidpoint.y * (1 / newZoom - 1 / zoomRef.current);
+          const newPanX = start.panX + start.centerX * (1 / newZoom - 1 / start.zoom);
+          const newPanY = start.panY + start.centerY * (1 / newZoom - 1 / start.zoom);
           onViewportChangeRef.current(newZoom, newPanX, newPanY);
         } else {
-          const vpScale = zoomRef.current / resolutionFactor;
+          const vpScale = start.zoom / resolutionFactor;
           const newVpScale = newZoom / resolutionFactor;
-          const newPanX = panXRef.current + initialMidpoint.x * (1 / newVpScale - 1 / vpScale);
-          const newPanY = panYRef.current + initialMidpoint.y * (1 / newVpScale - 1 / vpScale);
+          const newPanX = start.panX + start.centerX * (1 / newVpScale - 1 / vpScale);
+          const newPanY = start.panY + start.centerY * (1 / newVpScale - 1 / vpScale);
           onViewportChangeRef.current(newZoom, newPanX, newPanY);
         }
+      } else if (distanceChange > PINCH_THRESHOLD && initialDistance && initialMidpoint && mode === "pan") {
+        // Switch from pan to pinch mode - use current distance as pinch start
+        touchModeRef.current = "pinch";
+        const pinchStartZoom = zoomRef.current;
+        const pinchStartPanX = panXRef.current;
+        const pinchStartPanY = panYRef.current;
+        
+        touchStartRef.current = {
+          type: "pinch",
+          d0: currentDistance, // Use current distance as the base for pinch
+          centerX: currentMidpoint.x,
+          centerY: currentMidpoint.y,
+          zoom: pinchStartZoom,
+          panX: pinchStartPanX,
+          panY: pinchStartPanY,
+        };
+        onTouchPanEnd?.();
+        
+        // No zoom change on switch - just establish the pinch baseline
+        // The next touchmove will start zooming from this point
       } else if (mode === "pan" && start.type === "pan") {
         // Update pan (2-finger pan) - use midpoint movement
         const midpointX = currentMidpoint.x + rect.left;

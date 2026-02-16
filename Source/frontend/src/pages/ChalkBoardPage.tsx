@@ -12,7 +12,7 @@ import { useTouchViewport } from "../hooks/useTouchViewport";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
-const AUTO_SAVE_DELAY_MS = 15 * 1000; // 15 seconds after last change
+const AUTO_SAVE_DELAY_MS = 1 * 1000; // 1 second after last change
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
 

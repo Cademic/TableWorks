@@ -389,10 +389,41 @@ static string ResolveConnectionString(IConfiguration configuration)
         ?? Environment.GetEnvironmentVariable("DATABASE_URL");
     if (!string.IsNullOrWhiteSpace(databaseUrl))
     {
-        // Npgsql expects postgresql://; Render/Heroku often provide postgres://
+        // Convert URI to key-value format; Npgsql's internal use of DbConnectionStringBuilder expects key=value, not URI.
         if (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
             databaseUrl = "postgresql://" + databaseUrl.Substring(11);
-        return databaseUrl;
+        try
+        {
+            var uri = new Uri(databaseUrl);
+            var builder = new NpgsqlConnectionStringBuilder
+            {
+                Host = uri.Host,
+                Port = uri.Port > 0 ? uri.Port : 5432,
+                Database = uri.AbsolutePath.Length > 1 ? uri.AbsolutePath[1..].TrimEnd('/') : "postgres",
+                Username = uri.UserInfo,
+                Password = string.Empty,
+                SslMode = Npgsql.SslMode.Prefer
+            };
+            if (!string.IsNullOrEmpty(uri.UserInfo))
+            {
+                var colonIndex = uri.UserInfo.IndexOf(':');
+                if (colonIndex >= 0)
+                {
+                    builder.Username = Uri.UnescapeDataString(uri.UserInfo[..colonIndex]);
+                    builder.Password = Uri.UnescapeDataString(uri.UserInfo[(colonIndex + 1)..]);
+                }
+                else
+                    builder.Username = Uri.UnescapeDataString(uri.UserInfo);
+            }
+            if (uri.Query.Contains("sslmode=require", StringComparison.OrdinalIgnoreCase))
+                builder.SslMode = Npgsql.SslMode.Require;
+            return builder.ConnectionString;
+        }
+        catch
+        {
+            // If URI parse fails, return as-is and let Npgsql try (e.g. key=value string).
+            return databaseUrl;
+        }
     }
 
     var connectionString = configuration.GetConnectionString("DefaultConnection")

@@ -249,8 +249,7 @@ If new code requires a new environment variable:
 
 ### If 500 on notebooks persists after redeploy
 
-1. In Render → API service → **Logs**, confirm you see `Running database migrations...` and `Migrations complete. Starting API.` when the container starts. If you see `Migrations failed...`, check `INTERNAL_DATABASE_URL` / `DATABASE_URL` and that the API is linked to the Postgres service.
-2. In the same logs, when a notebooks request fails, look for the exception (e.g. `relation "Notebooks" does not exist`). That confirms missing migrations; ensure the Dockerfile uses the entrypoint and the service has been redeployed.
+See **[RunMigrationsOnRender.md](RunMigrationsOnRender.md)** for full steps. Quick path: run migrations once from your machine using Render’s **External Database URL** (Option A in that doc), or confirm the Docker entrypoint runs and check API logs for `Migrations complete. Starting API.` (Option B).
 
 ---
 

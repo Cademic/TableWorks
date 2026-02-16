@@ -56,7 +56,8 @@
 **Environment Variables** (see [EnvironmentVariables.md](EnvironmentVariables.md) for full list):
 - `ASPNETCORE_ENVIRONMENT` = `Staging` / `Production`
 - `ASPNETCORE_URLS` = `http://+:10000` (Render default port)
-- Database credentials from Render Postgres internal connection
+- **Database**: Link the API Web Service to the Managed PostgreSQL service in Render so `INTERNAL_DATABASE_URL` is set automatically. The API uses this for the connection string; no need to set `DB_HOST`/`DB_PASSWORD` etc. manually.
+- **CORS_ORIGINS**: Comma-separated allowed frontend origins (e.g. `https://asidenote.net`). To run the frontend locally against the deployed API, include `http://localhost:5173` (e.g. `http://localhost:5173,https://asidenote.net`).
 - All auth/email secrets per environment
 
 ## Database Configuration

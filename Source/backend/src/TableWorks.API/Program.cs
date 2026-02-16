@@ -130,10 +130,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ---------------------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
+    const string localDevOrigin = "http://localhost:5173";
     var corsOrigins = Environment.GetEnvironmentVariable("CORS_ORIGINS");
-    var origins = !string.IsNullOrWhiteSpace(corsOrigins)
+    var fromEnv = !string.IsNullOrWhiteSpace(corsOrigins)
         ? corsOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-        : new[] { "http://localhost:5173" };
+        : Array.Empty<string>();
+    var origins = fromEnv.Length > 0
+        ? fromEnv.Union(new[] { localDevOrigin }, StringComparer.OrdinalIgnoreCase).ToArray()
+        : new[] { localDevOrigin };
 
     options.AddPolicy("AllowedOrigins", policy =>
     {
@@ -380,6 +384,17 @@ app.Run();
 
 static string ResolveConnectionString(IConfiguration configuration)
 {
+    // Prefer Render-style full URL when Postgres is linked (INTERNAL_DATABASE_URL or DATABASE_URL).
+    var databaseUrl = Environment.GetEnvironmentVariable("INTERNAL_DATABASE_URL")
+        ?? Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrWhiteSpace(databaseUrl))
+    {
+        // Npgsql expects postgresql://; Render/Heroku often provide postgres://
+        if (databaseUrl.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+            databaseUrl = "postgresql://" + databaseUrl.Substring(11);
+        return databaseUrl;
+    }
+
     var connectionString = configuration.GetConnectionString("DefaultConnection")
         ?? "Host=localhost;Port=5432;Database=asidenote;Username=postgres;Password=postgres";
 

@@ -22,11 +22,11 @@
 }
 
 .dark .scrollbar-thin {
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Hide scrollbar while keeping scroll behavior (e.g. tab strip) */
@@ -52,10 +52,10 @@
 
 .dark {
   color-scheme: dark;
-  --color-background: 222 47% 11%;
+  --color-background: 222 47% 14%;
   --color-foreground: 210 40% 98%;
-  --color-surface: 222 40% 14%;
-  --color-border: 216 34% 24%;
+  --color-surface: 222 35% 17%;
+  --color-border: 216 25% 26%;
   --color-primary: 217 91% 60%;
   --color-primary-foreground: 222 47% 11%;
   --grid-line-color: rgba(255, 255, 255, 0.08);
@@ -250,6 +250,14 @@ body {
   pointer-events: none;
   float: left;
   height: 0;
+}
+
+.dark .tiptap-title-area .tiptap {
+  color: hsl(var(--color-foreground));
+}
+
+.dark .tiptap-title-area .tiptap p.is-editor-empty:first-child::before {
+  color: hsl(var(--color-foreground) / 0.5);
 }
 
 /* Rich content in read mode */
@@ -547,8 +555,8 @@ body {
 }
 
 .dark .notepad-card {
-  background: linear-gradient(180deg, hsl(220, 18%, 16%) 0%, hsl(220, 18%, 14%) 100%);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, hsl(222, 22%, 17%) 0%, hsl(222, 22%, 15%) 100%);
+  border-color: rgba(255, 255, 255, 0.08);
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.2),
     0 1px 2px rgba(0, 0, 0, 0.12);
@@ -571,10 +579,10 @@ body {
 .dark .notepad-spiral-strip {
   background-image: radial-gradient(
     circle at center,
-    rgba(255, 255, 255, 0.08) 3px,
+    rgba(255, 255, 255, 0.1) 3px,
     transparent 3.5px
   );
-  border-bottom-color: rgba(255, 255, 255, 0.04);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
 /* Notepad body — ruled lines + red margin line */
@@ -631,8 +639,8 @@ body {
 }
 
 .dark .paper-card {
-  background: linear-gradient(180deg, hsl(220, 18%, 17%) 0%, hsl(220, 18%, 15%) 100%);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, hsl(222, 22%, 18%) 0%, hsl(222, 22%, 16%) 100%);
+  border-color: rgba(255, 255, 255, 0.08);
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.12),
     0 4px 12px rgba(0, 0, 0, 0.08);
@@ -649,7 +657,7 @@ body {
   box-shadow:
     0 4px 12px rgba(0, 0, 0, 0.2),
     0 8px 24px rgba(0, 0, 0, 0.12);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* ---- Stat sticky notes ---- */
@@ -684,13 +692,13 @@ body {
 .dark .stat-sticky {
   box-shadow:
     1px 2px 4px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.04);
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .dark .stat-sticky:hover {
   box-shadow:
     2px 4px 8px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
 .dark .stat-sticky::after {
@@ -730,8 +738,8 @@ body {
 }
 
 .dark .navbar-surface {
-  background: linear-gradient(180deg, hsl(220, 18%, 15%) 0%, hsl(220, 18%, 13%) 100%);
-  border-bottom-color: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, hsl(222, 22%, 16%) 0%, hsl(222, 22%, 14%) 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
@@ -745,7 +753,7 @@ body {
 }
 
 .dark .calendar-day-cell {
-  background: linear-gradient(180deg, hsl(217, 35%, 16%) 0%, hsl(217, 35%, 14%) 100%);
+  background: linear-gradient(180deg, hsl(222, 30%, 18%) 0%, hsl(222, 30%, 16%) 100%);
 }
 
 /* Day grid cells — same as navbar */
@@ -754,7 +762,7 @@ body {
 }
 
 .dark .navbar-day-cell {
-  background: linear-gradient(180deg, hsl(220, 18%, 15%) 0%, hsl(220, 18%, 13%) 100%);
+  background: linear-gradient(180deg, hsl(222, 22%, 16%) 0%, hsl(222, 22%, 14%) 100%);
 }
 
 /* Theme segmented control — paper tab strip */
@@ -769,8 +777,8 @@ body {
 }
 
 .dark .theme-segment {
-  border-color: rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .theme-segment-btn {
@@ -798,7 +806,7 @@ body {
 .dark .theme-segment-btn.active {
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 /* ========================================
@@ -812,8 +820,8 @@ body {
 }
 
 .dark .sidebar-surface {
-  background: linear-gradient(90deg, hsl(220, 18%, 11%) 0%, hsl(220, 18%, 14%) 100%);
-  border-right-color: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(90deg, hsl(222, 22%, 13%) 0%, hsl(222, 22%, 15%) 100%);
+  border-right-color: rgba(255, 255, 255, 0.08);
   box-shadow: 1px 0 4px rgba(0, 0, 0, 0.15);
 }
 
@@ -824,8 +832,8 @@ body {
 }
 
 .dark .sidebar-brand {
-  border-bottom-color: rgba(255, 255, 255, 0.04);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.015) 0%, transparent 100%);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
 }
 
 /* Active nav item — warm left-accent tab */

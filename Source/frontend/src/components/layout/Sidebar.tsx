@@ -12,6 +12,7 @@ import {
   Pin,
   BookOpen,
   ShieldCheck,
+  LayoutGrid,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -33,9 +34,10 @@ interface SidebarProps {
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/projects", icon: FolderOpen, label: "Projects" },
-  { to: "/notebooks", icon: BookOpen, label: "Notebooks" },
   { to: "/calendar", icon: Calendar, label: "Calendar" },
+  { to: "/projects", icon: FolderOpen, label: "Projects" },
+  { to: "/notebooks", icon: BookOpen, label: "Notebook" },
+  { to: "/boards", icon: LayoutGrid, label: "Boards" },
 ];
 
 const BOARD_TOOLS = [

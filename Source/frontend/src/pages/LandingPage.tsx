@@ -27,8 +27,8 @@ const FEATURES = [
     title: "Note Boards",
     description:
       "Pin sticky notes and index cards to a freeform cork board. Rearrange them as your thinking evolves.",
-    tapeColor: "bg-amber-400/60 dark:bg-amber-500/40",
-    iconBg: "bg-amber-100/80 dark:bg-amber-900/30",
+    tapeColor: "bg-amber-400/60 dark:bg-amber-500/35",
+    iconBg: "bg-amber-100/80 dark:bg-amber-900/25",
     accent: "text-amber-600 dark:text-amber-400",
   },
   {
@@ -36,8 +36,8 @@ const FEATURES = [
     title: "Chalk Boards",
     description:
       "Sketch diagrams and brainstorm visually on an infinite canvas with a natural chalk-on-slate feel.",
-    tapeColor: "bg-emerald-400/60 dark:bg-emerald-500/40",
-    iconBg: "bg-emerald-100/80 dark:bg-emerald-900/30",
+    tapeColor: "bg-emerald-400/60 dark:bg-emerald-500/35",
+    iconBg: "bg-emerald-100/80 dark:bg-emerald-900/25",
     accent: "text-emerald-600 dark:text-emerald-400",
   },
   {
@@ -45,8 +45,8 @@ const FEATURES = [
     title: "Projects",
     description:
       "Group related boards under projects to keep every deliverable and plan in one organized workspace.",
-    tapeColor: "bg-violet-400/60 dark:bg-violet-500/40",
-    iconBg: "bg-violet-100/80 dark:bg-violet-900/30",
+    tapeColor: "bg-violet-400/60 dark:bg-violet-500/35",
+    iconBg: "bg-violet-100/80 dark:bg-violet-900/25",
     accent: "text-violet-600 dark:text-violet-400",
   },
   {
@@ -54,8 +54,8 @@ const FEATURES = [
     title: "Calendar",
     description:
       "See deadlines and milestones at a glance. Plan your week with a view that ties directly into your projects.",
-    tapeColor: "bg-sky-400/60 dark:bg-sky-500/40",
-    iconBg: "bg-sky-100/80 dark:bg-sky-900/30",
+    tapeColor: "bg-sky-400/60 dark:bg-sky-500/35",
+    iconBg: "bg-sky-100/80 dark:bg-sky-900/25",
     accent: "text-sky-600 dark:text-sky-400",
   },
 ];
@@ -94,10 +94,10 @@ const HIGHLIGHTS = [
 ];
 
 const STICKY_BG: Record<string, string> = {
-  yellow: "bg-amber-100 dark:bg-amber-950/40",
-  rose: "bg-rose-100 dark:bg-rose-950/40",
-  sky: "bg-sky-100 dark:bg-sky-950/40",
-  green: "bg-emerald-100 dark:bg-emerald-950/40",
+  yellow: "bg-amber-100 dark:bg-amber-900/35",
+  rose: "bg-rose-100 dark:bg-rose-900/35",
+  sky: "bg-sky-100 dark:bg-sky-900/35",
+  green: "bg-emerald-100 dark:bg-emerald-900/35",
 };
 
 const STICKY_ACCENT: Record<string, string> = {

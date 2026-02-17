@@ -9,6 +9,7 @@ import { CalendarHeader, type CalendarLayout } from "./CalendarHeader";
 import { CalendarGrid } from "./CalendarGrid";
 import { CalendarTimeline } from "./CalendarTimeline";
 import { CreateEventDialog } from "./CreateEventDialog";
+import { EventDetailsPopup } from "./EventDetailsPopup";
 import type { CalendarEventDto, ProjectSummaryDto } from "../../types";
 
 function toLocalDateStr(date: Date): string {
@@ -44,6 +45,7 @@ export function ProjectCalendar({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState("");
   const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
+  const [detailsEvent, setDetailsEvent] = useState<CalendarEventDto | null>(null);
 
   // Build a synthetic project for the grid to show the project's own date range
   const projectAsEntry: ProjectSummaryDto[] =
@@ -113,7 +115,13 @@ export function ProjectCalendar({
   }
 
   function handleClickEvent(event: CalendarEventDto) {
-    setEditingEvent(event);
+    setDetailsEvent(event);
+  }
+
+  function handleEditFromDetails() {
+    if (!detailsEvent) return;
+    setEditingEvent(detailsEvent);
+    setDetailsEvent(null);
     setDialogDate("");
     setDialogOpen(true);
   }
@@ -248,6 +256,17 @@ export function ProjectCalendar({
           projects={projectAsEntry}
           onClickDay={handleClickDay}
           onClickEvent={handleClickEvent}
+        />
+      )}
+
+      {/* Event Details Popup */}
+      {detailsEvent && (
+        <EventDetailsPopup
+          event={detailsEvent}
+          projectName={projectName}
+          isOpen={!!detailsEvent}
+          onClose={() => setDetailsEvent(null)}
+          onEdit={handleEditFromDetails}
         />
       )}
 

@@ -12,6 +12,7 @@ import { CalendarHeader, type CalendarLayout } from "../components/calendar/Cale
 import { CalendarGrid } from "../components/calendar/CalendarGrid";
 import { CalendarTimeline } from "../components/calendar/CalendarTimeline";
 import { CreateEventDialog } from "../components/calendar/CreateEventDialog";
+import { EventDetailsPopup } from "../components/calendar/EventDetailsPopup";
 import type {
   CalendarEventDto,
   ProjectSummaryDto,
@@ -36,6 +37,7 @@ export function CalendarsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<string>("");
   const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
+  const [detailsEvent, setDetailsEvent] = useState<CalendarEventDto | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -88,7 +90,13 @@ export function CalendarsPage() {
   }
 
   function handleClickEvent(event: CalendarEventDto) {
-    setEditingEvent(event);
+    setDetailsEvent(event);
+  }
+
+  function handleEditFromDetails() {
+    if (!detailsEvent) return;
+    setEditingEvent(detailsEvent);
+    setDetailsEvent(null);
     setDialogDate("");
     setDialogOpen(true);
   }
@@ -268,6 +276,17 @@ export function CalendarsPage() {
           </span>
         </div>
       </div>
+
+      {/* Event Details Popup */}
+      {detailsEvent && (
+        <EventDetailsPopup
+          event={detailsEvent}
+          projectName={detailsEvent.projectId ? projectNameMap[detailsEvent.projectId] : null}
+          isOpen={!!detailsEvent}
+          onClose={() => setDetailsEvent(null)}
+          onEdit={handleEditFromDetails}
+        />
+      )}
 
       {/* Create/Edit Dialog */}
       <CreateEventDialog

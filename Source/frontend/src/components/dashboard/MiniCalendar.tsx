@@ -15,6 +15,7 @@ import {
   deleteCalendarEvent,
 } from "../../api/calendar-events";
 import { CreateEventDialog } from "../calendar/CreateEventDialog";
+import { EventDetailsPopup } from "../calendar/EventDetailsPopup";
 import type { CalendarEventDto, ProjectSummaryDto } from "../../types";
 
 /* ─── Constants ────────────────────────────────────────── */
@@ -129,6 +130,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState("");
   const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
+  const [detailsEvent, setDetailsEvent] = useState<CalendarEventDto | null>(null);
 
   const today = useMemo(() => new Date(), []);
 
@@ -265,10 +267,16 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
     if (item.kind === "project") {
       navigate(`/projects/${item.id}`);
     } else if (item.eventDto) {
-      setEditingEvent(item.eventDto);
-      setDialogDate("");
-      setDialogOpen(true);
+      setDetailsEvent(item.eventDto);
     }
+  }
+
+  function handleEditFromDetails() {
+    if (!detailsEvent) return;
+    setEditingEvent(detailsEvent);
+    setDetailsEvent(null);
+    setDialogDate("");
+    setDialogOpen(true);
   }
 
   async function handleSave(data: {
@@ -399,6 +407,17 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {/* Event Details Popup */}
+      {detailsEvent && (
+        <EventDetailsPopup
+          event={detailsEvent}
+          projectName={detailsEvent.projectId ? projectNameMap[detailsEvent.projectId] : null}
+          isOpen={!!detailsEvent}
+          onClose={() => setDetailsEvent(null)}
+          onEdit={handleEditFromDetails}
+        />
+      )}
 
       {/* Create / Edit Event Dialog */}
       <CreateEventDialog

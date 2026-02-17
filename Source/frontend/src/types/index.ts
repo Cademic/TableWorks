@@ -5,6 +5,7 @@ export interface AuthResponse {
   username: string;
   email: string;
   isEmailVerified: boolean;
+  profilePictureKey?: string | null;
   token: string;
   refreshToken: string;
   expiresIn: number;

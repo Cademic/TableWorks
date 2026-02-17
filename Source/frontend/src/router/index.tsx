@@ -17,6 +17,8 @@ import { LoginPage } from "../pages/LoginPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
 import { RegisterPage } from "../pages/RegisterPage";
 import { VerifyEmailPage } from "../pages/VerifyEmailPage";
+import { PrivacyPolicyPage } from "../pages/PrivacyPolicyPage";
+import { TermsAndConditionsPage } from "../pages/TermsAndConditionsPage";
 import { AdminRoute } from "../components/auth/AdminRoute";
 import { AdminPage } from "../pages/AdminPage";
 
@@ -34,6 +36,8 @@ export function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsAndConditionsPage />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>

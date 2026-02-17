@@ -109,6 +109,7 @@ public sealed class AuthService : IAuthService
             Username = user.Username,
             Email = user.Email,
             IsEmailVerified = user.IsEmailVerified,
+            ProfilePictureKey = user.ProfilePictureKey,
             Token = accessToken,
             RefreshToken = rawRefreshToken,
             ExpiresIn = _tokenService.AccessTokenExpirationMinutes * 60
@@ -152,6 +153,7 @@ public sealed class AuthService : IAuthService
             Username = user.Username,
             Email = user.Email,
             IsEmailVerified = user.IsEmailVerified,
+            ProfilePictureKey = user.ProfilePictureKey,
             Token = accessToken,
             RefreshToken = rawRefreshToken,
             ExpiresIn = _tokenService.AccessTokenExpirationMinutes * 60
@@ -409,6 +411,7 @@ public sealed class AuthService : IAuthService
             Username = user.Username,
             Email = user.Email,
             IsEmailVerified = user.IsEmailVerified,
+            ProfilePictureKey = user.ProfilePictureKey,
             Token = accessToken,
             RefreshToken = rawRefreshToken,
             ExpiresIn = _tokenService.AccessTokenExpirationMinutes * 60

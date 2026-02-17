@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   StickyNote,
@@ -10,8 +11,13 @@ import {
   CreditCard,
   Sparkles,
   CheckCircle2,
+  Pin,
+  CalendarDays,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useThemeContext } from "../context/ThemeContext";
 
 /* ─── Feature data ────────────────────────────────────── */
 
@@ -101,63 +107,52 @@ const STICKY_ACCENT: Record<string, string> = {
   green: "text-emerald-600 dark:text-emerald-400",
 };
 
-/* ─── Preview board data ──────────────────────────────── */
-
-const PREVIEW_BOARDS = [
-  {
-    name: "Design Sprint",
-    type: "Note Board",
-    icon: ClipboardList,
-    tapeColor: "bg-amber-400/60 dark:bg-amber-500/40",
-    iconBg: "bg-amber-100/80 dark:bg-amber-900/30",
-    notes: 12,
-    cards: 4,
-  },
-  {
-    name: "Architecture Diagram",
-    type: "Chalk Board",
-    icon: PenTool,
-    tapeColor: "bg-slate-400/60 dark:bg-slate-500/40",
-    iconBg: "bg-slate-100/80 dark:bg-slate-900/30",
-    notes: 6,
-    cards: 0,
-  },
-  {
-    name: "Q2 Roadmap",
-    type: "Note Board",
-    icon: ClipboardList,
-    tapeColor: "bg-amber-400/60 dark:bg-amber-500/40",
-    iconBg: "bg-amber-100/80 dark:bg-amber-900/30",
-    notes: 8,
-    cards: 3,
-  },
-];
+const DASHBOARD_VIDEO_SRC = {
+  light: "/ASideNoteLight.mp4",
+  dark: "/ASideNoteDark.mp4",
+} as const;
 
 /* ─── Component ───────────────────────────────────────── */
 
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
+  const { setThemeMode, effectiveTheme } = useThemeContext();
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  function handleThemeToggle() {
+    setThemeMode(effectiveTheme === "dark" ? "light" : "dark");
+  }
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const handler = () => setPrefersReducedMotion(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Navbar — stationery shelf ─────────────────────── */}
-      <header className="navbar-surface sticky top-0 z-30">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <div className="flex flex-1 items-center justify-center">
-            <Link to="/" className="flex items-center">
-<img
-              src="/asidenote-logo.png"
-              alt="ASideNote"
-              className="h-20 w-auto object-contain"
-              />
-            </Link>
-          </div>
-
-          <nav className="flex flex-1 items-center justify-end gap-3">
+      {/* ── Navbar — matches app Navbar styling ───────────── */}
+      <header className="navbar-surface sticky top-0 z-30 border-b border-border/50">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-end px-4 sm:px-6">
+          <nav className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleThemeToggle}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background"
+              aria-label={effectiveTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {effectiveTheme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
+            </button>
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Dashboard
@@ -172,7 +167,7 @@ export function LandingPage() {
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
                   Get Started
                 </Link>
@@ -188,10 +183,11 @@ export function LandingPage() {
           <div className="notepad-spiral-strip" />
           <div className="notepad-body relative px-8 py-12 sm:px-16 sm:py-16">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-300/60 bg-amber-50/80 px-4 py-1.5 text-xs font-medium text-amber-700 dark:border-amber-700/40 dark:bg-amber-950/40 dark:text-amber-400">
-                <Sparkles className="h-3.5 w-3.5" />
-                Your visual workspace for ideas
-              </div>
+              <img
+                src="/ASideNoteText.png"
+                alt="Your visual workspace for ideas"
+                className="mx-auto mb-6 h-32 w-auto object-contain sm:h-[10rem]"
+              />
 
               <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
                 Turn ideas into{" "}
@@ -201,17 +197,14 @@ export function LandingPage() {
               </h1>
 
               <p className="notepad-ruled-line mx-auto mt-6 max-w-2xl pb-2 text-lg leading-relaxed text-foreground/55">
-                ASideNote gives you note boards, chalk boards, projects, and a
-                calendar&nbsp;&mdash; all in one place. Capture thoughts the
-                moment they strike, then organize them into plans that actually
-                get done.
+              ASideNote brings note boards, chalk boards, projects, and a calendar into one place so you can capture thoughts when they strike and turn them into plans that get done.
               </p>
 
               <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                 {isAuthenticated ? (
                   <Link
                     to="/dashboard"
-                    className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                    className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
                   >
                     <LayoutDashboard className="h-4 w-4" />
                     Go to Dashboard
@@ -221,7 +214,7 @@ export function LandingPage() {
                   <>
                     <Link
                       to="/register"
-                      className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                      className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
                     >
                       Create Free Account
                       <ArrowRight className="h-4 w-4" />
@@ -308,81 +301,64 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Dashboard preview — notepad + paper cards ─────── */}
-      <section className="mx-auto max-w-6xl px-6 pb-16">
-        {/* Section header */}
+      {/* ── See it in action — dashboard demo video ───────── */}
+      <section className="mx-auto max-w-6xl px-6 pb-16" aria-labelledby="demo-heading">
         <div className="mb-6 flex items-center gap-2.5 border-l-[3px] border-l-sky-400 pl-3 dark:border-l-sky-500">
           <LayoutDashboard className="h-5 w-5 text-foreground/50" />
-          <h2 className="text-base font-semibold text-foreground">
-            Your Dashboard
+          <h2 id="demo-heading" className="text-base font-semibold text-foreground">
+            See it in action
           </h2>
         </div>
 
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
-          {/* Text side — notepad style */}
-          <div className="notepad-card flex-1">
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+          {/* Video — theme-aware; remount on theme change */}
+          <div className="flex-1 overflow-hidden rounded-xl border border-border/60 bg-surface/50 shadow-sm">
+            <video
+              key={effectiveTheme}
+              className="h-auto w-full"
+              src={DASHBOARD_VIDEO_SRC[effectiveTheme]}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              autoPlay={!prefersReducedMotion}
+              aria-label="Dashboard walkthrough showing boards, projects, and calendar"
+            />
+          </div>
+
+          {/* Copy + bullets + CTA */}
+          <div className="notepad-card flex-1 min-w-0">
             <div className="notepad-spiral-strip" />
             <div className="notepad-body relative px-8 py-6 sm:px-12">
               <h3 className="text-xl font-bold text-foreground">
-                A single workspace for all your work
+                Your boards, projects, and calendar in one place
               </h3>
               <p className="notepad-ruled-line mt-3 max-w-md pb-1.5 text-sm text-foreground/50">
-                Your dashboard brings boards, projects, and upcoming events
-                together so you always know what needs attention next. No more
-                jumping between apps.
+                The dashboard brings everything together so you always know what
+                needs attention next. No more jumping between apps.
               </p>
+              <ul className="mt-4 space-y-2 text-sm text-foreground/70" aria-label="Highlights">
+                <li className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  Create note and chalk boards
+                </li>
+                <li className="flex items-center gap-2">
+                  <Pin className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  Pin favorites to your dashboard
+                </li>
+                <li className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  See upcoming events at a glance
+                </li>
+              </ul>
               <Link
                 to={isAuthenticated ? "/dashboard" : "/register"}
-                className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-amber-600 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-amber-600 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
               >
                 {isAuthenticated ? "Go to Dashboard" : "Start for free"}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </div>
-
-          {/* Preview board cards */}
-          <div className="flex flex-1 flex-col gap-4">
-            {PREVIEW_BOARDS.map((board) => (
-              <div
-                key={board.name}
-                className="paper-card relative flex items-center gap-4 rounded-lg p-4 pt-5"
-              >
-                {/* Tape strip */}
-                <div
-                  className={`absolute inset-x-0 top-0 h-1.5 rounded-t-lg ${board.tapeColor}`}
-                />
-
-                {/* Icon */}
-                <div
-                  className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${board.iconBg}`}
-                >
-                  <board.icon className="h-5 w-5 text-foreground/60" />
-                </div>
-
-                {/* Info */}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {board.name}
-                  </p>
-                  <p className="text-xs text-foreground/40">{board.type}</p>
-                </div>
-
-                {/* Counts */}
-                <div className="flex items-center gap-3 text-xs text-foreground/35">
-                  <span className="flex items-center gap-1">
-                    <StickyNote className="h-3 w-3" />
-                    {board.notes}
-                  </span>
-                  {board.cards > 0 && (
-                    <span className="flex items-center gap-1">
-                      <CreditCard className="h-3 w-3" />
-                      {board.cards}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -404,7 +380,7 @@ export function LandingPage() {
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Go to Dashboard
@@ -414,7 +390,7 @@ export function LandingPage() {
               <>
                 <Link
                   to="/register"
-                  className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-background dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
                   Get Started &mdash; It&apos;s Free
                   <ArrowRight className="h-4 w-4" />
@@ -433,17 +409,33 @@ export function LandingPage() {
 
       {/* ── Footer ─────────────────────────────────────────── */}
       <footer className="border-t border-border/40">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-center gap-2 px-6 py-6 sm:flex-row sm:justify-between">
-          <Link to="/" className="flex items-center text-foreground/40 transition-colors hover:text-foreground/60">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6">
+          <div className="flex flex-1 basis-0 justify-start gap-4">
+            <Link
+              to="/privacy"
+              className="text-xs text-foreground/40 transition-colors hover:text-foreground/60"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              to="/terms"
+              className="text-xs text-foreground/40 transition-colors hover:text-foreground/60"
+            >
+              Terms and Conditions
+            </Link>
+          </div>
+          <Link to="/" className="flex shrink-0 items-center text-foreground/40 transition-colors hover:text-foreground/60">
             <img
               src="/asidenote-logo.png"
               alt="ASideNote"
               className="h-14 w-auto object-contain opacity-70"
             />
           </Link>
-          <p className="text-xs text-foreground/30">
-            &copy; {new Date().getFullYear()} ASideNote. All rights reserved.
-          </p>
+          <div className="flex flex-1 basis-0 justify-end">
+            <p className="text-xs text-foreground/30">
+              &copy; {new Date().getFullYear()} ASideNote. All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

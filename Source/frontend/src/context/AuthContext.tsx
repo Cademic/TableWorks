@@ -99,6 +99,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       username: response.username,
       email: response.email,
       isEmailVerified: response.isEmailVerified,
+      profilePictureKey: response.profilePictureKey ?? undefined,
     };
     persistAuth(response.token, response.refreshToken, authUser);
     try {
@@ -121,6 +122,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       username: response.username,
       email: response.email,
       isEmailVerified: response.isEmailVerified,
+      profilePictureKey: response.profilePictureKey ?? undefined,
     };
     persistAuth(response.token, response.refreshToken, authUser);
     try {
@@ -143,6 +145,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       username: response.username,
       email: response.email,
       isEmailVerified: response.isEmailVerified,
+      profilePictureKey: response.profilePictureKey ?? undefined,
     };
     persistAuth(response.token, response.refreshToken, authUser);
     try {

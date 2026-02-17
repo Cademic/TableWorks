@@ -11,6 +11,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,6 +35,11 @@ export function RegisterPage() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setError("You must accept the Terms and Conditions to create an account.");
       return;
     }
 
@@ -143,6 +149,23 @@ export function RegisterPage() {
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 placeholder="Repeat your password"
               />
+            </div>
+
+            <div className="flex items-start gap-3">
+              <input
+                id="acceptTerms"
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/20"
+                aria-describedby="acceptTerms-desc"
+              />
+              <label id="acceptTerms-desc" htmlFor="acceptTerms" className="text-sm text-foreground/90">
+                I accept the{" "}
+                <Link to="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                  Terms and Conditions
+                </Link>
+              </label>
             </div>
 
             <button

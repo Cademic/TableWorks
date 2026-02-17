@@ -10,9 +10,22 @@ import {
 
 export type ThemeMode = "light" | "dark" | "system";
 
+export type EffectiveTheme = "light" | "dark";
+
 interface ThemeContextValue {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
+  effectiveTheme: EffectiveTheme;
+}
+
+/** Resolves theme mode to actual light/dark (for system: uses prefers-color-scheme). */
+export function resolveTheme(mode: ThemeMode): EffectiveTheme {
+  if (mode !== "system") {
+    return mode;
+  }
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 const STORAGE_KEY = "asidenote.theme";
@@ -20,16 +33,6 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 interface ThemeProviderProps {
   children: ReactNode;
-}
-
-function resolveTheme(mode: ThemeMode) {
-  if (mode !== "system") {
-    return mode;
-  }
-
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
@@ -41,11 +44,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return "system";
   });
 
+  const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>(() =>
+    resolveTheme(themeMode),
+  );
+
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, themeMode);
+    const next = resolveTheme(themeMode);
+    setEffectiveTheme(next);
     const htmlElement = document.documentElement;
-    const effectiveTheme = resolveTheme(themeMode);
-    htmlElement.classList.toggle("dark", effectiveTheme === "dark");
+    htmlElement.classList.toggle("dark", next === "dark");
   }, [themeMode]);
 
   useEffect(() => {
@@ -55,8 +63,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     function handleChange() {
+      const isDark = query.matches;
+      setEffectiveTheme(isDark ? "dark" : "light");
       const htmlElement = document.documentElement;
-      htmlElement.classList.toggle("dark", query.matches);
+      htmlElement.classList.toggle("dark", isDark);
     }
     query.addEventListener("change", handleChange);
     return () => query.removeEventListener("change", handleChange);
@@ -66,8 +76,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     () => ({
       themeMode,
       setThemeMode,
+      effectiveTheme,
     }),
-    [themeMode],
+    [themeMode, effectiveTheme],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { User, Calendar, Clock, PencilLine, UserPlus, Users, UserCheck, X, MoreVertical } from "lucide-react";
 import {
   getProfile,
   getPublicProfile,
+  getPublicProfileByUsername,
   getFriendStatus,
   getFriends,
+  getFriendsOfUserByUsername,
   getPendingFriendRequests,
+  getPendingSentFriendRequests,
   searchUsers,
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,
+  cancelFriendRequest,
   removeFriend,
 } from "../api/users";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +23,7 @@ import type {
   UserProfileDto,
   FriendDto,
   FriendRequestDto,
+  SentFriendRequestDto,
   UserPublicDto,
 } from "../types";
 
@@ -74,6 +79,64 @@ function formatRelative(dateStr: string): string {
   return formatDateTime(dateStr);
 }
 
+function PendingSentRequestRow({
+  request,
+  onCancel,
+}: {
+  request: SentFriendRequestDto;
+  onCancel: () => Promise<void>;
+}) {
+  const [cancelling, setCancelling] = useState(false);
+
+  async function handleCancel() {
+    setCancelling(true);
+    try {
+      await onCancel();
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/60 bg-white/60 px-3 py-2 dark:border-amber-800/40 dark:bg-background/40">
+      <Link
+        to={`/profile/${encodeURIComponent(request.receiverUsername)}`}
+        className="flex min-w-0 flex-1 items-center gap-3"
+      >
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+          {getAvatarUrl(request.receiverProfilePictureKey) ? (
+            <img
+              src={getAvatarUrl(request.receiverProfilePictureKey)!}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <span className="text-xs font-medium text-foreground/60">
+              {request.receiverUsername.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-medium text-foreground">
+            {request.receiverUsername}
+          </span>
+          <span className="text-xs text-foreground/50">
+            {formatRelative(request.createdAt)}
+          </span>
+        </div>
+      </Link>
+      <button
+        type="button"
+        disabled={cancelling}
+        onClick={handleCancel}
+        className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-950/30 dark:hover:text-red-400 dark:hover:border-red-800/50 disabled:opacity-50"
+      >
+        {cancelling ? "…" : "Cancel"}
+      </button>
+    </li>
+  );
+}
+
 function PendingRequestRow({
   request,
   onAccept,
@@ -107,7 +170,7 @@ function PendingRequestRow({
   return (
     <li className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/60 bg-white/60 px-3 py-2 dark:border-amber-800/40 dark:bg-background/40">
       <Link
-        to={`/profile/${request.requesterId}`}
+        to={`/profile/${encodeURIComponent(request.requesterUsername)}`}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
@@ -159,11 +222,13 @@ function FriendCard({
   onUnadd,
   formatRelative,
   getAvatarUrl,
+  showActions = true,
 }: {
   friend: FriendDto;
   onUnadd: () => void;
   formatRelative: (dateStr: string) => string;
   getAvatarUrl: (key: string | null) => string | null;
+  showActions?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [unadding, setUnadding] = useState(false);
@@ -203,7 +268,7 @@ function FriendCard({
   return (
     <li className="group relative">
       <Link
-        to={`/profile/${f.id}`}
+        to={`/profile/${encodeURIComponent(f.username)}`}
         className="flex items-center gap-3 rounded-lg border border-border/40 p-3 transition-colors hover:bg-muted/50"
       >
         <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
@@ -239,46 +304,48 @@ function FriendCard({
           </span>
         </div>
       </Link>
-      <div
-        ref={menuRef}
-        className="absolute right-2 top-2 z-10"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setMenuOpen((v) => !v);
-          }}
-          className="rounded-lg p-1 text-foreground/40 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground/60 group-hover:opacity-100"
-          title="Friend options"
-          aria-label="Friend options"
+      {showActions && (
+        <div
+          ref={menuRef}
+          className="absolute right-2 top-2 z-10"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
         >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-        {menuOpen && (
-          <div className="absolute right-0 top-8 z-20 w-40 rounded-lg border border-border bg-background py-1 shadow-lg">
-            <Link
-              to={`/profile/${f.id}`}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
-              onClick={() => setMenuOpen(false)}
-            >
-              <User className="h-3.5 w-3.5" />
-              View Profile
-            </Link>
-            <button
-              type="button"
-              disabled={unadding}
-              onClick={handleUnadd}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
-            >
-              {unadding ? "…" : "Unadd"}
-            </button>
-          </div>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen((v) => !v);
+            }}
+            className="rounded-lg p-1 text-foreground/40 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground/60 group-hover:opacity-100"
+            title="Friend options"
+            aria-label="Friend options"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-8 z-20 w-40 rounded-lg border border-border bg-background py-1 shadow-lg">
+              <Link
+                to={`/profile/${encodeURIComponent(f.username)}`}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-muted/50"
+                onClick={() => setMenuOpen(false)}
+              >
+                <User className="h-3.5 w-3.5" />
+                View Profile
+              </Link>
+              <button
+                type="button"
+                disabled={unadding}
+                onClick={handleUnadd}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
+              >
+                {unadding ? "…" : "Unadd"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -456,7 +523,7 @@ function AddFriendDialog({
 }
 
 export function ProfilePage() {
-  const { userId: routeUserId } = useParams<{ userId?: string }>();
+  const { username: routeUsername } = useParams<{ username?: string }>();
   const { user: authUser } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfileDto | null>(null);
@@ -466,26 +533,28 @@ export function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendRequestDto[]>([]);
+  const [pendingSentRequests, setPendingSentRequests] = useState<SentFriendRequestDto[]>([]);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [addFriendLoading, setAddFriendLoading] = useState(false);
   const [pendingRequestIdFromThem, setPendingRequestIdFromThem] = useState<string | null>(null);
+  const [otherUserFriends, setOtherUserFriends] = useState<FriendDto[]>([]);
 
-  const isOwnProfile = !routeUserId || (authUser?.userId && routeUserId === authUser.userId);
+  const isOwnProfile = !routeUsername || (routeUsername && authUser?.username && routeUsername.toLowerCase() === authUser.username.toLowerCase());
 
   const loadFriendsAndRequests = useCallback(async () => {
     try {
-      const [friendsList, requests] = await Promise.all([
+      const [friendsList, requests, sentRequests] = await Promise.all([
         getFriends(),
         getPendingFriendRequests(),
+        getPendingSentFriendRequests(),
       ]);
       setFriends(friendsList);
       setPendingRequests(requests);
-      const fromThem = requests.find((r) => r.requesterId === routeUserId);
-      setPendingRequestIdFromThem(fromThem?.id ?? null);
+      setPendingSentRequests(sentRequests);
     } catch {
       // Keep previous state on error
     }
-  }, [routeUserId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -502,19 +571,27 @@ export function ProfilePage() {
         });
       setPublicProfile(null);
       setFriendStatus(null);
-    } else if (routeUserId) {
+    } else if (routeUsername) {
+      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routeUsername);
+      const fetchProfile = isGuid
+        ? getPublicProfile(routeUsername)
+        : getPublicProfileByUsername(routeUsername);
       Promise.all([
-        getPublicProfile(routeUserId),
-        getFriendStatus(routeUserId),
+        fetchProfile,
         getPendingFriendRequests(),
       ])
-        .then(([pub, status, requests]) => {
-          if (!cancelled) {
-            setPublicProfile(pub ?? null);
-            setFriendStatus(status?.status ?? null);
-            const fromThem = requests.find((r) => r.requesterId === routeUserId);
-            setPendingRequestIdFromThem(fromThem?.id ?? null);
+        .then(async ([pub, requests]) => {
+          if (!pub || cancelled) return;
+          if (isGuid && pub.username) {
+            navigate(`/profile/${encodeURIComponent(pub.username)}`, { replace: true });
+            return;
           }
+          const [status] = await Promise.all([getFriendStatus(pub.id)]);
+          if (cancelled) return;
+          setPublicProfile(pub);
+          setFriendStatus(status?.status ?? null);
+          const fromThem = requests.find((r) => r.requesterId === pub.id);
+          setPendingRequestIdFromThem(fromThem?.id ?? null);
         })
         .catch(() => {
           if (!cancelled) setError("User not found.");
@@ -527,15 +604,38 @@ export function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [isOwnProfile, routeUserId]);
+  }, [isOwnProfile, routeUsername]);
 
   useEffect(() => {
     if (!profile && !publicProfile) return;
     if (isOwnProfile && profile) loadFriendsAndRequests();
   }, [isOwnProfile, profile, publicProfile, loadFriendsAndRequests]);
 
+  useEffect(() => {
+    if (!routeUsername || !publicProfile || profile) return;
+    setOtherUserFriends([]);
+    let cancelled = false;
+    getFriendsOfUserByUsername(routeUsername)
+      .then((list) => {
+        if (!cancelled) setOtherUserFriends(list);
+      })
+      .catch(() => {
+        if (!cancelled) setOtherUserFriends([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeUsername, publicProfile, profile]);
+
   function handleEditProfile() {
     navigate("/settings#profile");
+  }
+
+  // Redirect /profile to /profile/:username for consistent URLs
+  if (!routeUsername && authUser?.username) {
+    return (
+      <Navigate to={`/profile/${encodeURIComponent(authUser.username)}`} replace />
+    );
   }
 
   if (isLoading) {
@@ -573,10 +673,10 @@ export function ProfilePage() {
   const bio = "bio" in displayProfile ? displayProfile.bio : (displayProfile as UserPublicDto).bio;
 
   async function handleAddFriend() {
-    if (!routeUserId) return;
+    if (!publicProfile) return;
     setAddFriendLoading(true);
     try {
-      await sendFriendRequest({ receiverId: routeUserId });
+      await sendFriendRequest({ receiverId: publicProfile.id });
       setFriendStatus("PendingSent");
     } catch {
       // Keep state
@@ -704,40 +804,89 @@ export function ProfilePage() {
           </div>
         </div>
 
-        {!isOtherUser && profile && (
-        <>
-        {/* ── Quick stats ────────────────────────────────── */}
+        {/* ── Quick stats (sticky notes) - own profile or viewing another user ────────────────────────────────── */}
+        {(profile || (isOtherUser && publicProfile)) && (
         <div className="mb-10 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatSticky
             color="yellow"
             icon={User}
             label="Member since"
-            value={formatDate(profile.createdAt)}
+            value={profile ? formatDate(profile.createdAt) : (publicProfile?.createdAt ? formatDate(publicProfile.createdAt) : "—")}
             rotation={-2}
           />
           <StatSticky
             color="rose"
             icon={Clock}
             label="Last login"
-            value={profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : "—"}
+            value={profile
+              ? (profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : "—")
+              : (publicProfile?.lastLoginAt ? formatDateTime(publicProfile.lastLoginAt) : "—")}
             rotation={1.5}
           />
           <StatSticky
             color="sky"
             icon={Users}
             label="Friends"
-            value={String(friends.length)}
+            value={profile ? String(friends.length) : String(publicProfile?.friendCount ?? 0)}
             rotation={-1}
           />
           <StatSticky
             color="green"
             icon={Calendar}
             label="Role"
-            value={profile.role}
+            value={profile ? profile.role : (publicProfile?.role ?? "—")}
             rotation={2}
           />
         </div>
+        )}
 
+        {/* ── Other user's friends (read-only) ───────────────────────────────────── */}
+        {isOtherUser && publicProfile && (
+        <section className="mb-10">
+          <div
+            className={`mb-4 flex items-center gap-2.5 border-l-[3px] pl-3 ${SECTION_ACCENT.sky}`}
+          >
+            <Users className="h-5 w-5 text-foreground/50" />
+            <h2 className="text-base font-semibold text-foreground">Friends</h2>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-background/50 p-4">
+            {otherUserFriends.length === 0 ? (
+              <p className="text-center text-sm text-foreground/50">
+                No friends yet.
+              </p>
+            ) : (
+              <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {[...otherUserFriends]
+                  .sort((a, b) => {
+                    const ONLINE_MINS = 15;
+                    const now = Date.now();
+                    const isOnline = (last: string | null) =>
+                      last && now - new Date(last).getTime() < ONLINE_MINS * 60 * 1000;
+                    const aOnline = isOnline(a.lastLoginAt) ? 1 : 0;
+                    const bOnline = isOnline(b.lastLoginAt) ? 1 : 0;
+                    if (bOnline !== aOnline) return bOnline - aOnline;
+                    const aTime = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
+                    const bTime = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
+                    return bTime - aTime;
+                  })
+                  .map((f) => (
+                    <FriendCard
+                      key={f.id}
+                      friend={f}
+                      onUnadd={() => {}}
+                      formatRelative={formatRelative}
+                      getAvatarUrl={getAvatarUrl}
+                      showActions={false}
+                    />
+                  ))}
+              </ul>
+            )}
+          </div>
+        </section>
+        )}
+
+        {!isOtherUser && profile && (
+        <>
         {/* ── About section ──────────────────────────────── */}
         <section className="mb-10">
           <div
@@ -814,6 +963,27 @@ export function ProfilePage() {
                     }}
                     onReject={async () => {
                       await rejectFriendRequest(req.id);
+                      await loadFriendsAndRequests();
+                    }}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {pendingSentRequests.length > 0 && (
+            <div className="mb-4 rounded-xl border-2 border-amber-300/60 bg-amber-50/80 p-4 dark:border-amber-600/50 dark:bg-amber-950/30">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <UserPlus className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                Pending sent
+              </h3>
+              <ul className="space-y-2">
+                {pendingSentRequests.map((req) => (
+                  <PendingSentRequestRow
+                    key={req.id}
+                    request={req}
+                    onCancel={async () => {
+                      await cancelFriendRequest(req.id);
                       await loadFriendsAndRequests();
                     }}
                   />

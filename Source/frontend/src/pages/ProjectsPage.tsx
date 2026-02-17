@@ -8,7 +8,7 @@ import {
   PencilLine,
 } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
-import { getProjects, createProject, deleteProject, updateProject, toggleProjectPin } from "../api/projects";
+import { getProjects, createProject, deleteProject, updateProject, toggleProjectPin, leaveProject } from "../api/projects";
 import { ProjectCard } from "../components/projects/ProjectCard";
 import { CreateProjectDialog } from "../components/projects/CreateProjectDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
@@ -32,6 +32,7 @@ export function ProjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectSummaryDto | null>(
     null,
   );
+  const [leaveTarget, setLeaveTarget] = useState<ProjectSummaryDto | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -116,6 +117,24 @@ export function ProjectsPage() {
     setProjects((prev) => prev.filter((p) => p.id !== id));
     try {
       await deleteProject(id);
+      refreshPinnedProjects();
+    } catch {
+      fetchProjects();
+    }
+  }
+
+  function handleLeave(id: string) {
+    const project = projects.find((p) => p.id === id) ?? null;
+    if (project) setLeaveTarget(project);
+  }
+
+  async function confirmLeave() {
+    if (!leaveTarget) return;
+    const id = leaveTarget.id;
+    setLeaveTarget(null);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await leaveProject(id);
       refreshPinnedProjects();
     } catch {
       fetchProjects();
@@ -270,6 +289,7 @@ export function ProjectsPage() {
                 onRename={handleRenameProject}
                 onTogglePin={handleToggleProjectPin}
                 onDelete={handleDelete}
+                onLeave={handleLeave}
               />
             ))}
           </div>
@@ -292,6 +312,17 @@ export function ProjectsPage() {
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={leaveTarget !== null}
+        title="Leave Project"
+        message={`Are you sure you want to leave "${leaveTarget?.name ?? "this project"}"? You can be re-invited to rejoin later.`}
+        confirmLabel="Leave Project"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={confirmLeave}
+        onCancel={() => setLeaveTarget(null)}
       />
 
       {/* Rename Project Dialog */}

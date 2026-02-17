@@ -21,6 +21,9 @@ import {
   updateUserRole,
   deleteUser,
   removeUserFriend,
+  deleteAdminProject,
+  deleteAdminBoard,
+  deleteAdminNotebook,
 } from "../api/admin";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import type {
@@ -81,6 +84,9 @@ export function AdminPage() {
   const [roleEditValue, setRoleEditValue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [unaddingFriendId, setUnaddingFriendId] = useState<string | null>(null);
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteBoardTarget, setDeleteBoardTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteNotebookTarget, setDeleteNotebookTarget] = useState<{ id: string; name: string } | null>(null);
 
   const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -823,9 +829,17 @@ export function AdminPage() {
             ) : detailUser ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    {detailUser.username}
-                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {detailUser.username}
+                    </h2>
+                    <Link
+                      to={`/profile/${encodeURIComponent(detailUser.username)}`}
+                      className="rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary hover:bg-primary/20"
+                    >
+                      View profile
+                    </Link>
+                  </div>
                   <p className="text-sm text-foreground/60">{detailUser.email}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span
@@ -867,7 +881,7 @@ export function AdminPage() {
                           className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-foreground/5"
                         >
                           <Link
-                            to={`/profile/${f.userId}`}
+                            to={`/profile/${encodeURIComponent(f.username)}`}
                             className="flex-1 truncate text-sm text-primary hover:underline"
                           >
                             {f.username}
@@ -892,6 +906,100 @@ export function AdminPage() {
                             className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
                           >
                             {unaddingFriendId === f.userId ? "…" : "Unadd"}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Projects */}
+                <div>
+                  <h3 className="text-sm font-medium text-foreground/80">Projects</h3>
+                  {!detailUser.projects || detailUser.projects.length === 0 ? (
+                    <p className="mt-1 text-xs text-foreground/50">No projects</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1">
+                      {detailUser.projects.map((p) => (
+                        <li
+                          key={p.id}
+                          className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-foreground/5"
+                        >
+                          <Link
+                            to={`/projects/${p.id}`}
+                            className="flex-1 truncate text-sm text-primary hover:underline"
+                          >
+                            {p.name}
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteProjectTarget({ id: p.id, name: p.name })}
+                            title="Delete project"
+                            className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/30"
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Boards */}
+                <div>
+                  <h3 className="text-sm font-medium text-foreground/80">Boards</h3>
+                  {!detailUser.boards || detailUser.boards.length === 0 ? (
+                    <p className="mt-1 text-xs text-foreground/50">No boards</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1">
+                      {detailUser.boards.map((b) => (
+                        <li
+                          key={b.id}
+                          className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-foreground/5"
+                        >
+                          <Link
+                            to={b.boardType === "ChalkBoard" ? `/chalkboards/${b.id}` : `/boards/${b.id}`}
+                            className="flex-1 truncate text-sm text-primary hover:underline"
+                          >
+                            {b.name}
+                            {b.boardType === "ChalkBoard" && (
+                              <span className="ml-1 text-xs text-foreground/50">(Chalk)</span>
+                            )}
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteBoardTarget({ id: b.id, name: b.name })}
+                            title="Delete board"
+                            className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/30"
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Notebooks */}
+                <div>
+                  <h3 className="text-sm font-medium text-foreground/80">Notebooks</h3>
+                  {!detailUser.notebooks || detailUser.notebooks.length === 0 ? (
+                    <p className="mt-1 text-xs text-foreground/50">No notebooks</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1">
+                      {detailUser.notebooks.map((n) => (
+                        <li
+                          key={n.id}
+                          className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-foreground/5"
+                        >
+                          <span className="flex-1 truncate text-sm text-foreground">{n.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteNotebookTarget({ id: n.id, name: n.name })}
+                            title="Delete notebook"
+                            className="flex-shrink-0 rounded px-2 py-0.5 text-xs font-medium text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-950/30"
+                          >
+                            Delete
                           </button>
                         </li>
                       ))}
@@ -992,7 +1100,7 @@ export function AdminPage() {
         </div>
       )}
 
-      {/* Delete confirm */}
+      {/* Delete user confirm */}
       <ConfirmDialog
         isOpen={deleteTarget !== null}
         title="Delete user"
@@ -1006,6 +1114,90 @@ export function AdminPage() {
         variant="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Delete project confirm */}
+      <ConfirmDialog
+        isOpen={deleteProjectTarget !== null}
+        title="Delete project"
+        message={
+          deleteProjectTarget
+            ? `Are you sure you want to permanently delete the project "${deleteProjectTarget.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteProjectTarget || !detailUser) return;
+          setActionError(null);
+          try {
+            await deleteAdminProject(deleteProjectTarget.id);
+            const updated = await getAdminUserDetail(detailUser.id);
+            setDetailUser(updated);
+          } catch {
+            setActionError("Failed to delete project.");
+          } finally {
+            setDeleteProjectTarget(null);
+          }
+        }}
+        onCancel={() => setDeleteProjectTarget(null)}
+      />
+
+      {/* Delete board confirm */}
+      <ConfirmDialog
+        isOpen={deleteBoardTarget !== null}
+        title="Delete board"
+        message={
+          deleteBoardTarget
+            ? `Are you sure you want to permanently delete the board "${deleteBoardTarget.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteBoardTarget || !detailUser) return;
+          setActionError(null);
+          try {
+            await deleteAdminBoard(deleteBoardTarget.id);
+            const updated = await getAdminUserDetail(detailUser.id);
+            setDetailUser(updated);
+          } catch {
+            setActionError("Failed to delete board.");
+          } finally {
+            setDeleteBoardTarget(null);
+          }
+        }}
+        onCancel={() => setDeleteBoardTarget(null)}
+      />
+
+      {/* Delete notebook confirm */}
+      <ConfirmDialog
+        isOpen={deleteNotebookTarget !== null}
+        title="Delete notebook"
+        message={
+          deleteNotebookTarget
+            ? `Are you sure you want to permanently delete the notebook "${deleteNotebookTarget.name}"? This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={async () => {
+          if (!deleteNotebookTarget || !detailUser) return;
+          setActionError(null);
+          try {
+            await deleteAdminNotebook(deleteNotebookTarget.id);
+            const updated = await getAdminUserDetail(detailUser.id);
+            setDetailUser(updated);
+          } catch {
+            setActionError("Failed to delete notebook.");
+          } finally {
+            setDeleteNotebookTarget(null);
+          }
+        }}
+        onCancel={() => setDeleteNotebookTarget(null)}
       />
     </div>
   );

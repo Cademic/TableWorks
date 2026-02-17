@@ -11,6 +11,7 @@ import {
   MoreVertical,
   Pin,
   PinOff,
+  LogOut,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ProjectSummaryDto } from "../../types";
@@ -20,6 +21,7 @@ interface ProjectCardProps {
   onDelete?: (id: string) => void;
   onRename?: (id: string, currentName: string) => void;
   onTogglePin?: (id: string, isPinned: boolean) => void;
+  onLeave?: (id: string) => void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -75,7 +77,7 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function ProjectCard({ project, onDelete, onRename, onTogglePin }: ProjectCardProps) {
+export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave }: ProjectCardProps) {
   const navigate = useNavigate();
   const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.Active;
   const roleConfig = ROLE_CONFIG[project.userRole] ?? ROLE_CONFIG.Viewer;
@@ -186,6 +188,23 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin }: Projec
                   </>
                 )}
               </button>
+            )}
+            {!isOwner && onLeave && (
+              <>
+                <div className="my-1 border-t border-border/50" />
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onLeave(project.id);
+                  }}
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Leave Project
+                </button>
+              </>
             )}
             {isOwner && onDelete && (
               <>

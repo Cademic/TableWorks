@@ -120,3 +120,27 @@
 {"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000004","query":"tes","limit":15},"timestamp":1771278272095,"hypothesisId":"H2"}
 {"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":1,"excludeCount":2,"allFriendRequestsForUser":2},"timestamp":1771278272176,"hypothesisId":"H1"}
 {"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":2,"resultIds":["00000000-0000-0000-0000-000000000002","00000000-0000-0000-0000-000000000003"]},"timestamp":1771278272210,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"test","limit":15},"timestamp":1771303846269,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":3,"excludeCount":4,"allFriendRequestsForUser":4},"timestamp":1771303846366,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":1,"resultIds":["00000000-0000-0000-0000-000000000004"]},"timestamp":1771303846415,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"t","limit":15},"timestamp":1771304685636,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":4,"excludeCount":5,"allFriendRequestsForUser":4},"timestamp":1771304685747,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":1,"resultIds":["0210ebe0-9386-4695-8e63-d5e83027ce81"]},"timestamp":1771304685793,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"tes","limit":15},"timestamp":1771304687212,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":4,"excludeCount":5,"allFriendRequestsForUser":4},"timestamp":1771304687273,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":0,"resultIds":[]},"timestamp":1771304687303,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"ted","limit":15},"timestamp":1771304701068,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":4,"excludeCount":5,"allFriendRequestsForUser":4},"timestamp":1771304701133,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":0,"resultIds":[]},"timestamp":1771304701163,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"teds","limit":15},"timestamp":1771304702614,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":4,"excludeCount":5,"allFriendRequestsForUser":4},"timestamp":1771304702675,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":0,"resultIds":[]},"timestamp":1771304702705,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"tes","limit":15},"timestamp":1771304703319,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":4,"excludeCount":5,"allFriendRequestsForUser":4},"timestamp":1771304703380,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":0,"resultIds":[]},"timestamp":1771304703409,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"tes","limit":15},"timestamp":1771306619874,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":3,"excludeCount":4,"allFriendRequestsForUser":4},"timestamp":1771306619981,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":1,"resultIds":["00000000-0000-0000-0000-000000000003"]},"timestamp":1771306620033,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:entry","message":"Search entry","data":{"currentUserId":"00000000-0000-0000-0000-000000000005","query":"ad","limit":15},"timestamp":1771306695323,"hypothesisId":"H2"}
+{"location":"UserService.cs:SearchUsersAsync:exclude","message":"Exclude list built","data":{"friendOrPendingCount":3,"excludeCount":4,"allFriendRequestsForUser":4},"timestamp":1771306695383,"hypothesisId":"H1"}
+{"location":"UserService.cs:SearchUsersAsync:exit","message":"Search result","data":{"resultCount":1,"resultIds":["00000000-0000-0000-0000-000000000006"]},"timestamp":1771306695412,"hypothesisId":"H2"}

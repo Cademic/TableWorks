@@ -8,6 +8,7 @@ import type {
   UserPublicDto,
   FriendDto,
   FriendRequestDto,
+  SentFriendRequestDto,
   FriendStatusDto,
   SendFriendRequestRequest,
 } from "../types";
@@ -29,6 +30,17 @@ export async function getPublicProfile(userId: string): Promise<UserPublicDto | 
   }
 }
 
+export async function getPublicProfileByUsername(username: string): Promise<UserPublicDto | null> {
+  try {
+    const response = await apiClient.get<UserPublicDto>(`/users/by-username/${encodeURIComponent(username)}`);
+    return response.data;
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { status?: number } };
+    if (axiosErr.response?.status === 404) return null;
+    throw err;
+  }
+}
+
 export async function searchUsers(q: string, limit = 20): Promise<UserPublicDto[]> {
   const response = await apiClient.get<UserPublicDto[]>("/users/search", {
     params: { q: q.trim() || undefined, limit },
@@ -41,9 +53,40 @@ export async function getFriends(): Promise<FriendDto[]> {
   return response.data ?? [];
 }
 
+export async function getFriendsOfUser(userId: string): Promise<FriendDto[]> {
+  try {
+    const response = await apiClient.get<FriendDto[]>(`/users/${userId}/friends`);
+    return response.data ?? [];
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { status?: number } };
+    if (axiosErr.response?.status === 404) return [];
+    throw err;
+  }
+}
+
+export async function getFriendsOfUserByUsername(username: string): Promise<FriendDto[]> {
+  try {
+    const response = await apiClient.get<FriendDto[]>(`/users/by-username/${encodeURIComponent(username)}/friends`);
+    return response.data ?? [];
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { status?: number } };
+    if (axiosErr.response?.status === 404) return [];
+    throw err;
+  }
+}
+
 export async function getPendingFriendRequests(): Promise<FriendRequestDto[]> {
   const response = await apiClient.get<FriendRequestDto[]>("/users/me/friend-requests");
   return response.data ?? [];
+}
+
+export async function getPendingSentFriendRequests(): Promise<SentFriendRequestDto[]> {
+  const response = await apiClient.get<SentFriendRequestDto[]>("/users/me/friend-requests/sent");
+  return response.data ?? [];
+}
+
+export async function cancelFriendRequest(requestId: string): Promise<void> {
+  await apiClient.post(`/users/me/friend-requests/${requestId}/cancel`);
 }
 
 export async function getFriendStatus(userId: string): Promise<FriendStatusDto> {

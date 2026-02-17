@@ -63,3 +63,15 @@ export async function deleteUser(id: string): Promise<void> {
 export async function removeUserFriend(userId: string, friendId: string): Promise<void> {
   await apiClient.delete(`/admin/users/${userId}/friends/${friendId}`);
 }
+
+export async function deleteAdminProject(projectId: string): Promise<void> {
+  await apiClient.delete(`/admin/projects/${projectId}`);
+}
+
+export async function deleteAdminBoard(boardId: string): Promise<void> {
+  await apiClient.delete(`/admin/boards/${boardId}`);
+}
+
+export async function deleteAdminNotebook(notebookId: string): Promise<void> {
+  await apiClient.delete(`/admin/notebooks/${notebookId}`);
+}

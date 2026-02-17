@@ -12,6 +12,11 @@ public sealed class Project
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
     public string Color { get; set; } = "violet";
+    /// <summary>
+    /// When true, project events appear on members' main/dashboard calendars.
+    /// When false (default), project events only appear on the project calendar.
+    /// </summary>
+    public bool ShowEventsOnMainCalendar { get; set; } = false;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

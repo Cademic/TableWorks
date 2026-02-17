@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { getBoards, createBoard, deleteBoard, updateBoard, toggleBoardPin } from "../api/boards";
-import { getProjects, createProject, addBoardToProject, addNotebookToProject, updateProject, toggleProjectPin, deleteProject } from "../api/projects";
+import { getProjects, createProject, addBoardToProject, addNotebookToProject, updateProject, toggleProjectPin, deleteProject, leaveProject } from "../api/projects";
 import { getNotebooks, createNotebook, deleteNotebook, updateNotebook, toggleNotebookPin } from "../api/notebooks";
 import { getFriends } from "../api/users";
 import { getCalendarEvents } from "../api/calendar-events";
@@ -67,6 +67,7 @@ export function DashboardPage() {
   const [projectRenameTarget, setProjectRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [projectRenameValue, setProjectRenameValue] = useState("");
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<ProjectSummaryDto | null>(null);
+  const [projectLeaveTarget, setProjectLeaveTarget] = useState<ProjectSummaryDto | null>(null);
   const [isCreateNotebookOpen, setIsCreateNotebookOpen] = useState(false);
   const [createNotebookError, setCreateNotebookError] = useState<string | null>(null);
   const [notebookRenameTarget, setNotebookRenameTarget] = useState<{ id: string; name: string } | null>(null);
@@ -294,6 +295,24 @@ export function DashboardPage() {
     setActiveProjects((prev) => prev.filter((p) => p.id !== id));
     try {
       await deleteProject(id);
+      refreshPinnedProjects();
+    } catch {
+      fetchBoards();
+    }
+  }
+
+  function handleLeaveProject(id: string) {
+    const project = activeProjects.find((p) => p.id === id) ?? null;
+    if (project) setProjectLeaveTarget(project);
+  }
+
+  async function confirmLeaveProject() {
+    if (!projectLeaveTarget) return;
+    const id = projectLeaveTarget.id;
+    setProjectLeaveTarget(null);
+    setActiveProjects((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await leaveProject(id);
       refreshPinnedProjects();
     } catch {
       fetchBoards();
@@ -567,6 +586,7 @@ export function DashboardPage() {
                     onRename={handleRenameProject}
                     onTogglePin={handleToggleProjectPin}
                     onDelete={handleDeleteProject}
+                    onLeave={handleLeaveProject}
                   />
                 ))}
               </div>
@@ -711,6 +731,17 @@ export function DashboardPage() {
         variant="danger"
         onConfirm={confirmDeleteProject}
         onCancel={() => setProjectDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={projectLeaveTarget !== null}
+        title="Leave Project"
+        message={`Are you sure you want to leave "${projectLeaveTarget?.name ?? "this project"}"? You can be re-invited to rejoin later.`}
+        confirmLabel="Leave Project"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={confirmLeaveProject}
+        onCancel={() => setProjectLeaveTarget(null)}
       />
 
       <ConfirmDialog

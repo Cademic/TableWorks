@@ -91,6 +91,33 @@ public sealed class AdminController : ControllerBase
         return NoContent();
     }
 
+    [HttpDelete("projects/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteProject(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteUserProjectAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("boards/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteBoard(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteUserBoardAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("notebooks/{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteNotebook(Guid id, CancellationToken cancellationToken)
+    {
+        await _adminService.DeleteUserNotebookAsync(id, cancellationToken);
+        return NoContent();
+    }
+
     [HttpGet("notes")]
     [ProducesResponseType(typeof(PaginatedResponse<AdminNoteDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNotes([FromQuery] AdminNoteListQuery query, CancellationToken cancellationToken)

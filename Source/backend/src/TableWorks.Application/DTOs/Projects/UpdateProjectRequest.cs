@@ -10,4 +10,6 @@ public sealed class UpdateProjectRequest
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
     public string? Color { get; set; }
+    /// <summary>When true, project events appear on members' main/dashboard calendars.</summary>
+    public bool? ShowEventsOnMainCalendar { get; set; }
 }

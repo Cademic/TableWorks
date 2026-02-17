@@ -15,6 +15,7 @@ public sealed class ProjectDetailDto
     public string Status { get; set; } = string.Empty;
     public int Progress { get; set; }
     public string Color { get; set; } = "violet";
+    public bool ShowEventsOnMainCalendar { get; set; } = false;
     public Guid OwnerId { get; set; }
     public string OwnerUsername { get; set; } = string.Empty;
     public string UserRole { get; set; } = string.Empty;

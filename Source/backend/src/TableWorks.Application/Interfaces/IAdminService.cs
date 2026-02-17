@@ -13,6 +13,9 @@ public interface IAdminService
     Task UpdateUserRoleAsync(Guid userId, UpdateUserRoleRequest request, CancellationToken cancellationToken = default);
     Task DeleteUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task RemoveUserFriendAsync(Guid userId, Guid friendId, CancellationToken cancellationToken = default);
+    Task DeleteUserProjectAsync(Guid projectId, CancellationToken cancellationToken = default);
+    Task DeleteUserBoardAsync(Guid boardId, CancellationToken cancellationToken = default);
+    Task DeleteUserNotebookAsync(Guid notebookId, CancellationToken cancellationToken = default);
     Task<PaginatedResponse<AdminNoteDto>> GetNotesAsync(AdminNoteListQuery query, CancellationToken cancellationToken = default);
     Task DeleteNoteAsync(Guid noteId, CancellationToken cancellationToken = default);
     Task<PaginatedResponse<AuditLogDto>> GetAuditLogsAsync(AuditLogListQuery query, CancellationToken cancellationToken = default);

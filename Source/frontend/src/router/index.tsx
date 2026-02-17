@@ -52,7 +52,7 @@ export function AppRouter() {
             <Route path="/calendar" element={<CalendarsPage />} />
             <Route path="/chalkboards" element={<ChalkBoardsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/profile/:userId" element={<ProfilePage />} />
+            <Route path="/profile/:username" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="/admin" element={<AdminRoute />}>

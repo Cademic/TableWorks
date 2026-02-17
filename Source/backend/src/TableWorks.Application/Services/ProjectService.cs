@@ -202,6 +202,7 @@ public sealed class ProjectService : IProjectService
             Status = project.Status,
             Progress = project.Progress,
             Color = project.Color,
+            ShowEventsOnMainCalendar = project.ShowEventsOnMainCalendar,
             OwnerId = project.OwnerId,
             OwnerUsername = project.Owner?.Username ?? string.Empty,
             UserRole = userRole,
@@ -273,6 +274,8 @@ public sealed class ProjectService : IProjectService
         project.Status = request.Status;
         project.Progress = request.Progress;
         project.Color = request.Color ?? project.Color;
+        if (request.ShowEventsOnMainCalendar.HasValue)
+            project.ShowEventsOnMainCalendar = request.ShowEventsOnMainCalendar.Value;
         project.UpdatedAt = DateTime.UtcNow;
 
         _projectRepo.Update(project);
@@ -378,6 +381,60 @@ public sealed class ProjectService : IProjectService
             ?? throw new KeyNotFoundException("Member not found.");
 
         _memberRepo.Delete(member);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task LeaveProjectAsync(Guid userId, Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepo.Query()
+            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+            ?? throw new KeyNotFoundException("Project not found.");
+
+        if (project.OwnerId == userId)
+            throw new InvalidOperationException("Project owners cannot leave. Delete the project or transfer ownership instead.");
+
+        var member = await _memberRepo.Query()
+            .FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("You are not a member of this project.");
+
+        _memberRepo.Delete(member);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task TransferOwnershipAsync(Guid userId, Guid projectId, TransferOwnershipRequest request, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepo.Query()
+            .Include(p => p.Members)
+            .FirstOrDefaultAsync(p => p.Id == projectId && p.OwnerId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Project not found or access denied.");
+
+        if (request.NewOwnerId == userId)
+            throw new InvalidOperationException("You already own this project.");
+
+        var newOwnerMembership = project.Members.FirstOrDefault(m => m.UserId == request.NewOwnerId)
+            ?? throw new InvalidOperationException("The new owner must be an existing project member.");
+
+        var previousOwnerId = project.OwnerId;
+
+        // Remove new owner from members (they become owner)
+        _memberRepo.Delete(newOwnerMembership);
+
+        // Add previous owner as a member (Editor) so they retain access
+        var previousOwnerMember = new ProjectMember
+        {
+            ProjectId = projectId,
+            UserId = previousOwnerId,
+            Role = "Editor",
+            JoinedAt = DateTime.UtcNow,
+            InvitedByUserId = request.NewOwnerId
+        };
+        await _memberRepo.AddAsync(previousOwnerMember, cancellationToken);
+
+        // Transfer ownership
+        project.OwnerId = request.NewOwnerId;
+        project.UpdatedAt = DateTime.UtcNow;
+        _projectRepo.Update(project);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

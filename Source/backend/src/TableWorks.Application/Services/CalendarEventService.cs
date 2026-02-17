@@ -9,22 +9,45 @@ namespace ASideNote.Application.Services;
 public sealed class CalendarEventService : ICalendarEventService
 {
     private readonly IRepository<CalendarEvent> _eventRepo;
+    private readonly IRepository<Project> _projectRepo;
     private readonly IUnitOfWork _unitOfWork;
 
-    public CalendarEventService(IRepository<CalendarEvent> eventRepo, IUnitOfWork unitOfWork)
+    public CalendarEventService(IRepository<CalendarEvent> eventRepo, IRepository<Project> projectRepo, IUnitOfWork unitOfWork)
     {
         _eventRepo = eventRepo;
+        _projectRepo = projectRepo;
         _unitOfWork = unitOfWork;
     }
 
     public async Task<IReadOnlyList<CalendarEventDto>> GetEventsAsync(Guid userId, CalendarEventListQuery query, CancellationToken cancellationToken = default)
     {
-        var q = _eventRepo.Query()
-            .Where(e => e.UserId == userId)
-            .AsQueryable();
+        IQueryable<CalendarEvent> q;
 
         if (query.ProjectId.HasValue)
-            q = q.Where(e => e.ProjectId == query.ProjectId.Value);
+        {
+            // Project calendar: show all events linked to this project (from any project member)
+            // User must have access to the project (owner or member)
+            var hasAccess = await _projectRepo.Query()
+                .AnyAsync(p => p.Id == query.ProjectId.Value &&
+                    (p.OwnerId == userId || p.Members.Any(m => m.UserId == userId)), cancellationToken);
+            if (!hasAccess)
+                return Array.Empty<CalendarEventDto>();
+
+            q = _eventRepo.Query().Where(e => e.ProjectId == query.ProjectId.Value);
+        }
+        else
+        {
+            // Main/dashboard calendar: own events + project events where ShowEventsOnMainCalendar is true
+            q = _eventRepo.Query()
+                .Include(e => e.Project)
+                .ThenInclude(p => p!.Members)
+                .Where(e =>
+                    e.UserId == userId
+                    || (e.ProjectId != null
+                        && e.Project != null
+                        && e.Project.ShowEventsOnMainCalendar
+                        && (e.Project.OwnerId == userId || e.Project.Members.Any(m => m.UserId == userId))));
+        }
 
         // For recurring events we need a wider fetch window: any recurring event whose
         // start is <= query.To could produce instances inside the range.
@@ -96,11 +119,22 @@ public sealed class CalendarEventService : ICalendarEventService
     public async Task<CalendarEventDto> GetEventByIdAsync(Guid userId, Guid eventId, CancellationToken cancellationToken = default)
     {
         var entity = await _eventRepo.Query()
-            .Where(e => e.Id == eventId && e.UserId == userId)
+            .Include(e => e.Project)
+            .ThenInclude(p => p!.Members)
+            .Where(e => e.Id == eventId)
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
 
         if (entity is null)
+            throw new KeyNotFoundException($"Calendar event {eventId} not found.");
+
+        // Allow access if user owns the event or is a project member (for project-linked events)
+        var hasAccess = entity.UserId == userId
+            || (entity.ProjectId != null
+                && entity.Project != null
+                && (entity.Project.OwnerId == userId || entity.Project.Members.Any(m => m.UserId == userId)));
+
+        if (!hasAccess)
             throw new KeyNotFoundException($"Calendar event {eventId} not found.");
 
         return MapToDto(entity);

@@ -74,6 +74,19 @@ export async function removeMember(
   await apiClient.delete(`/projects/${projectId}/members/${userId}`);
 }
 
+export async function leaveProject(projectId: string): Promise<void> {
+  await apiClient.post(`/projects/${projectId}/leave`);
+}
+
+export async function transferProjectOwnership(
+  projectId: string,
+  newOwnerId: string,
+): Promise<void> {
+  await apiClient.post(`/projects/${projectId}/transfer`, {
+    newOwnerId,
+  });
+}
+
 export async function addBoardToProject(
   projectId: string,
   boardId: string,

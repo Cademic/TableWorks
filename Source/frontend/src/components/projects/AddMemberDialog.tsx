@@ -8,6 +8,7 @@ import type { FriendDto } from "../../types";
 interface AddMemberDialogProps {
   isOpen: boolean;
   projectId: string;
+  memberUserIds: string[];
   onClose: () => void;
   onAdded: () => void;
 }
@@ -17,6 +18,7 @@ type Tab = "email" | "friends";
 export function AddMemberDialog({
   isOpen,
   projectId,
+  memberUserIds,
   onClose,
   onAdded,
 }: AddMemberDialogProps) {
@@ -210,39 +212,50 @@ export function AddMemberDialog({
                 </div>
               ) : (
                 <ul className="divide-y divide-border/60">
-                  {friends.map((f) => (
-                    <li
-                      key={f.id}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
-                          {getAvatarUrl(f.profilePictureKey) ? (
-                            <img
-                              src={getAvatarUrl(f.profilePictureKey)!}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xs font-medium text-foreground/60">
-                              {f.username.charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {f.username}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        disabled={addingUserId === f.id}
-                        onClick={() => handleAddFriend(f)}
-                        className="flex-shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  {friends.map((f) => {
+                    const isAdded = memberUserIds.includes(f.id);
+                    return (
+                      <li
+                        key={f.id}
+                        className={`flex items-center justify-between gap-3 px-4 py-2.5 ${
+                          isAdded ? "opacity-60" : ""
+                        }`}
                       >
-                        {addingUserId === f.id ? "Adding…" : "Add"}
-                      </button>
-                    </li>
-                  ))}
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                            {getAvatarUrl(f.profilePictureKey) ? (
+                              <img
+                                src={getAvatarUrl(f.profilePictureKey)!}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs font-medium text-foreground/60">
+                                {f.username.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <span className="truncate text-sm font-medium text-foreground">
+                            {f.username}
+                          </span>
+                        </div>
+                        {isAdded ? (
+                          <span className="flex-shrink-0 rounded-lg bg-foreground/10 px-3 py-1.5 text-xs font-medium text-foreground/50">
+                            ADDED
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={addingUserId === f.id}
+                            onClick={() => handleAddFriend(f)}
+                            className="flex-shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {addingUserId === f.id ? "Adding…" : "Add"}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

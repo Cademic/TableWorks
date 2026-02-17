@@ -81,6 +81,10 @@ export interface UserPublicDto {
   username: string;
   profilePictureKey: string | null;
   bio: string | null;
+  createdAt?: string | null;
+  lastLoginAt?: string | null;
+  friendCount?: number;
+  role?: string | null;
 }
 
 export interface FriendDto {
@@ -97,6 +101,14 @@ export interface FriendRequestDto {
   requesterProfilePictureKey: string | null;
   createdAt: string;
   status: number;
+}
+
+export interface SentFriendRequestDto {
+  id: string;
+  receiverId: string;
+  receiverUsername: string;
+  receiverProfilePictureKey: string | null;
+  createdAt: string;
 }
 
 export interface FriendStatusDto {
@@ -354,6 +366,7 @@ export interface ProjectDetailDto {
   status: string;
   progress: number;
   color: string;
+  showEventsOnMainCalendar?: boolean;
   ownerId: string;
   ownerUsername: string;
   userRole: string;
@@ -382,6 +395,7 @@ export interface UpdateProjectRequest {
   status: string;
   progress: number;
   color?: string;
+  showEventsOnMainCalendar?: boolean;
 }
 
 export interface AddMemberRequest {
@@ -483,6 +497,22 @@ export interface AuditLogDto {
   timestamp: string;
 }
 
+export interface AdminBoardSummaryDto {
+  id: string;
+  name: string;
+  description: string | null;
+  boardType: string;
+  projectId: string | null;
+  createdAt: string;
+}
+
+export interface AdminNotebookSummaryDto {
+  id: string;
+  name: string;
+  projectId: string | null;
+  createdAt: string;
+}
+
 export interface AdminUserDetailDto {
   id: string;
   username: string;
@@ -494,6 +524,8 @@ export interface AdminUserDetailDto {
   stats: AdminUserStatsDto;
   notes: NoteSummaryDto[];
   projects: ProjectSummaryDto[];
+  boards: AdminBoardSummaryDto[];
+  notebooks: AdminNotebookSummaryDto[];
   activityLog: AuditLogDto[];
   friends: AdminFriendDto[];
 }

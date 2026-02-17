@@ -66,8 +66,9 @@ public sealed class AuthService : IAuthService
         if (existingEmail)
             throw new InvalidOperationException("A user with this email already exists.");
 
+        var normalizedUsername = request.Username.Trim().ToLowerInvariant();
         var existingUsername = await _userRepo.Query()
-            .AnyAsync(u => u.Username == request.Username, cancellationToken);
+            .AnyAsync(u => u.Username.ToLower() == normalizedUsername, cancellationToken);
         if (existingUsername)
             throw new InvalidOperationException("A user with this username already exists.");
 
@@ -472,7 +473,7 @@ public sealed class AuthService : IAuthService
         var candidate = sanitized;
         var attempt = 0;
 
-        while (await _userRepo.Query().AnyAsync(u => u.Username == candidate, cancellationToken))
+        while (await _userRepo.Query().AnyAsync(u => u.Username.ToLower() == candidate.ToLower(), cancellationToken))
         {
             attempt++;
             candidate = $"{sanitized}{RandomNumberGenerator.GetInt32(1000, 9999)}";

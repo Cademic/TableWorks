@@ -17,11 +17,16 @@ import {
   PenTool,
   FolderOpen,
   CalendarClock,
+  LogOut,
+  UserCog,
+  X,
 } from "lucide-react";
 import {
   getProjectById,
   updateProject,
   deleteProject,
+  leaveProject,
+  transferProjectOwnership,
   addBoardToProject,
   removeBoardFromProject,
   addNotebookToProject,
@@ -40,7 +45,12 @@ import { AddMemberDialog } from "../components/projects/AddMemberDialog";
 import { AddExistingBoardDialog } from "../components/projects/AddExistingBoardDialog";
 import { AddExistingNotebookDialog } from "../components/projects/AddExistingNotebookDialog";
 import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDialog";
-import type { ProjectDetailDto, BoardSummaryDto, NotebookSummaryDto } from "../types";
+import type {
+  ProjectDetailDto,
+  BoardSummaryDto,
+  NotebookSummaryDto,
+  ProjectMemberDto,
+} from "../types";
 import { useOutletContext } from "react-router-dom";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 
@@ -94,7 +104,11 @@ export function ProjectDetailPage() {
   const [createNotebookError, setCreateNotebookError] = useState<string | null>(null);
   const [isAddExistingNotebookOpen, setIsAddExistingNotebookOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const   [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const   [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<ProjectMemberDto | null>(
+    null,
+  );
   const [removeBoardTarget, setRemoveBoardTarget] = useState<BoardSummaryDto | null>(null);
   const [removeNotebookTarget, setRemoveNotebookTarget] = useState<NotebookSummaryDto | null>(null);
 
@@ -167,6 +181,8 @@ export function ProjectDetailPage() {
   const [editStartDate, setEditStartDate] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
   const [editDeadline, setEditDeadline] = useState("");
+  const [editShowEventsOnMainCalendar, setEditShowEventsOnMainCalendar] =
+    useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const isOwner = project?.userRole === "Owner";
@@ -188,6 +204,7 @@ export function ProjectDetailPage() {
       setEditStartDate(toInputDate(data.startDate));
       setEditEndDate(toInputDate(data.endDate));
       setEditDeadline(data.deadline ? toInputDate(data.deadline) : "");
+      setEditShowEventsOnMainCalendar(data.showEventsOnMainCalendar ?? false);
     } catch {
       setError("Failed to load project.");
     } finally {
@@ -332,6 +349,7 @@ export function ProjectDetailPage() {
         deadline: editDeadline || undefined,
         status: editStatus,
         progress: editProgress,
+        showEventsOnMainCalendar: editShowEventsOnMainCalendar,
       });
       await fetchProject();
     } catch {
@@ -347,6 +365,37 @@ export function ProjectDetailPage() {
     try {
       await deleteProject(projectId);
       navigate("/projects");
+    } catch {
+      // Silently fail
+    }
+  }
+
+  function handleLeaveProject() {
+    setLeaveConfirmOpen(true);
+  }
+
+  async function confirmLeaveProject() {
+    if (!projectId) return;
+    setLeaveConfirmOpen(false);
+    try {
+      await leaveProject(projectId);
+      navigate("/projects");
+    } catch {
+      // Silently fail
+    }
+  }
+
+  function handleTransferOwnership(member: ProjectMemberDto) {
+    setTransferTarget(member);
+  }
+
+  async function confirmTransferOwnership() {
+    if (!projectId || !transferTarget) return;
+    const newOwnerId = transferTarget.userId;
+    setTransferTarget(null);
+    try {
+      await transferProjectOwnership(projectId, newOwnerId);
+      await fetchProject();
     } catch {
       // Silently fail
     }
@@ -500,8 +549,6 @@ export function ProjectDetailPage() {
             ].filter(Boolean).join(" ")}
           >
             {TABS.map((tab) => {
-              // Hide settings tab for non-owners
-              if (tab.id === "settings" && !isOwner) return null;
               const isActive = activeTab === tab.id;
               return (
                 <button
@@ -581,8 +628,10 @@ export function ProjectDetailPage() {
           />
         )}
 
-        {activeTab === "settings" && isOwner && (
+        {activeTab === "settings" && (
           <SettingsTab
+            isOwner={isOwner}
+            members={project.members}
             editName={editName}
             editDescription={editDescription}
             editColor={editColor}
@@ -591,6 +640,7 @@ export function ProjectDetailPage() {
             editStartDate={editStartDate}
             editEndDate={editEndDate}
             editDeadline={editDeadline}
+            editShowEventsOnMainCalendar={editShowEventsOnMainCalendar}
             isSaving={isSaving}
             onNameChange={setEditName}
             onDescriptionChange={setEditDescription}
@@ -600,8 +650,11 @@ export function ProjectDetailPage() {
             onStartDateChange={setEditStartDate}
             onEndDateChange={setEditEndDate}
             onDeadlineChange={setEditDeadline}
+            onShowEventsOnMainCalendarChange={setEditShowEventsOnMainCalendar}
             onSave={handleSaveSettings}
             onDelete={() => setDeleteConfirmOpen(true)}
+            onLeave={handleLeaveProject}
+            onTransferOwnership={handleTransferOwnership}
           />
         )}
       </div>
@@ -639,6 +692,11 @@ export function ProjectDetailPage() {
       <AddMemberDialog
         isOpen={isAddMemberOpen}
         projectId={projectId ?? ""}
+        memberUserIds={
+          project
+            ? [project.ownerId, ...project.members.map((m) => m.userId)]
+            : []
+        }
         onClose={() => setIsAddMemberOpen(false)}
         onAdded={handleMemberAdded}
       />
@@ -674,6 +732,28 @@ export function ProjectDetailPage() {
         variant="danger"
         onConfirm={handleDeleteProject}
         onCancel={() => setDeleteConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={leaveConfirmOpen}
+        title="Leave Project"
+        message={`Are you sure you want to leave "${project.name}"? You can be re-invited to rejoin later.`}
+        confirmLabel="Leave Project"
+        cancelLabel="Stay"
+        variant="danger"
+        onConfirm={confirmLeaveProject}
+        onCancel={() => setLeaveConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={transferTarget !== null}
+        title="Transfer Ownership"
+        message={`Transfer ownership of "${project.name}" to ${transferTarget?.username ?? "this member"}? You will become an Editor and they will become the owner.`}
+        confirmLabel="Transfer"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmTransferOwnership}
+        onCancel={() => setTransferTarget(null)}
       />
     </div>
   );
@@ -927,6 +1007,8 @@ const PROJECT_COLORS = [
 ];
 
 interface SettingsTabProps {
+  isOwner: boolean;
+  members: ProjectMemberDto[];
   editName: string;
   editDescription: string;
   editColor: string;
@@ -935,6 +1017,7 @@ interface SettingsTabProps {
   editStartDate: string;
   editEndDate: string;
   editDeadline: string;
+  editShowEventsOnMainCalendar: boolean;
   isSaving: boolean;
   onNameChange: (v: string) => void;
   onDescriptionChange: (v: string) => void;
@@ -944,11 +1027,16 @@ interface SettingsTabProps {
   onStartDateChange: (v: string) => void;
   onEndDateChange: (v: string) => void;
   onDeadlineChange: (v: string) => void;
+  onShowEventsOnMainCalendarChange: (v: boolean) => void;
   onSave: (e: React.FormEvent) => void;
   onDelete: () => void;
+  onLeave: () => void;
+  onTransferOwnership: (member: ProjectMemberDto) => void;
 }
 
 function SettingsTab({
+  isOwner,
+  members,
   editName,
   editDescription,
   editColor,
@@ -957,6 +1045,7 @@ function SettingsTab({
   editStartDate,
   editEndDate,
   editDeadline,
+  editShowEventsOnMainCalendar,
   isSaving,
   onNameChange,
   onDescriptionChange,
@@ -966,11 +1055,22 @@ function SettingsTab({
   onStartDateChange,
   onEndDateChange,
   onDeadlineChange,
+  onShowEventsOnMainCalendarChange,
   onSave,
   onDelete,
+  onLeave,
+  onTransferOwnership,
 }: SettingsTabProps) {
+  const readOnly = !isOwner;
+  const [transferPopupOpen, setTransferPopupOpen] = useState(false);
+
   return (
     <div className="max-w-lg">
+      {readOnly && (
+        <p className="mb-4 rounded-lg border border-foreground/10 bg-foreground/5 px-4 py-2 text-xs text-foreground/60">
+          Only the project owner can change these settings.
+        </p>
+      )}
       <form onSubmit={onSave} className="flex flex-col gap-4">
         {/* Name */}
         <div>
@@ -986,7 +1086,9 @@ function SettingsTab({
             value={editName}
             onChange={(e) => onNameChange(e.target.value)}
             maxLength={100}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            readOnly={readOnly}
+            disabled={readOnly}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
           />
         </div>
 
@@ -1004,7 +1106,9 @@ function SettingsTab({
             onChange={(e) => onDescriptionChange(e.target.value)}
             maxLength={500}
             rows={3}
-            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            readOnly={readOnly}
+            disabled={readOnly}
+            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
           />
         </div>
 
@@ -1018,13 +1122,14 @@ function SettingsTab({
               <button
                 key={c.value}
                 type="button"
-                onClick={() => onColorChange(c.value)}
+                onClick={() => !readOnly && onColorChange(c.value)}
+                disabled={readOnly}
                 title={c.label}
                 className={`h-7 w-7 rounded-full ${c.bg} transition-all ${
                   editColor === c.value
                     ? `ring-2 ${c.ring} ring-offset-2 ring-offset-background scale-110`
                     : "opacity-60 hover:opacity-100"
-                }`}
+                } disabled:cursor-default disabled:opacity-70`}
               />
             ))}
           </div>
@@ -1042,7 +1147,8 @@ function SettingsTab({
             id="settings-status"
             value={editStatus}
             onChange={(e) => onStatusChange(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            disabled={readOnly}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -1067,7 +1173,8 @@ function SettingsTab({
             max={100}
             value={editProgress}
             onChange={(e) => onProgressChange(Number(e.target.value))}
-            className="w-full accent-violet-500"
+            disabled={readOnly}
+            className="w-full accent-violet-500 disabled:cursor-default disabled:opacity-70"
           />
         </div>
 
@@ -1079,35 +1186,188 @@ function SettingsTab({
           onStartDateChange={onStartDateChange}
           onEndDateChange={onEndDateChange}
           onDeadlineChange={onDeadlineChange}
+          readOnly={readOnly}
         />
 
-        {/* Save */}
-        <button
-          type="submit"
-          disabled={isSaving || !editName.trim()}
-          className="self-start rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSaving ? "Saving..." : "Save Changes"}
-        </button>
+        {/* Show events on main calendar */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <label className="text-xs font-medium text-foreground/60">
+              Calendar visibility
+            </label>
+            <p className="mt-0.5 text-xs text-foreground/50">
+              Show project events on members&apos; main and dashboard calendars
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={editShowEventsOnMainCalendar}
+            disabled={readOnly}
+            onClick={() => !readOnly && onShowEventsOnMainCalendarChange(!editShowEventsOnMainCalendar)}
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:cursor-default disabled:opacity-70 ${
+              readOnly ? "cursor-default" : "cursor-pointer"
+            } ${editShowEventsOnMainCalendar ? "bg-primary" : "bg-foreground/20"}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+                editShowEventsOnMainCalendar ? "translate-x-5" : "translate-x-0.5"
+              }`}
+              aria-hidden
+            />
+          </button>
+        </div>
+
+        {/* Save - owners only */}
+        {isOwner && (
+          <button
+            type="submit"
+            disabled={isSaving || !editName.trim()}
+            className="self-start rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+        )}
       </form>
 
-      {/* Danger zone */}
+      {/* Transfer ownership - owners only, when project has members */}
+      {isOwner && members.length > 0 && (
+        <div className="mt-10 rounded-lg border border-amber-200 p-4 dark:border-amber-900/40">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+            <UserCog className="h-4 w-4" />
+            Transfer Ownership
+          </h4>
+          <p className="mt-1 text-xs text-foreground/50">
+            Transfer ownership to another project member. You will become an
+            Editor and they will become the owner.
+          </p>
+          <TransferOwnershipPopup
+            members={members}
+            isOpen={transferPopupOpen}
+            onClose={() => setTransferPopupOpen(false)}
+            onSelectMember={(member) => {
+              setTransferPopupOpen(false);
+              onTransferOwnership(member);
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setTransferPopupOpen(true)}
+            className="mt-3 flex items-center gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+          >
+            <Crown className="h-3.5 w-3.5" />
+            Transfer
+          </button>
+        </div>
+      )}
+
+      {/* Danger zone - owners: Delete; non-owners: Leave */}
       <div className="mt-10 rounded-lg border border-red-200 p-4 dark:border-red-900/40">
         <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">
           Danger Zone
         </h4>
-        <p className="mt-1 text-xs text-foreground/50">
-          Deleting this project will unlink all boards and notebooks. The
-          boards and notebooks themselves will not be deleted.
-        </p>
+        {isOwner ? (
+          <>
+            <p className="mt-1 text-xs text-foreground/50">
+              Deleting this project will unlink all boards and notebooks. The
+              boards and notebooks themselves will not be deleted.
+            </p>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="mt-3 flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete Project
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 text-xs text-foreground/50">
+              Leave this project. You can be re-invited to rejoin later.
+            </p>
+            <button
+              type="button"
+              onClick={onLeave}
+              className="mt-3 flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Leave Project
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* -- Transfer Ownership Popup --------------------------------- */
+
+interface TransferOwnershipPopupProps {
+  members: ProjectMemberDto[];
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectMember: (member: ProjectMemberDto) => void;
+}
+
+function TransferOwnershipPopup({
+  members,
+  isOpen,
+  onClose,
+  onSelectMember,
+}: TransferOwnershipPopupProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        onKeyDown={() => {}}
+        role="presentation"
+      />
+      <div className="relative mx-4 w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl">
         <button
           type="button"
-          onClick={onDelete}
-          className="mt-3 flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg p-1 text-foreground/50 transition-colors hover:bg-background hover:text-foreground"
         >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete Project
+          <X className="h-5 w-5" />
         </button>
+        <h3 className="pr-8 text-base font-semibold text-foreground">
+          Transfer ownership to
+        </h3>
+        <p className="mt-1 text-xs text-foreground/50">
+          Select a project member to become the new owner.
+        </p>
+        <ul className="mt-4 divide-y divide-border/60">
+          {members.map((member) => (
+            <li key={member.userId}>
+              <button
+                type="button"
+                onClick={() => onSelectMember(member)}
+                className="flex w-full items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-foreground/[0.04]"
+              >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-foreground/10">
+                  <span className="text-xs font-medium text-foreground/70">
+                    {member.username.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-sm font-medium text-foreground">
+                    {member.username}
+                  </span>
+                  {member.email && (
+                    <span className="block truncate text-xs text-foreground/50">
+                      {member.email}
+                    </span>
+                  )}
+                </div>
+                <Crown className="h-4 w-4 flex-shrink-0 text-amber-500/60" />
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -1122,6 +1382,7 @@ interface TimeConstraintsBlockProps {
   onStartDateChange: (v: string) => void;
   onEndDateChange: (v: string) => void;
   onDeadlineChange: (v: string) => void;
+  readOnly?: boolean;
 }
 
 function TimeConstraintsBlock({
@@ -1131,11 +1392,12 @@ function TimeConstraintsBlock({
   onStartDateChange,
   onEndDateChange,
   onDeadlineChange,
+  readOnly = false,
 }: TimeConstraintsBlockProps) {
   const hasConstraints = !!(editStartDate || editEndDate);
 
   function handleToggle(checked: boolean) {
-    if (!checked) {
+    if (!readOnly && !checked) {
       onStartDateChange("");
       onEndDateChange("");
       onDeadlineChange("");
@@ -1146,14 +1408,15 @@ function TimeConstraintsBlock({
     <>
       <label
         htmlFor="settings-time-constraints"
-        className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 transition-colors hover:bg-foreground/[0.02]"
+        className={`flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 transition-colors ${readOnly ? "cursor-default opacity-70" : "cursor-pointer hover:bg-foreground/[0.02]"}`}
       >
         <input
           id="settings-time-constraints"
           type="checkbox"
           checked={hasConstraints}
           onChange={(e) => handleToggle(e.target.checked)}
-          className="h-4 w-4 rounded border-border text-primary accent-primary focus:ring-2 focus:ring-primary/20"
+          disabled={readOnly}
+          className="h-4 w-4 rounded border-border text-primary accent-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-default"
         />
         <CalendarClock className="h-4 w-4 text-foreground/40" />
         <span className="text-sm font-medium text-foreground/70">
@@ -1176,7 +1439,8 @@ function TimeConstraintsBlock({
                 type="date"
                 value={editStartDate}
                 onChange={(e) => onStartDateChange(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={readOnly}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
               />
             </div>
             <div>
@@ -1191,7 +1455,8 @@ function TimeConstraintsBlock({
                 type="date"
                 value={editEndDate}
                 onChange={(e) => onEndDateChange(e.target.value)}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={readOnly}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
               />
             </div>
           </div>
@@ -1208,7 +1473,8 @@ function TimeConstraintsBlock({
               type="date"
               value={editDeadline}
               onChange={(e) => onDeadlineChange(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              disabled={readOnly}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-70"
             />
           </div>
         </div>

@@ -445,7 +445,7 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
         {expanded && user && (
           <button
             type="button"
-            onClick={() => navigate("/profile")}
+            onClick={() => navigate(user?.username ? `/profile/${encodeURIComponent(user.username)}` : "/profile")}
             className="block w-full truncate px-3 text-left text-[10px] font-semibold uppercase tracking-wider text-foreground/35 transition-colors hover:text-foreground/60"
           >
             {user.username}

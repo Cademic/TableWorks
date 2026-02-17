@@ -90,6 +90,14 @@ public sealed class UsersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("me/friend-requests/sent")]
+    [ProducesResponseType(typeof(IReadOnlyList<SentFriendRequestDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingSentFriendRequests(CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetPendingSentRequestsAsync(_currentUserService.UserId, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpGet("me/friend-requests/status")]
     [ProducesResponseType(typeof(FriendStatusDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFriendStatus([FromQuery] Guid userId, CancellationToken cancellationToken)
@@ -128,6 +136,16 @@ public sealed class UsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("me/friend-requests/{id:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelFriendRequest([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        await _userService.CancelFriendRequestAsync(_currentUserService.UserId, id, cancellationToken);
+        return NoContent();
+    }
+
     [HttpDelete("me/friends/{friendId:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -136,6 +154,27 @@ public sealed class UsersController : ControllerBase
     {
         await _userService.RemoveFriendAsync(_currentUserService.UserId, friendId, cancellationToken);
         return NoContent();
+    }
+
+    [HttpGet("by-username/{username}")]
+    [ProducesResponseType(typeof(UserPublicDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetPublicProfileByUsername([FromRoute] string username, CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetPublicProfileByUsernameAsync(username ?? string.Empty, _currentUserService.UserId, cancellationToken);
+        if (result is null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpGet("by-username/{username}/friends")]
+    [ProducesResponseType(typeof(IReadOnlyList<FriendDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUserFriendsByUsername([FromRoute] string username, CancellationToken cancellationToken)
+    {
+        var profile = await _userService.GetPublicProfileByUsernameAsync(username ?? string.Empty, _currentUserService.UserId, cancellationToken);
+        if (profile is null) return NotFound();
+        var result = await _userService.GetFriendsAsync(profile.Id, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("search")]
@@ -153,6 +192,17 @@ public sealed class UsersController : ControllerBase
     {
         var result = await _userService.GetPublicProfileAsync(id, _currentUserService.UserId, cancellationToken);
         if (result is null) return NotFound();
+        return Ok(result);
+    }
+
+    [HttpGet("{id:guid}/friends")]
+    [ProducesResponseType(typeof(IReadOnlyList<FriendDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUserFriends([FromRoute] Guid id, CancellationToken cancellationToken)
+    {
+        var profile = await _userService.GetPublicProfileAsync(id, _currentUserService.UserId, cancellationToken);
+        if (profile is null) return NotFound();
+        var result = await _userService.GetFriendsAsync(id, cancellationToken);
         return Ok(result);
     }
 }

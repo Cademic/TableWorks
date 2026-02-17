@@ -163,6 +163,8 @@ public sealed class AdminService : IAdminService
         var user = await _userRepo.Query()
             .Include(u => u.Notes).ThenInclude(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .Include(u => u.OwnedProjects).ThenInclude(p => p.Members)
+            .Include(u => u.Boards)
+            .Include(u => u.Notebooks)
             .Include(u => u.AuditLogs)
             .Include(u => u.SentFriendRequests).ThenInclude(f => f.Receiver)
             .Include(u => u.ReceivedFriendRequests).ThenInclude(f => f.Requester)
@@ -225,6 +227,22 @@ public sealed class AdminService : IAdminService
                 OwnerId = p.OwnerId,
                 MemberCount = p.Members.Count,
                 CreatedAt = p.CreatedAt
+            }).ToList(),
+            Boards = user.Boards.Take(20).Select(b => new AdminBoardSummaryDto
+            {
+                Id = b.Id,
+                Name = b.Name,
+                Description = b.Description,
+                BoardType = b.BoardType,
+                ProjectId = b.ProjectId,
+                CreatedAt = b.CreatedAt
+            }).ToList(),
+            Notebooks = user.Notebooks.Take(20).Select(n => new AdminNotebookSummaryDto
+            {
+                Id = n.Id,
+                Name = n.Name,
+                ProjectId = n.ProjectId,
+                CreatedAt = n.CreatedAt
             }).ToList(),
             ActivityLog = user.AuditLogs.OrderByDescending(a => a.Timestamp).Take(50).Select(a => new AuditLogDto
             {
@@ -298,6 +316,30 @@ public sealed class AdminService : IAdminService
         request.Status = FriendRequestStatus.Rejected;
         request.RespondedAt = DateTime.UtcNow;
         _friendRequestRepo.Update(request);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteUserProjectAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        var project = await _projectRepo.GetByIdAsync(projectId, cancellationToken)
+            ?? throw new KeyNotFoundException("Project not found.");
+        _projectRepo.Delete(project);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteUserBoardAsync(Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var board = await _boardRepo.GetByIdAsync(boardId, cancellationToken)
+            ?? throw new KeyNotFoundException("Board not found.");
+        _boardRepo.Delete(board);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteUserNotebookAsync(Guid notebookId, CancellationToken cancellationToken = default)
+    {
+        var notebook = await _notebookRepo.GetByIdAsync(notebookId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found.");
+        _notebookRepo.Delete(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 

@@ -8,7 +8,7 @@ import { useThemeContext, type ThemeMode } from "../context/ThemeContext";
 import { AVATAR_KEYS, getAvatarUrl } from "../constants/avatars";
 import type { UserProfileDto } from "../types";
 
-const USERNAME_COOLDOWN_DAYS = 30;
+const USERNAME_COOLDOWN_DAYS = 10;
 const BIO_MAX_LENGTH = 200;
 
 function themeToBackend(mode: ThemeMode): string {

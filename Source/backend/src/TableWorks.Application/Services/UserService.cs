@@ -17,6 +17,7 @@ public sealed class UserService : IUserService
     };
 
     private const int BioMaxLength = 200;
+    private const int UsernameChangeCooldownDays = 10;
 
     private readonly IRepository<User> _userRepo;
     private readonly IRepository<UserPreferences> _prefsRepo;
@@ -103,20 +104,22 @@ public sealed class UserService : IUserService
             user.Email = request.Email;
         }
 
-        // Username change (cooldown removed for testing; will be re-implemented later)
-        if (user.Username != request.Username)
+        // Username change with 10-day cooldown and case-insensitive uniqueness
+        if (string.Equals(user.Username, request.Username, StringComparison.OrdinalIgnoreCase) == false)
         {
+            var lastChange = user.UsernameChangedAt ?? user.CreatedAt;
+            var daysSinceChange = (DateTime.UtcNow - lastChange).TotalDays;
+            if (daysSinceChange < UsernameChangeCooldownDays)
+                throw new InvalidOperationException(
+                    $"Username can only be changed every {UsernameChangeCooldownDays} days. You can change it again in {Math.Ceiling(UsernameChangeCooldownDays - daysSinceChange)} day(s).");
+
             var usernameExists = await _userRepo.Query()
-                .AnyAsync(u => u.Username == request.Username && u.Id != userId, cancellationToken);
+                .AnyAsync(u => u.Username.ToLower() == request.Username.Trim().ToLower() && u.Id != userId, cancellationToken);
             if (usernameExists)
                 throw new InvalidOperationException("Username is already in use.");
 
-            user.Username = request.Username;
+            user.Username = request.Username.Trim();
             user.UsernameChangedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            user.Username = request.Username;
         }
 
         _userRepo.Update(user);
@@ -222,17 +225,34 @@ public sealed class UserService : IUserService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<UserPublicDto?> GetPublicProfileByUsernameAsync(string username, Guid currentUserId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return null;
+        var normalized = username.Trim().ToLowerInvariant();
+        var user = await _userRepo.Query()
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == normalized, cancellationToken);
+        if (user is null) return null;
+        return await GetPublicProfileAsync(user.Id, currentUserId, cancellationToken);
+    }
+
     public async Task<UserPublicDto?> GetPublicProfileAsync(Guid userId, Guid currentUserId, CancellationToken cancellationToken = default)
     {
         var user = await _userRepo.GetByIdAsync(userId, cancellationToken);
         if (user is null) return null;
+
+        var friendCount = await _friendRequestRepo.Query()
+            .CountAsync(f => (f.RequesterId == userId || f.ReceiverId == userId) && f.Status == FriendRequestStatus.Accepted, cancellationToken);
 
         return new UserPublicDto
         {
             Id = user.Id,
             Username = user.Username,
             ProfilePictureKey = user.ProfilePictureKey,
-            Bio = user.Bio
+            Bio = user.Bio,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt,
+            FriendCount = friendCount,
+            Role = user.Role
         };
     }
 
@@ -349,6 +369,24 @@ public sealed class UserService : IUserService
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SentFriendRequestDto>> GetPendingSentRequestsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _friendRequestRepo.Query()
+            .Where(f => f.RequesterId == userId && f.Status == FriendRequestStatus.Pending)
+            .OrderByDescending(f => f.CreatedAt)
+            .Include(f => f.Receiver)
+            .AsNoTracking()
+            .Select(f => new SentFriendRequestDto
+            {
+                Id = f.Id,
+                ReceiverId = f.ReceiverId,
+                ReceiverUsername = f.Receiver != null ? f.Receiver.Username : "",
+                ReceiverProfilePictureKey = f.Receiver != null ? f.Receiver.ProfilePictureKey : null,
+                CreatedAt = f.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task SendFriendRequestAsync(Guid requesterId, Guid receiverId, CancellationToken cancellationToken = default)
     {
         if (requesterId == receiverId)
@@ -440,6 +478,21 @@ public sealed class UserService : IUserService
             ?? throw new KeyNotFoundException("Friend request not found.");
         if (request.ReceiverId != userId)
             throw new UnauthorizedAccessException("You can only reject requests sent to you.");
+        if (request.Status != FriendRequestStatus.Pending)
+            throw new InvalidOperationException("This request has already been responded to.");
+
+        request.Status = FriendRequestStatus.Rejected;
+        request.RespondedAt = DateTime.UtcNow;
+        _friendRequestRepo.Update(request);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task CancelFriendRequestAsync(Guid userId, Guid requestId, CancellationToken cancellationToken = default)
+    {
+        var request = await _friendRequestRepo.GetByIdAsync(requestId, cancellationToken)
+            ?? throw new KeyNotFoundException("Friend request not found.");
+        if (request.RequesterId != userId)
+            throw new UnauthorizedAccessException("You can only cancel requests you sent.");
         if (request.Status != FriendRequestStatus.Pending)
             throw new InvalidOperationException("This request has already been responded to.");
 

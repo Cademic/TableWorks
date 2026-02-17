@@ -392,7 +392,7 @@ export function MiniCalendar({ projects }: MiniCalendarProps) {
       {/* No items placeholder */}
       {week1Items.length === 0 && week2Items.length === 0 && (
         <div className="navbar-surface flex items-center justify-center py-8 text-xs text-foreground/30">
-          No events or projects this fortnight
+          No events or projects
         </div>
       )}
 

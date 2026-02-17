@@ -113,6 +113,26 @@ public sealed class ProjectsController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("{id:guid}/leave")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> LeaveProject(Guid id, CancellationToken cancellationToken)
+    {
+        await _projectService.LeaveProjectAsync(_currentUserService.UserId, id, cancellationToken);
+        return Ok();
+    }
+
+    [HttpPost("{id:guid}/transfer")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TransferOwnership(Guid id, [FromBody] TransferOwnershipRequest request, CancellationToken cancellationToken)
+    {
+        await _projectService.TransferOwnershipAsync(_currentUserService.UserId, id, request, cancellationToken);
+        return Ok();
+    }
+
     [HttpPost("{id:guid}/boards/{boardId:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -311,16 +311,16 @@ export function LandingPage() {
         </div>
 
         <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
-          {/* Video — theme-aware; remount on theme change */}
-          <div className="flex-1 overflow-hidden rounded-xl border border-border/60 bg-surface/50 shadow-sm">
+          {/* Video — theme-aware; remount on theme change. Aspect-ratio reserves space on mobile so the video area doesn't collapse; preload="auto" helps mobile load the first frame. */}
+          <div className="flex-1 overflow-hidden rounded-xl border border-border/60 bg-surface/50 shadow-sm aspect-video min-h-[200px]">
             <video
               key={effectiveTheme}
-              className="h-auto w-full"
+              className="h-full w-full object-cover"
               src={DASHBOARD_VIDEO_SRC[effectiveTheme]}
               muted
               loop
               playsInline
-              preload="metadata"
+              preload="auto"
               autoPlay={!prefersReducedMotion}
               aria-label="Dashboard walkthrough showing boards, projects, and calendar"
             />

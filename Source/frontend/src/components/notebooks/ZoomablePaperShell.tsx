@@ -91,16 +91,7 @@ export function ZoomablePaperShell({
   return (
     <div
       ref={containerRef}
-      className="zoomable-paper-container"
-      style={{
-        overflow: "auto",
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-start",
-        padding: "20px",
-      }}
+      className="zoomable-paper-container overflow-auto w-full h-full flex justify-center items-start p-5 bg-background"
     >
       <div
         className="zoomable-paper-content"

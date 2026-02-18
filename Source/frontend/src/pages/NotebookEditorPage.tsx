@@ -12,6 +12,13 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
+import { Heading } from "@tiptap/extension-heading";
+import Highlight from "@tiptap/extension-highlight";
+import Link from "@tiptap/extension-link";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import Underline from "@tiptap/extension-underline";
+import Image from "@tiptap/extension-image";
 import { ArrowLeft, Download, ChevronDown, Upload, Printer, History } from "lucide-react";
 import { FontSize } from "../lib/tiptap-font-size";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion } from "../api/notebooks";
@@ -114,7 +121,14 @@ export function NotebookEditorPage() {
       Color,
       FontFamily,
       FontSize,
-      TextAlign.configure({ types: ["paragraph"] }),
+      TextAlign.configure({ types: ["paragraph", "heading"] }),
+      Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }),
+      Highlight.configure({ multicolor: true }),
+      Link.configure({ openOnClick: false }),
+      Subscript,
+      Superscript,
+      Underline,
+      Image.configure({ inline: true, allowBase64: true }),
       Table.configure({ resizable: true }),
       TableRow,
       TableCell,
@@ -311,11 +325,11 @@ export function NotebookEditorPage() {
   if (!notebookId) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-12">
-        <p className="text-sm text-muted-foreground">Missing notebook.</p>
+        <p className="text-sm text-foreground/60">Missing notebook.</p>
         <button
           type="button"
           onClick={() => navigate("/notebooks")}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
         >
           Back to Notebooks
         </button>
@@ -330,7 +344,7 @@ export function NotebookEditorPage() {
         <button
           type="button"
           onClick={handleClose}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-amber-600 hover:shadow-md hover:-translate-y-0.5 dark:bg-amber-600 dark:hover:bg-amber-500"
         >
           Back to Notebooks
         </button>
@@ -342,44 +356,49 @@ export function NotebookEditorPage() {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-12">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        <span className="text-sm text-muted-foreground">Loading notebook...</span>
+        <span className="text-sm text-foreground/60">Loading notebook...</span>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-zinc-200 dark:bg-zinc-950">
-      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border bg-white dark:bg-zinc-900 px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg p-2 text-foreground/70 hover:bg-foreground/10 hover:text-foreground"
-            aria-label="Back to notebooks"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <span className="truncate text-sm font-medium text-foreground">{notebook.name}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      {/* Notepad-style header */}
+      <div className="notepad-card flex-shrink-0 border-b border-border/50">
+        <div className="notepad-spiral-strip" />
+        <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="rounded-lg p-2 text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+              aria-label="Back to notebooks"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <span className="truncate text-base font-semibold text-foreground">{notebook.name}</span>
+          {editor && (
+            <div className="ml-2 hidden sm:block">
+              <IndexCardToolbar
+                editor={editor}
+                cardColor="white"
+                onCardColorChange={() => {}}
+                cardRotation={0}
+                onCardRotationChange={() => {}}
+                hideCardColor
+                hideTilt
+              />
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {editor && (
-            <IndexCardToolbar
-              editor={editor}
-              cardColor="white"
-              onCardColorChange={() => {}}
-              cardRotation={0}
-              onCardRotationChange={() => {}}
-              hideCardColor
-              hideTilt
-            />
-          )}
           {editor && (
             <div ref={downloadMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setDownloadMenuOpen((v) => !v)}
                 disabled={exporting}
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-foreground/70 hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground/70 transition-all hover:bg-amber-100/50 hover:text-foreground disabled:opacity-50 dark:hover:bg-amber-900/20"
                 aria-label="Download"
                 aria-expanded={downloadMenuOpen}
               >
@@ -388,11 +407,11 @@ export function NotebookEditorPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
               {downloadMenuOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-border bg-background py-1 shadow-lg">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-border bg-background py-1 shadow-xl">
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Print</div>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20 flex items-center gap-2"
                     onClick={() => { setDownloadMenuOpen(false); window.print(); }}
                   >
                     <Printer className="h-3.5 w-3.5" />
@@ -402,35 +421,35 @@ export function NotebookEditorPage() {
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Export (server)</div>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={() => handleExportFormat("pdf")}
                   >
                     PDF
                   </button>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={() => handleExportFormat("txt")}
                   >
                     Plain text (.txt)
                   </button>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={() => handleExportFormat("md")}
                   >
                     Markdown (.md)
                   </button>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={() => handleExportFormat("html")}
                   >
                     HTML
                   </button>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={() => handleExportFormat("docx")}
                   >
                     Word (.docx)
@@ -439,14 +458,14 @@ export function NotebookEditorPage() {
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Save for editing</div>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={handleSaveAsHtml}
                   >
                     Save as HTML
                   </button>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
                     onClick={handleSaveAsJson}
                   >
                     Save as JSON
@@ -455,7 +474,7 @@ export function NotebookEditorPage() {
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Import</div>
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20 flex items-center gap-2"
                     onClick={() => importFileInputRef.current?.click()}
                   >
                     <Upload className="h-3.5 w-3.5" />
@@ -479,7 +498,7 @@ export function NotebookEditorPage() {
                 type="button"
                 onClick={() => setVersionHistoryOpen((v) => !v)}
                 disabled={savingVersion}
-                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-foreground/70 hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground/70 transition-all hover:bg-amber-100/50 hover:text-foreground disabled:opacity-50 dark:hover:bg-amber-900/20"
                 aria-label="Version history"
                 aria-expanded={versionHistoryOpen}
               >
@@ -488,11 +507,11 @@ export function NotebookEditorPage() {
                 <ChevronDown className="h-4 w-4" />
               </button>
               {versionHistoryOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[220px] max-h-[320px] flex flex-col rounded-lg border border-border bg-background py-1 shadow-lg">
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[220px] max-h-[320px] flex flex-col rounded-lg border border-border bg-background py-1 shadow-xl">
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Version history</div>
                   <button
                     type="button"
-                    className="mx-2 mb-1 rounded px-2 py-1.5 text-left text-sm hover:bg-foreground/5 disabled:opacity-50"
+                    className="mx-2 mb-1 rounded-lg px-2 py-1.5 text-left text-sm font-medium transition-colors hover:bg-amber-50 disabled:opacity-50 dark:hover:bg-amber-900/20"
                     onClick={handleSaveVersion}
                     disabled={savingVersion}
                   >
@@ -505,13 +524,13 @@ export function NotebookEditorPage() {
                     ) : (
                       <ul className="space-y-1">
                         {versions.map((v) => (
-                          <li key={v.id} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-foreground/5">
+                          <li key={v.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20">
                             <span className="min-w-0 truncate text-foreground/80" title={v.label ? `${formatVersionDate(v.createdAt)} — ${v.label}` : formatVersionDate(v.createdAt)}>
                               {formatVersionDate(v.createdAt)}{v.label ? ` — ${v.label}` : ""}
                             </span>
                             <button
                               type="button"
-                              className="shrink-0 rounded px-1.5 py-0.5 text-xs text-primary hover:bg-primary/10"
+                              className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
                               onClick={() => handleRestoreVersion(v.id)}
                             >
                               Restore
@@ -525,6 +544,7 @@ export function NotebookEditorPage() {
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

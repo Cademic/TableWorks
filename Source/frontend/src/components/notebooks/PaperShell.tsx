@@ -29,7 +29,7 @@ export function PaperShell({ children, showPageSeparators = false, gapHeight = G
 
   return (
     <div
-      className={`paper-shell-outer w-full flex justify-center py-10 ${showPageSeparators ? "bg-neutral-950" : "bg-zinc-200 dark:bg-zinc-950"}`}
+      className={`paper-shell-outer w-full flex justify-center py-10 ${showPageSeparators ? "bg-neutral-950" : "bg-background"}`}
       style={
         showPageSeparators
           ? ({ "--page-gap-bg": "#0a0a0a" } as React.CSSProperties)
@@ -37,7 +37,7 @@ export function PaperShell({ children, showPageSeparators = false, gapHeight = G
       }
     >
       <div
-        className={`paper-shell relative ${showPageSeparators ? "bg-neutral-950" : "bg-white dark:bg-zinc-900"}`}
+        className={`paper-shell relative ${showPageSeparators ? "bg-neutral-950" : "paper-card"}`}
         style={{
           width: PAPER_WIDTH_PX,
           maxWidth: PAPER_WIDTH_PX,

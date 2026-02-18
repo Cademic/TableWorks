@@ -31,6 +31,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<UserPinnedProject> UserPinnedProjects => Set<UserPinnedProject>();
     public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
     public DbSet<Notebook> Notebooks => Set<Notebook>();
+    public DbSet<NotebookVersion> NotebookVersions => Set<NotebookVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -96,6 +97,23 @@ public sealed class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
+        });
+
+        // ----- NotebookVersion -----
+        modelBuilder.Entity<NotebookVersion>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.NotebookId);
+            entity.HasIndex(x => x.CreatedAt);
+
+            entity.Property(x => x.ContentJson).HasColumnType("jsonb");
+
+            entity.HasOne(x => x.Notebook)
+                .WithMany()
+                .HasForeignKey(x => x.NotebookId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ----- Note -----

@@ -857,3 +857,46 @@ body {
   border-radius: 1px;
   opacity: 0.6;
 }
+
+/* ========================================
+   Notebook paper shell — Print / PDF
+   ======================================== */
+
+@page {
+  size: letter;
+  margin: 1in;
+}
+
+@media print {
+  .paper-shell-outer {
+    padding: 0;
+    background: transparent;
+  }
+
+  .paper-shell {
+    box-shadow: none;
+    border-radius: 0;
+    background: white !important;
+    background-image: none !important;
+    min-height: auto;
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  /* Avoid breaking paragraphs, headings, list items, and tables across pages */
+  .paper-shell p,
+  .paper-shell h1,
+  .paper-shell h2,
+  .paper-shell h3,
+  .paper-shell h4,
+  .paper-shell li,
+  .paper-shell blockquote {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .paper-shell table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

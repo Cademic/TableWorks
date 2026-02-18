@@ -180,6 +180,20 @@ export interface UpdateNotebookRequest {
 
 export interface UpdateNotebookContentRequest {
   contentJson: string;
+  /** Optional: last known updatedAt for optimistic concurrency. If server version differs, API returns 409. */
+  updatedAt?: string;
+}
+
+export interface NotebookVersionDto {
+  id: string;
+  notebookId: string;
+  createdAt: string;
+  label: string | null;
+  contentJson?: string;
+}
+
+export interface CreateNotebookVersionRequest {
+  label?: string;
 }
 
 // --- Note DTOs ---

@@ -34,6 +34,7 @@ public sealed class NotebookExportService : INotebookExportService
             "md" or "markdown" => ExportMd(contentJson, safeName),
             "html" => ExportHtml(contentJson, safeName),
             "pdf" => await ExportPdfAsync(contentJson, safeName, cancellationToken),
+            "docx" => ExportDocx(contentJson, safeName),
             _ => null
         };
     }
@@ -57,6 +58,17 @@ public sealed class NotebookExportService : INotebookExportService
             Content = Encoding.UTF8.GetBytes(md),
             ContentType = "text/markdown; charset=utf-8",
             FileName = $"{baseName}.md"
+        };
+    }
+
+    private static NotebookExportResult ExportDocx(string contentJson, string baseName)
+    {
+        var bytes = TipTapJsonToDocx.ToDocx(contentJson);
+        return new NotebookExportResult
+        {
+            Content = bytes,
+            ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            FileName = $"{baseName}.docx"
         };
     }
 

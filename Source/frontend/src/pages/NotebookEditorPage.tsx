@@ -12,21 +12,39 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
-import { ArrowLeft, Download, ChevronDown } from "lucide-react";
+import { ArrowLeft, Download, ChevronDown, Upload, Printer, History } from "lucide-react";
 import { FontSize } from "../lib/tiptap-font-size";
-import { getNotebookById, updateNotebookContent, downloadNotebookExport } from "../api/notebooks";
-import type { NotebookDetailDto } from "../types";
+import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion } from "../api/notebooks";
+import type { NotebookDetailDto, NotebookVersionDto } from "../types";
 import { PaperShell } from "../components/notebooks/PaperShell";
+import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
 import { IndexCardToolbar } from "../components/dashboard/IndexCardToolbar";
 
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
 
+/** Strip legacy pageMargin nodes when loading (backwards compat for docs saved with page breaks). */
+function stripLegacyPageMargins(doc: object): object {
+  if (!doc || typeof doc !== "object") return doc;
+  const d = doc as { content?: unknown[] };
+  if (!Array.isArray(d.content)) return doc;
+  const content = d.content
+    .filter((n) => typeof n === "object" && n !== null && (n as { type?: string }).type !== "pageMargin")
+    .map((n) => {
+      if (typeof n !== "object" || n === null) return n;
+      const node = n as { content?: unknown[] };
+      if (!Array.isArray(node.content)) return n;
+      return { ...node, content: (stripLegacyPageMargins({ content: node.content }) as { content: unknown[] }).content };
+    });
+  return { ...doc, content };
+}
+
 function parseContentJson(raw: string | undefined): object {
   if (!raw || !raw.trim()) return { ...DEFAULT_DOC };
   try {
     const parsed = JSON.parse(raw) as object;
-    return parsed && typeof parsed === "object" && "type" in parsed ? parsed : { ...DEFAULT_DOC };
+    const doc = parsed && typeof parsed === "object" && "type" in parsed ? parsed : { ...DEFAULT_DOC };
+    return stripLegacyPageMargins(doc);
   } catch {
     return { ...DEFAULT_DOC };
   }
@@ -60,8 +78,15 @@ export function NotebookEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [versions, setVersions] = useState<NotebookVersionDto[]>([]);
+  const [savingVersion, setSavingVersion] = useState(false);
   const lastSavedJsonRef = useRef<string>("");
+  /** Content we last synced into the editor from notebook state; avoid resetting editor after our own save. */
+  const lastSyncedContentJsonRef = useRef<string>("");
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+  const versionHistoryRef = useRef<HTMLDivElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -109,8 +134,11 @@ export function NotebookEditorPage() {
 
   useEffect(() => {
     if (!editor || !notebook) return;
+    const contentJson = notebook.contentJson ?? "";
+    if (contentJson === lastSyncedContentJsonRef.current) return;
+    lastSyncedContentJsonRef.current = contentJson;
     const content = parseContentJson(notebook.contentJson);
-    editor.commands.setContent(content, false);
+    editor.commands.setContent(content, { emitUpdate: false });
   }, [editor, notebook]);
 
   const save = useMemo(
@@ -121,20 +149,39 @@ export function NotebookEditorPage() {
         const jsonString = JSON.stringify(json);
         if (jsonString === lastSavedJsonRef.current) return;
         try {
-          await updateNotebookContent(notebookId, { contentJson: jsonString });
+          await updateNotebookContent(notebookId, {
+            contentJson: jsonString,
+            updatedAt: notebook?.updatedAt,
+          });
           lastSavedJsonRef.current = jsonString;
-        } catch {
-          // Keep editor state; user can retry
+          if (notebook) setNotebook((prev) => (prev ? { ...prev, updatedAt: new Date().toISOString() } : null));
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 409) {
+            try {
+              const data = await getNotebookById(notebookId);
+              setNotebook(data);
+              const content = parseContentJson(data.contentJson ?? "");
+              editor.commands.setContent(content, { emitUpdate: false });
+              const jsonStr = data.contentJson ?? "{}";
+              lastSavedJsonRef.current = jsonStr;
+              lastSyncedContentJsonRef.current = jsonStr;
+            } catch {
+              // Reload failed; keep editor state
+            }
+          }
         }
       }, SAVE_DEBOUNCE_MS),
-    [editor, notebookId],
+    [editor, notebookId, notebook?.updatedAt],
   );
 
   useEffect(() => {
     if (!editor) return;
     const handler = () => save();
     editor.on("update", handler);
-    return () => editor.off("update", handler);
+    return () => {
+      editor.off("update", handler);
+    };
   }, [editor, save]);
 
   const handleClose = useCallback(() => {
@@ -151,6 +198,59 @@ export function NotebookEditorPage() {
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [downloadMenuOpen]);
+
+  useEffect(() => {
+    if (!versionHistoryOpen || !notebookId) return;
+    getNotebookVersions(notebookId).then(setVersions).catch(() => setVersions([]));
+  }, [versionHistoryOpen, notebookId]);
+
+  useEffect(() => {
+    if (!versionHistoryOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      if (versionHistoryRef.current && !versionHistoryRef.current.contains(e.target as Node)) {
+        setVersionHistoryOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [versionHistoryOpen]);
+
+  const handleSaveVersion = useCallback(async () => {
+    if (!notebookId) return;
+    setSavingVersion(true);
+    try {
+      await createNotebookVersion(notebookId);
+      const list = await getNotebookVersions(notebookId);
+      setVersions(list);
+    } finally {
+      setSavingVersion(false);
+    }
+  }, [notebookId]);
+
+  const handleRestoreVersion = useCallback(
+    async (versionId: string) => {
+      if (!notebookId || !editor) return;
+      await restoreNotebookVersion(notebookId, versionId);
+      const data = await getNotebookById(notebookId);
+      setNotebook(data);
+      const content = parseContentJson(data.contentJson ?? "");
+      editor.commands.setContent(content, { emitUpdate: false });
+      const jsonStr = data.contentJson ?? "{}";
+      lastSavedJsonRef.current = jsonStr;
+      lastSyncedContentJsonRef.current = jsonStr;
+      setVersionHistoryOpen(false);
+    },
+    [notebookId, editor],
+  );
+
+  function formatVersionDate(createdAt: string): string {
+    try {
+      const d = new Date(createdAt);
+      return d.toLocaleDateString(undefined, { dateStyle: "short" }) + " " + d.toLocaleTimeString(undefined, { timeStyle: "short" });
+    } catch {
+      return createdAt;
+    }
+  }
 
   const handleExportFormat = useCallback(
     async (format: string) => {
@@ -182,6 +282,31 @@ export function NotebookEditorPage() {
     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
     triggerDownload(blob, `${safeFileName(notebook.name)}.json`);
   }, [editor, notebook]);
+
+  const handleImportJson = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !editor) return;
+      setDownloadMenuOpen(false);
+      file
+        .text()
+        .then((text) => {
+          try {
+            const parsed = JSON.parse(text) as object;
+            if (parsed && typeof parsed === "object" && (parsed as { type?: string }).type === "doc") {
+              editor.commands.setContent(parsed, { emitUpdate: false });
+              lastSavedJsonRef.current = JSON.stringify(parsed);
+            }
+          } catch {
+            // Invalid JSON or not a TipTap doc; ignore
+          }
+        })
+        .finally(() => {
+          e.target.value = "";
+        });
+    },
+    [editor],
+  );
 
   if (!notebookId) {
     return (
@@ -223,8 +348,8 @@ export function NotebookEditorPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background">
-      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-zinc-200 dark:bg-zinc-950">
+      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border bg-white dark:bg-zinc-900 px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -264,6 +389,16 @@ export function NotebookEditorPage() {
               </button>
               {downloadMenuOpen && (
                 <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-border bg-background py-1 shadow-lg">
+                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Print</div>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                    onClick={() => { setDownloadMenuOpen(false); window.print(); }}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Print / Save as PDF
+                  </button>
+                  <div className="my-1 border-t border-border/50" />
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Export (server)</div>
                   <button
                     type="button"
@@ -293,6 +428,13 @@ export function NotebookEditorPage() {
                   >
                     HTML
                   </button>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5"
+                    onClick={() => handleExportFormat("docx")}
+                  >
+                    Word (.docx)
+                  </button>
                   <div className="my-1 border-t border-border/50" />
                   <div className="px-2 py-1 text-xs font-medium text-foreground/60">Save for editing</div>
                   <button
@@ -309,16 +451,88 @@ export function NotebookEditorPage() {
                   >
                     Save as JSON
                   </button>
+                  <div className="my-1 border-t border-border/50" />
+                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Import</div>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-foreground/5 flex items-center gap-2"
+                    onClick={() => importFileInputRef.current?.click()}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Import from file (.json)
+                  </button>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    className="hidden"
+                    aria-hidden
+                    onChange={handleImportJson}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {notebookId && (
+            <div ref={versionHistoryRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setVersionHistoryOpen((v) => !v)}
+                disabled={savingVersion}
+                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-foreground/70 hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
+                aria-label="Version history"
+                aria-expanded={versionHistoryOpen}
+              >
+                <History className="h-4 w-4" />
+                <span>Version history</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {versionHistoryOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[220px] max-h-[320px] flex flex-col rounded-lg border border-border bg-background py-1 shadow-lg">
+                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Version history</div>
+                  <button
+                    type="button"
+                    className="mx-2 mb-1 rounded px-2 py-1.5 text-left text-sm hover:bg-foreground/5 disabled:opacity-50"
+                    onClick={handleSaveVersion}
+                    disabled={savingVersion}
+                  >
+                    {savingVersion ? "Saving…" : "Save version"}
+                  </button>
+                  <div className="my-1 border-t border-border/50" />
+                  <div className="overflow-y-auto px-2 py-1">
+                    {versions.length === 0 ? (
+                      <p className="text-xs text-foreground/60 py-2">No versions yet. Save a version to restore later.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {versions.map((v) => (
+                          <li key={v.id} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm hover:bg-foreground/5">
+                            <span className="min-w-0 truncate text-foreground/80" title={v.label ? `${formatVersionDate(v.createdAt)} — ${v.label}` : formatVersionDate(v.createdAt)}>
+                              {formatVersionDate(v.createdAt)}{v.label ? ` — ${v.label}` : ""}
+                            </span>
+                            <button
+                              type="button"
+                              className="shrink-0 rounded px-1.5 py-0.5 text-xs text-primary hover:bg-primary/10"
+                              onClick={() => handleRestoreVersion(v.id)}
+                            >
+                              Restore
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <PaperShell showPageSeparators>
-          <EditorContent editor={editor} />
-        </PaperShell>
+      <div className="flex-1 overflow-hidden">
+        <ZoomablePaperShell>
+          <PaperShell>
+            <EditorContent editor={editor} />
+          </PaperShell>
+        </ZoomablePaperShell>
       </div>
     </div>
   );

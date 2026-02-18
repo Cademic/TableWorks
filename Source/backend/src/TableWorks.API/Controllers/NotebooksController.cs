@@ -96,7 +96,49 @@ public sealed class NotebooksController : ControllerBase
         return Ok();
     }
 
-    /// <summary>Export notebook as file (pdf, txt, md, html). Returns 404 if not found or not owner.</summary>
+    /// <summary>Create a version snapshot of the notebook's current content.</summary>
+    [HttpPost("{id:guid}/versions")]
+    [ProducesResponseType(typeof(NotebookVersionDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateVersion(Guid id, [FromBody] CreateNotebookVersionRequest? request, CancellationToken cancellationToken)
+    {
+        var result = await _notebookService.CreateVersionAsync(_currentUserService.UserId, id, request, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    /// <summary>List version history for the notebook (newest first).</summary>
+    [HttpGet("{id:guid}/versions")]
+    [ProducesResponseType(typeof(IReadOnlyList<NotebookVersionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVersions(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _notebookService.GetVersionsAsync(_currentUserService.UserId, id, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Get a single version (includes ContentJson for preview/restore).</summary>
+    [HttpGet("{id:guid}/versions/{versionId:guid}")]
+    [ProducesResponseType(typeof(NotebookVersionDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVersion(Guid id, Guid versionId, CancellationToken cancellationToken)
+    {
+        var result = await _notebookService.GetVersionByIdAsync(_currentUserService.UserId, id, versionId, cancellationToken);
+        if (result is null)
+            return NotFound();
+        return Ok(result);
+    }
+
+    /// <summary>Restore notebook content from a version.</summary>
+    [HttpPost("{id:guid}/versions/{versionId:guid}/restore")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RestoreVersion(Guid id, Guid versionId, CancellationToken cancellationToken)
+    {
+        await _notebookService.RestoreVersionAsync(_currentUserService.UserId, id, versionId, cancellationToken);
+        return Ok();
+    }
+
+    /// <summary>Export notebook as file (pdf, txt, md, html, docx). Returns 404 if not found or not owner.</summary>
     [HttpGet("{id:guid}/export")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

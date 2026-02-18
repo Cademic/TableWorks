@@ -12,17 +12,20 @@ public sealed class NotebookService : INotebookService
     private const int MaxNotebooksPerUser = 5;
 
     private readonly IRepository<Notebook> _notebookRepo;
+    private readonly IRepository<NotebookVersion> _versionRepo;
     private readonly IRepository<Project> _projectRepo;
     private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
+        IRepository<NotebookVersion> versionRepo,
         IRepository<Project> projectRepo,
         IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork)
     {
         _notebookRepo = notebookRepo;
+        _versionRepo = versionRepo;
         _projectRepo = projectRepo;
         _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
@@ -153,6 +156,15 @@ public sealed class NotebookService : INotebookService
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
 
+        if (request.UpdatedAt.HasValue)
+        {
+            var clientUpdated = request.UpdatedAt.Value.Kind == DateTimeKind.Utc
+                ? request.UpdatedAt.Value
+                : DateTime.SpecifyKind(request.UpdatedAt.Value, DateTimeKind.Utc);
+            if (Math.Abs((notebook.UpdatedAt - clientUpdated).TotalSeconds) > 1)
+                throw new InvalidOperationException("Document was modified elsewhere. Reload to get the latest version.");
+        }
+
         notebook.ContentJson = request.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}";
         notebook.UpdatedAt = DateTime.UtcNow;
 
@@ -233,6 +245,103 @@ public sealed class NotebookService : INotebookService
         notebook.ProjectId = null;
         notebook.UpdatedAt = DateTime.UtcNow;
 
+        _notebookRepo.Update(notebook);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<NotebookVersionDto> CreateVersionAsync(Guid userId, Guid notebookId, CreateNotebookVersionRequest? request, CancellationToken cancellationToken = default)
+    {
+        var notebook = await _notebookRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found.");
+
+        var version = new NotebookVersion
+        {
+            Id = Guid.NewGuid(),
+            NotebookId = notebookId,
+            ContentJson = notebook.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}",
+            CreatedAt = DateTime.UtcNow,
+            Label = request?.Label
+        };
+        await _versionRepo.AddAsync(version, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new NotebookVersionDto
+        {
+            Id = version.Id,
+            NotebookId = version.NotebookId,
+            CreatedAt = version.CreatedAt,
+            Label = version.Label
+        };
+    }
+
+    public async Task<IReadOnlyList<NotebookVersionDto>> GetVersionsAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)
+    {
+        var notebook = await _notebookRepo.Query()
+            .Where(n => n.Id == notebookId && n.UserId == userId)
+            .AsNoTracking()
+            .Select(n => n.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (notebook == default)
+            throw new KeyNotFoundException("Notebook not found.");
+
+        var versions = await _versionRepo.Query()
+            .Where(v => v.NotebookId == notebookId)
+            .OrderByDescending(v => v.CreatedAt)
+            .Select(v => new NotebookVersionDto
+            {
+                Id = v.Id,
+                NotebookId = v.NotebookId,
+                CreatedAt = v.CreatedAt,
+                Label = v.Label
+            })
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+        return versions;
+    }
+
+    public async Task<NotebookVersionDto?> GetVersionByIdAsync(Guid userId, Guid notebookId, Guid versionId, CancellationToken cancellationToken = default)
+    {
+        var notebook = await _notebookRepo.Query()
+            .Where(n => n.Id == notebookId && n.UserId == userId)
+            .AsNoTracking()
+            .Select(n => n.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (notebook == default)
+            throw new KeyNotFoundException("Notebook not found.");
+
+        var version = await _versionRepo.Query()
+            .Where(v => v.NotebookId == notebookId && v.Id == versionId)
+            .AsNoTracking()
+            .Select(v => new { v.Id, v.NotebookId, v.ContentJson, v.CreatedAt, v.Label })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (version is null)
+            return null;
+
+        return new NotebookVersionDto
+        {
+            Id = version.Id,
+            NotebookId = version.NotebookId,
+            ContentJson = version.ContentJson,
+            CreatedAt = version.CreatedAt,
+            Label = version.Label
+        };
+    }
+
+    public async Task RestoreVersionAsync(Guid userId, Guid notebookId, Guid versionId, CancellationToken cancellationToken = default)
+    {
+        var notebook = await _notebookRepo.Query()
+            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found.");
+
+        var version = await _versionRepo.Query()
+            .Where(v => v.NotebookId == notebookId && v.Id == versionId)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("Version not found.");
+
+        notebook.ContentJson = version.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}";
+        notebook.UpdatedAt = DateTime.UtcNow;
         _notebookRepo.Update(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }

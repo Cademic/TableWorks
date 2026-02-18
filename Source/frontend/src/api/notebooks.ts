@@ -4,6 +4,8 @@ import type {
   CreateNotebookRequest,
   UpdateNotebookRequest,
   UpdateNotebookContentRequest,
+  NotebookVersionDto,
+  CreateNotebookVersionRequest,
   PaginatedResponse,
 } from "../types";
 import { apiClient } from "./client";
@@ -65,4 +67,23 @@ export async function downloadNotebookExport(
     filename = `notebook.${ext}`;
   }
   return { blob, filename };
+}
+
+export async function createNotebookVersion(id: string, data?: CreateNotebookVersionRequest): Promise<NotebookVersionDto> {
+  const response = await apiClient.post<NotebookVersionDto>(`/notebooks/${id}/versions`, data ?? {});
+  return response.data;
+}
+
+export async function getNotebookVersions(id: string): Promise<NotebookVersionDto[]> {
+  const response = await apiClient.get<NotebookVersionDto[]>(`/notebooks/${id}/versions`);
+  return response.data;
+}
+
+export async function getNotebookVersionById(notebookId: string, versionId: string): Promise<NotebookVersionDto> {
+  const response = await apiClient.get<NotebookVersionDto>(`/notebooks/${notebookId}/versions/${versionId}`);
+  return response.data;
+}
+
+export async function restoreNotebookVersion(notebookId: string, versionId: string): Promise<void> {
+  await apiClient.post(`/notebooks/${notebookId}/versions/${versionId}/restore`);
 }

@@ -41,24 +41,24 @@
 
 :root {
   color-scheme: light;
-  --color-background: 0 0% 100%;
+  --color-background: 210 20% 98%;
   --color-foreground: 222 47% 11%;
-  --color-surface: 220 20% 98%;
-  --color-border: 214 32% 91%;
+  --color-surface: 220 15% 96%;
+  --color-border: 214 32% 85%;
   --color-primary: 222 89% 55%;
   --color-primary-foreground: 210 40% 98%;
-  --grid-line-color: rgba(0, 0, 0, 0.08);
+  --grid-line-color: rgba(0, 0, 0, 0.12);
 }
 
 .dark {
   color-scheme: dark;
-  --color-background: 222 47% 14%;
+  --color-background: 210 25% 10%;
   --color-foreground: 210 40% 98%;
-  --color-surface: 222 35% 17%;
-  --color-border: 216 25% 26%;
+  --color-surface: 222 35% 12%;
+  --color-border: 216 25% 22%;
   --color-primary: 217 91% 60%;
   --color-primary-foreground: 222 47% 11%;
-  --grid-line-color: rgba(255, 255, 255, 0.08);
+  --grid-line-color: rgba(255, 255, 255, 0.12);
 }
 
 html,

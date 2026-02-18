@@ -11,6 +11,7 @@ import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
 import { BoardsPage } from "../pages/BoardsPage";
 import { NotebooksPage } from "../pages/NotebooksPage";
+import { NotebookEditorPage } from "../pages/NotebookEditorPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { LoginPage } from "../pages/LoginPage";
@@ -44,6 +45,7 @@ export function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/notebooks" element={<NotebooksPage />} />
+            <Route path="/notebooks/:notebookId" element={<NotebookEditorPage />} />
             <Route path="/boards" element={<BoardsPage />} />
             <Route path="/boards/:boardId" element={<NoteBoardPage />} />
             <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />

@@ -263,7 +263,7 @@ export function NotebookCard({ notebook, onOpen, onRename, onTogglePin, onDelete
       <div className="mt-auto flex items-center gap-3 border-t border-blue-200/25 pt-3 text-xs text-foreground/40 dark:border-blue-300/10">
         <span className="flex items-center gap-1">
           <BookOpen className="h-3 w-3" />
-          {notebook.pageCount} {notebook.pageCount === 1 ? "page" : "pages"}
+          Document
         </span>
         <span className="ml-auto">{formatRelativeDate(notebook.updatedAt)}</span>
       </div>

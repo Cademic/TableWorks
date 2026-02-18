@@ -3,7 +3,7 @@ import type {
   NotebookDetailDto,
   CreateNotebookRequest,
   UpdateNotebookRequest,
-  UpdateNotebookPagesRequest,
+  UpdateNotebookContentRequest,
   PaginatedResponse,
 } from "../types";
 import { apiClient } from "./client";
@@ -27,40 +27,8 @@ export async function updateNotebook(id: string, data: UpdateNotebookRequest): P
   await apiClient.put(`/notebooks/${id}`, data);
 }
 
-export async function updateNotebookPages(id: string, data: UpdateNotebookPagesRequest): Promise<void> {
-  // #region agent log
-  const pagesLen = data.pages?.length ?? -1;
-  fetch("http://127.0.0.1:7243/ingest/6eecc1c5-be9e-4248-a3b7-8e1107567fb0", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      location: "notebooks.ts:updateNotebookPages",
-      message: "PUT request sent",
-      data: { id, pagesLength: pagesLen },
-      timestamp: Date.now(),
-      hypothesisId: "H2",
-    }),
-  }).catch(() => {});
-  // #endregion
-  try {
-    await apiClient.put(`/notebooks/${id}/pages`, data);
-  } catch (err: unknown) {
-    // #region agent log
-    const res = (err as { response?: { status?: number; data?: unknown } })?.response;
-    fetch("http://127.0.0.1:7243/ingest/6eecc1c5-be9e-4248-a3b7-8e1107567fb0", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "notebooks.ts:updateNotebookPages",
-        message: "PUT request failed",
-        data: { status: res?.status, statusText: (err as { response?: { statusText?: string } })?.response?.statusText },
-        timestamp: Date.now(),
-        hypothesisId: "H2",
-      }),
-    }).catch(() => {});
-    // #endregion
-    throw err;
-  }
+export async function updateNotebookContent(id: string, data: UpdateNotebookContentRequest): Promise<void> {
+  await apiClient.put(`/notebooks/${id}/content`, data);
 }
 
 export async function deleteNotebook(id: string): Promise<void> {
@@ -74,4 +42,27 @@ export async function toggleNotebookPin(id: string, isPinned: boolean): Promise<
 export async function getPinnedNotebooks(): Promise<NotebookSummaryDto[]> {
   const response = await apiClient.get<NotebookSummaryDto[]>("/notebooks/pinned");
   return response.data;
+}
+
+/** Download notebook export as blob. Use triggerDownload(blob, filename, mimeType) to save to computer. */
+export async function downloadNotebookExport(
+  id: string,
+  format: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get<Blob>(`/notebooks/${id}/export`, {
+    params: { format },
+    responseType: "blob",
+  });
+  const blob = response.data;
+  const disposition = response.headers["content-disposition"];
+  let filename = "";
+  if (typeof disposition === "string") {
+    const match = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+    if (match?.[1]) filename = match[1].replace(/['"]/g, "").trim();
+  }
+  if (!filename && blob instanceof Blob) {
+    const ext = format === "pdf" ? "pdf" : format === "md" ? "md" : format === "html" ? "html" : "txt";
+    filename = `notebook.${ext}`;
+  }
+  return { blob, filename };
 }

@@ -18,6 +18,7 @@ import type { NotebookSummaryDto } from "../types";
 export function NotebooksPage() {
   const { openNotebook, refreshPinnedNotebooks } = useOutletContext<AppLayoutContext>();
   const [notebooks, setNotebooks] = useState<NotebookSummaryDto[]>([]);
+  const [totalNotebooks, setTotalNotebooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -31,6 +32,7 @@ export function NotebooksPage() {
       setError(null);
       const result = await getNotebooks({ limit: 200 });
       setNotebooks(result.items);
+      setTotalNotebooks(result.total);
     } catch {
       setError("Failed to load notebooks.");
     } finally {
@@ -47,12 +49,13 @@ export function NotebooksPage() {
       setCreateError(null);
       const created = await createNotebook({ name });
       setNotebooks((prev) => [created, ...prev]);
+      setTotalNotebooks((t) => t + 1);
       setIsCreateOpen(false);
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateError(
-          err.response.data?.message ?? "A notebook with that name already exists.",
+          err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to create another.",
         );
       } else {
         setCreateError("Failed to create notebook. Please try again.");
@@ -71,6 +74,7 @@ export function NotebooksPage() {
     const id = deleteTarget.id;
     setDeleteTarget(null);
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
+    setTotalNotebooks((t) => Math.max(0, t - 1));
     try {
       await deleteNotebook(id);
       refreshPinnedNotebooks();
@@ -159,14 +163,22 @@ export function NotebooksPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md dark:bg-amber-600 dark:hover:bg-amber-500"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Notebook</span>
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {totalNotebooks >= 5 && (
+              <span className="text-xs text-foreground/50">
+                Maximum 5 notebooks. Delete one to create another.
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              disabled={totalNotebooks >= 5}
+              className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Notebook</span>
+            </button>
+          </div>
         </div>
 
         {/* Notebook grid or empty state */}

@@ -294,6 +294,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookExportService, NotebookExportService>();
 
 // ---------------------------------------------------------------------------
 // Build

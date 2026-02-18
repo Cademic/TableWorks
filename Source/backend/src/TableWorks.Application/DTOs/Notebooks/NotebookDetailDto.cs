@@ -8,6 +8,6 @@ public sealed class NotebookDetailDto
     public DateTime? PinnedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    /// <summary>Page contents in order; index 0 = page 1.</summary>
-    public IReadOnlyList<string> Pages { get; set; } = Array.Empty<string>();
+    /// <summary>TipTap/ProseMirror document JSON.</summary>
+    public string ContentJson { get; set; } = "{\"type\":\"doc\",\"content\":[]}";
 }

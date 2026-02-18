@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -11,12 +12,12 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
-import { X, Download, ChevronDown } from "lucide-react";
-import { FontSize } from "../../lib/tiptap-font-size";
-import { getNotebookById, updateNotebookContent, downloadNotebookExport } from "../../api/notebooks";
-import type { NotebookDetailDto } from "../../types";
-import { PaperShell } from "./PaperShell";
-import { IndexCardToolbar } from "../dashboard/IndexCardToolbar";
+import { ArrowLeft, Download, ChevronDown } from "lucide-react";
+import { FontSize } from "../lib/tiptap-font-size";
+import { getNotebookById, updateNotebookContent, downloadNotebookExport } from "../api/notebooks";
+import type { NotebookDetailDto } from "../types";
+import { PaperShell } from "../components/notebooks/PaperShell";
+import { IndexCardToolbar } from "../components/dashboard/IndexCardToolbar";
 
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
@@ -52,12 +53,9 @@ function safeFileName(name: string): string {
   return name.replace(/[^\w\s.-]/g, "").trim() || "notebook";
 }
 
-interface NotebookModalProps {
-  notebookId: string;
-  onClose: () => void;
-}
-
-export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
+export function NotebookEditorPage() {
+  const { notebookId } = useParams<{ notebookId: string }>();
+  const navigate = useNavigate();
   const [notebook, setNotebook] = useState<NotebookDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
@@ -66,6 +64,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
   const downloadMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!notebookId) return;
     let cancelled = false;
     setError(null);
     getNotebookById(notebookId)
@@ -117,7 +116,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
   const save = useMemo(
     () =>
       debounce(async () => {
-        if (!editor) return;
+        if (!editor || !notebookId) return;
         const json = editor.getJSON();
         const jsonString = JSON.stringify(json);
         if (jsonString === lastSavedJsonRef.current) return;
@@ -139,16 +138,8 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
   }, [editor, save]);
 
   const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") handleClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [handleClose]);
+    navigate("/notebooks");
+  }, [navigate]);
 
   useEffect(() => {
     if (!downloadMenuOpen) return;
@@ -164,7 +155,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
   const handleExportFormat = useCallback(
     async (format: string) => {
       setDownloadMenuOpen(false);
-      if (!notebook) return;
+      if (!notebook || !notebookId) return;
       setExporting(true);
       try {
         const { blob, filename } = await downloadNotebookExport(notebookId, format);
@@ -192,43 +183,59 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
     triggerDownload(blob, `${safeFileName(notebook.name)}.json`);
   }, [editor, notebook]);
 
+  if (!notebookId) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <p className="text-sm text-muted-foreground">Missing notebook.</p>
+        <button
+          type="button"
+          onClick={() => navigate("/notebooks")}
+          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+        >
+          Back to Notebooks
+        </button>
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="rounded-xl border border-border bg-background p-6 shadow-xl max-w-sm w-full text-center">
-          <p className="text-sm text-red-500 mb-4">{error}</p>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
-          >
-            Close
-          </button>
-        </div>
+      <div className="flex flex-col items-center justify-center gap-4 py-12">
+        <p className="text-sm text-red-500">{error}</p>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+        >
+          Back to Notebooks
+        </button>
       </div>
     );
   }
 
   if (!notebook) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <span className="text-sm text-foreground/60">Loading notebook...</span>
-        </div>
+      <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <span className="text-sm text-muted-foreground">Loading notebook...</span>
       </div>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex flex-col bg-background"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Notebook"
-    >
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-border bg-background px-4 py-2">
-        <span className="text-sm font-medium text-foreground truncate">{notebook.name}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background">
+      <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="rounded-lg p-2 text-foreground/70 hover:bg-foreground/10 hover:text-foreground"
+            aria-label="Back to notebooks"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span className="truncate text-sm font-medium text-foreground">{notebook.name}</span>
+        </div>
         <div className="flex items-center gap-2">
           {editor && (
             <IndexCardToolbar
@@ -306,14 +313,6 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
               )}
             </div>
           )}
-          <button
-            type="button"
-            onClick={handleClose}
-            className="rounded-lg p-2 text-foreground/70 hover:bg-foreground/10 hover:text-foreground"
-            aria-label="Close notebook"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">

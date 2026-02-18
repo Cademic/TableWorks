@@ -157,7 +157,6 @@ export interface NotebookSummaryDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  pageCount: number;
 }
 
 export interface NotebookDetailDto {
@@ -167,7 +166,7 @@ export interface NotebookDetailDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  pages: string[];
+  contentJson: string;
 }
 
 export interface CreateNotebookRequest {
@@ -179,8 +178,8 @@ export interface UpdateNotebookRequest {
   name: string;
 }
 
-export interface UpdateNotebookPagesRequest {
-  pages: string[];
+export interface UpdateNotebookContentRequest {
+  contentJson: string;
 }
 
 // --- Note DTOs ---

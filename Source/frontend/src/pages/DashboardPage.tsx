@@ -57,6 +57,7 @@ export function DashboardPage() {
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
   const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
   const [notebooks, setNotebooks] = useState<NotebookSummaryDto[]>([]);
+  const [totalNotebooks, setTotalNotebooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -82,11 +83,12 @@ export function DashboardPage() {
       const [boardResult, projectResult, notebookResult] = await Promise.all([
         getBoards({ limit: 100 }),
         getProjects({ status: "Active" }).catch(() => [] as ProjectSummaryDto[]),
-        getNotebooks({ limit: 100 }).catch(() => ({ items: [] as NotebookSummaryDto[] })),
+        getNotebooks({ limit: 100 }).catch(() => ({ items: [] as NotebookSummaryDto[], total: 0 })),
       ]);
       setBoards(boardResult.items);
       setActiveProjects(projectResult);
       setNotebooks(notebookResult.items);
+      setTotalNotebooks(notebookResult.total ?? 0);
     } catch {
       setError("Failed to load boards.");
     } finally {
@@ -324,12 +326,13 @@ export function DashboardPage() {
       setCreateNotebookError(null);
       const created = await createNotebook({ name });
       setNotebooks((prev) => [created, ...prev]);
+      setTotalNotebooks((t) => t + 1);
       setIsCreateNotebookOpen(false);
       setIsCreateOpen(false); // close Get Started modal if it was used
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setCreateNotebookError(err.response.data?.message ?? "A notebook with that name already exists.");
+        setCreateNotebookError(err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to create another.");
       } else {
         setCreateNotebookError("Failed to create notebook. Please try again.");
         console.error("Failed to create notebook:", err);
@@ -379,6 +382,7 @@ export function DashboardPage() {
     const id = notebookDeleteTarget.id;
     setNotebookDeleteTarget(null);
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
+    setTotalNotebooks((t) => Math.max(0, t - 1));
     try {
       await deleteNotebook(id);
       refreshPinnedNotebooks();
@@ -694,6 +698,7 @@ export function DashboardPage() {
         isOpen={isCreateOpen}
         error={createBoardError}
         createNotebookError={createNotebookError}
+        canCreateNotebook={totalNotebooks < 5}
         onClose={() => {
           setIsCreateOpen(false);
           setCreateBoardError(null);

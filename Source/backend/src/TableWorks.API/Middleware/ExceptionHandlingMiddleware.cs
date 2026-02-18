@@ -63,11 +63,11 @@ public sealed class ExceptionHandlingMiddleware
             _logger.LogWarning(exception, "Unauthorized: {Message}", exception.Message);
 
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
 
             var payload = new
             {
-                error = "Forbidden",
+                error = "Unauthorized",
                 message = exception.Message
             };
 
@@ -110,6 +110,22 @@ public sealed class ExceptionHandlingMiddleware
                 return;
             }
 
+            // Missing column (e.g. ContentJson, ShowEventsOnMainCalendar) = schema out of date; return 503 with script hint
+            if (TryGetMissingColumnDetails(exception, out var columnMessage))
+            {
+                _logger.LogWarning("Database schema is out of date (missing column): {Column}. Run scripts/apply-missing-columns.sql", columnMessage);
+                context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                var payload = new
+                {
+                    error = "ServiceUnavailable",
+                    message = "Database schema is out of date. Run scripts/apply-missing-columns.sql (see Source/backend/scripts/README.md).",
+                    code = "SchemaOutOfDate",
+                    column = columnMessage
+                };
+                await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
+                return;
+            }
+
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
             var defaultPayload = new
             {
@@ -129,6 +145,21 @@ public sealed class ExceptionHandlingMiddleware
             if (e is PostgresException pg && pg.SqlState == "42P01")
             {
                 relationMessage = pg.Message;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>True if the exception is a PostgreSQL "undefined_column" (42703); sets columnMessage to the DB error message.</summary>
+    private static bool TryGetMissingColumnDetails(Exception ex, out string? columnMessage)
+    {
+        columnMessage = null;
+        for (var e = ex; e != null; e = e.InnerException)
+        {
+            if (e is PostgresException pg && pg.SqlState == "42703")
+            {
+                columnMessage = pg.Message;
                 return true;
             }
         }

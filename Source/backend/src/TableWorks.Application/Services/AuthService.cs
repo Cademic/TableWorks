@@ -125,7 +125,8 @@ public sealed class AuthService : IAuthService
         var user = await _userRepo.Query()
             .FirstOrDefaultAsync(u => u.Email == request.Email, cancellationToken);
 
-        if (user is null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        if (user is null || string.IsNullOrEmpty(user.PasswordHash) ||
+            !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
             throw new UnauthorizedAccessException("Invalid email or password.");
 
         if (!user.IsActive)

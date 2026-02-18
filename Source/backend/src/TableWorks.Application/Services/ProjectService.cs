@@ -178,7 +178,7 @@ public sealed class ProjectService : IProjectService
             .Include(p => p.Owner)
             .Include(p => p.Members).ThenInclude(m => m.User)
             .Include(p => p.Boards)
-            .Include(p => p.Notebooks).ThenInclude(n => n.Pages)
+            .Include(p => p.Notebooks)
             .Include(p => p.Notes).ThenInclude(n => n.NoteTags).ThenInclude(nt => nt.Tag)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
@@ -233,8 +233,7 @@ public sealed class ProjectService : IProjectService
                 IsPinned = n.IsPinned,
                 PinnedAt = n.PinnedAt,
                 CreatedAt = n.CreatedAt,
-                UpdatedAt = n.UpdatedAt,
-                PageCount = n.Pages.Count
+                UpdatedAt = n.UpdatedAt
             }).ToList(),
             Notes = project.Notes.Select(n => new NoteSummaryDto
             {

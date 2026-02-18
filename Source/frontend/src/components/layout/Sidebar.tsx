@@ -83,7 +83,7 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
 
   function isActive(path: string) {
     if (path === "/dashboard") return location.pathname === "/dashboard";
-    if (path === "/notebooks") return location.pathname === "/notebooks";
+    if (path === "/notebooks") return location.pathname === "/notebooks" || location.pathname.startsWith("/notebooks/");
     return location.pathname.startsWith(path);
   }
 

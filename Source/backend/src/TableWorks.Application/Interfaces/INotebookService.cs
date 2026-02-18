@@ -9,7 +9,7 @@ public interface INotebookService
     Task<NotebookDetailDto> GetNotebookByIdAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default);
     Task<NotebookSummaryDto> CreateNotebookAsync(Guid userId, CreateNotebookRequest request, CancellationToken cancellationToken = default);
     Task UpdateNotebookAsync(Guid userId, Guid notebookId, UpdateNotebookRequest request, CancellationToken cancellationToken = default);
-    Task UpdateNotebookPagesAsync(Guid userId, Guid notebookId, UpdateNotebookPagesRequest request, CancellationToken cancellationToken = default);
+    Task UpdateNotebookContentAsync(Guid userId, Guid notebookId, UpdateNotebookContentRequest request, CancellationToken cancellationToken = default);
     Task DeleteNotebookAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default);
     Task TogglePinAsync(Guid userId, Guid notebookId, bool isPinned, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<NotebookSummaryDto>> GetPinnedNotebooksAsync(Guid userId, CancellationToken cancellationToken = default);

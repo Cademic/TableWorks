@@ -9,23 +9,20 @@ namespace ASideNote.Application.Services;
 
 public sealed class NotebookService : INotebookService
 {
-    private const int MaxPages = 999;
+    private const int MaxNotebooksPerUser = 5;
 
     private readonly IRepository<Notebook> _notebookRepo;
-    private readonly IRepository<NotebookPage> _pageRepo;
     private readonly IRepository<Project> _projectRepo;
     private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
-        IRepository<NotebookPage> pageRepo,
         IRepository<Project> projectRepo,
         IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork)
     {
         _notebookRepo = notebookRepo;
-        _pageRepo = pageRepo;
         _projectRepo = projectRepo;
         _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
@@ -71,8 +68,7 @@ public sealed class NotebookService : INotebookService
                 IsPinned = n.IsPinned,
                 PinnedAt = n.PinnedAt,
                 CreatedAt = n.CreatedAt,
-                UpdatedAt = n.UpdatedAt,
-                PageCount = n.Pages.Count
+                UpdatedAt = n.UpdatedAt
             })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -90,18 +86,9 @@ public sealed class NotebookService : INotebookService
     {
         var notebook = await _notebookRepo.Query()
             .Where(n => n.Id == notebookId && n.UserId == userId)
-            .Include(n => n.Pages.OrderBy(p => p.PageIndex))
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
-
-        var pageList = new List<string>();
-        foreach (var p in notebook.Pages.OrderBy(x => x.PageIndex))
-        {
-            while (pageList.Count < p.PageIndex)
-                pageList.Add(string.Empty);
-            pageList.Add(p.Content ?? string.Empty);
-        }
 
         return new NotebookDetailDto
         {
@@ -111,18 +98,24 @@ public sealed class NotebookService : INotebookService
             PinnedAt = notebook.PinnedAt,
             CreatedAt = notebook.CreatedAt,
             UpdatedAt = notebook.UpdatedAt,
-            Pages = pageList
+            ContentJson = notebook.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}"
         };
     }
 
     public async Task<NotebookSummaryDto> CreateNotebookAsync(Guid userId, CreateNotebookRequest request, CancellationToken cancellationToken = default)
     {
+        var count = await _notebookRepo.Query()
+            .CountAsync(n => n.UserId == userId, cancellationToken);
+        if (count >= MaxNotebooksPerUser)
+            throw new InvalidOperationException("Maximum 5 notebooks allowed. Delete one to create another.");
+
         var now = DateTime.UtcNow;
         var notebook = new Notebook
         {
             UserId = userId,
             Name = request.Name.Trim(),
             ProjectId = request.ProjectId,
+            ContentJson = "{\"type\":\"doc\",\"content\":[]}",
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -137,8 +130,7 @@ public sealed class NotebookService : INotebookService
             IsPinned = false,
             PinnedAt = null,
             CreatedAt = notebook.CreatedAt,
-            UpdatedAt = notebook.UpdatedAt,
-            PageCount = 0
+            UpdatedAt = notebook.UpdatedAt
         };
     }
 
@@ -155,44 +147,16 @@ public sealed class NotebookService : INotebookService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UpdateNotebookPagesAsync(Guid userId, Guid notebookId, UpdateNotebookPagesRequest request, CancellationToken cancellationToken = default)
+    public async Task UpdateNotebookContentAsync(Guid userId, Guid notebookId, UpdateNotebookContentRequest request, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .Include(n => n.Pages)
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
 
-        var pages = request.Pages?.Take(MaxPages).ToList() ?? new List<string>();
-        var now = DateTime.UtcNow;
+        notebook.ContentJson = request.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}";
+        notebook.UpdatedAt = DateTime.UtcNow;
 
-        var existingByIndex = notebook.Pages.ToDictionary(p => p.PageIndex);
-
-        for (var i = 0; i < pages.Count; i++)
-        {
-            var content = pages[i] ?? string.Empty;
-            if (existingByIndex.TryGetValue(i, out var existingPage))
-            {
-                existingPage.Content = content;
-                existingPage.UpdatedAt = now;
-                // Entity already tracked via Include; change tracker will persist updates.
-            }
-            else
-            {
-                var page = new NotebookPage
-                {
-                    Id = Guid.NewGuid(),
-                    NotebookId = notebookId,
-                    PageIndex = i,
-                    Content = content,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-                await _pageRepo.AddAsync(page, cancellationToken);
-            }
-        }
-
-        notebook.UpdatedAt = now;
-
+        _notebookRepo.Update(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
@@ -233,8 +197,7 @@ public sealed class NotebookService : INotebookService
                 IsPinned = true,
                 PinnedAt = n.PinnedAt,
                 CreatedAt = n.CreatedAt,
-                UpdatedAt = n.UpdatedAt,
-                PageCount = n.Pages.Count
+                UpdatedAt = n.UpdatedAt
             })
             .AsNoTracking()
             .ToListAsync(cancellationToken);

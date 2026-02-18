@@ -14,11 +14,13 @@ namespace ASideNote.API.Controllers;
 public sealed class NotebooksController : ControllerBase
 {
     private readonly INotebookService _notebookService;
+    private readonly INotebookExportService _exportService;
     private readonly ICurrentUserService _currentUserService;
 
-    public NotebooksController(INotebookService notebookService, ICurrentUserService currentUserService)
+    public NotebooksController(INotebookService notebookService, INotebookExportService exportService, ICurrentUserService currentUserService)
     {
         _notebookService = notebookService;
+        _exportService = exportService;
         _currentUserService = currentUserService;
     }
 
@@ -65,14 +67,14 @@ public sealed class NotebooksController : ControllerBase
         return Ok();
     }
 
-    [HttpPut("{id:guid}/pages")]
+    [HttpPut("{id:guid}/content")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateNotebookPages(Guid id, [FromBody] UpdateNotebookPagesRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateNotebookContent(Guid id, [FromBody] UpdateNotebookContentRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
             return BadRequest();
-        await _notebookService.UpdateNotebookPagesAsync(_currentUserService.UserId, id, request, cancellationToken);
+        await _notebookService.UpdateNotebookContentAsync(_currentUserService.UserId, id, request, cancellationToken);
         return Ok();
     }
 
@@ -92,6 +94,21 @@ public sealed class NotebooksController : ControllerBase
     {
         await _notebookService.TogglePinAsync(_currentUserService.UserId, id, request.IsPinned, cancellationToken);
         return Ok();
+    }
+
+    /// <summary>Export notebook as file (pdf, txt, md, html). Returns 404 if not found or not owner.</summary>
+    [HttpGet("{id:guid}/export")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Export(Guid id, [FromQuery] string format, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(format))
+            return BadRequest("Format is required.");
+        var result = await _exportService.ExportAsync(_currentUserService.UserId, id, format.Trim(), cancellationToken);
+        if (result is null)
+            return NotFound();
+        return File(result.Content, result.ContentType, result.FileName);
     }
 }
 

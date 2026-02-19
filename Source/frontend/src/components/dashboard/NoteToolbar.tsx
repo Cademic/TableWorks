@@ -271,6 +271,7 @@ export function NoteToolbar({
 
         <div className="mx-0.5 h-4 w-px bg-black/10" />
 
+
         {/* Text color swatches */}
         <div className="flex items-center gap-0.5">
           <Type className="mr-0.5 h-3 w-3 text-gray-500" />

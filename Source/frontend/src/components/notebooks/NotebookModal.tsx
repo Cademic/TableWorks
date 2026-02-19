@@ -323,7 +323,6 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
                   onCardRotationChange={() => {}}
                   hideCardColor
                   hideTilt
-                  notebookId={notebook.id}
                 />
               </div>
             )}

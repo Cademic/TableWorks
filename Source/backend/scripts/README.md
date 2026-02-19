@@ -1,5 +1,15 @@
 # Database scripts
 
+## add-board-images-table.sql
+
+**When to use:** You get **503 Service Unavailable** on `GET` or `POST` `/api/v1/boards/{id}/image-cards`, and you cannot run `dotnet ef database update` because the API process is running (build fails with "file is locked").
+
+**Cause:** The `BoardImages` table does not exist yet. The migration exists but was never applied.
+
+**Fix:** Run the script against your database (e.g. pgAdmin Query Tool or `psql -U postgres -d asidenote -f add-board-images-table.sql`). It creates the `BoardImages` table and marks the migration as applied. You do **not** need to stop the API. After the script runs, refresh the board page; image-cards requests should succeed.
+
+---
+
 ## mark-notebooks-migration-applied.sql
 
 **When to use:** You see `relation "Notebooks" already exists` (42P07) or `column "ProjectId" of relation "Notebooks" already exists` (42701) when starting the API during migration apply.

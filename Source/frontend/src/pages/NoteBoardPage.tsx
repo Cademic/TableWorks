@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
-import { Plus, StickyNote as StickyNoteIcon, CreditCard, ChevronUp } from "lucide-react";
+import { Plus, StickyNote as StickyNoteIcon, CreditCard, ChevronUp, Image as ImageIcon } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { CorkBoard } from "../components/dashboard/CorkBoard";
 import { StickyNote } from "../components/dashboard/StickyNote";
 import { IndexCard } from "../components/dashboard/IndexCard";
+import { ImageCard } from "../components/dashboard/ImageCard";
 import { RedStringLayer } from "../components/dashboard/RedStringLayer";
 import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
 import {
@@ -18,8 +19,21 @@ import {
   createConnection,
   deleteConnection,
 } from "../api/connections";
-import { getBoardById } from "../api/boards";
-import type { NoteSummaryDto, IndexCardSummaryDto, BoardConnectionDto, BoardSummaryDto } from "../types";
+import {
+  getBoardById,
+  getBoardImageCards,
+  createBoardImageCard,
+  patchBoardImageCard,
+  deleteBoardImageCard,
+  uploadBoardImage,
+} from "../api/boards";
+import type {
+  NoteSummaryDto,
+  IndexCardSummaryDto,
+  BoardConnectionDto,
+  BoardSummaryDto,
+  BoardImageSummaryDto,
+} from "../types";
 
 let nextTempCardId = 1;
 
@@ -30,6 +44,7 @@ export function NoteBoardPage() {
   const [board, setBoard] = useState<BoardSummaryDto | null>(null);
   const [notes, setNotes] = useState<NoteSummaryDto[]>([]);
   const [indexCards, setIndexCards] = useState<IndexCardSummaryDto[]>([]);
+  const [imageCards, setImageCards] = useState<BoardImageSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -53,6 +68,8 @@ export function NoteBoardPage() {
   const linkingFromRef = useRef<string | null>(null);
   const connectionsRef = useRef(connections);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImageDrop, setPendingImageDrop] = useState<{ x: number; y: number } | null>(null);
 
   // --- Viewport state (pan & zoom) ---
   const [zoom, setZoom] = useState(1);
@@ -114,11 +131,12 @@ export function NoteBoardPage() {
     if (!boardId) return;
     try {
       setError(null);
-      const [boardRes, notesRes, cardsRes, connsRes] = await Promise.allSettled([
+      const [boardRes, notesRes, cardsRes, connsRes, imagesRes] = await Promise.allSettled([
         getBoardById(boardId),
         getNotes({ boardId, limit: 100 }),
         getIndexCards({ boardId, limit: 100 }),
         getConnections({ boardId }),
+        getBoardImageCards(boardId),
       ]);
 
       if (boardRes.status === "fulfilled") {
@@ -133,9 +151,17 @@ export function NoteBoardPage() {
       if (connsRes.status === "fulfilled") {
         setConnections(connsRes.value);
       }
+      if (imagesRes.status === "fulfilled") {
+        setImageCards(imagesRes.value);
+      }
 
       // Only show error if all failed
-      if (boardRes.status === "rejected" && notesRes.status === "rejected" && cardsRes.status === "rejected" && connsRes.status === "rejected") {
+      if (
+        boardRes.status === "rejected" &&
+        notesRes.status === "rejected" &&
+        cardsRes.status === "rejected" &&
+        imagesRes.status === "rejected"
+      ) {
         setError("Failed to load board items.");
       }
     } finally {
@@ -168,6 +194,9 @@ export function NoteBoardPage() {
         handleQuickAddNote();
       } else if (type === "index-card") {
         handleQuickAddCard();
+      } else if (type === "image-card") {
+        setPendingImageDrop(null);
+        imageFileInputRef.current?.click();
       }
     }
     document.addEventListener("board-tool-click", onToolClick);
@@ -414,6 +443,73 @@ export function NoteBoardPage() {
     }
   }
 
+  async function handleQuickAddImage() {
+    if (!boardId) return;
+    setShowAddMenu(false);
+    setPendingImageDrop(null);
+    imageFileInputRef.current?.click();
+  }
+
+  function handleImageFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !boardId) return;
+
+    const positionX = pendingImageDrop ? pendingImageDrop.x : 30 + Math.random() * 400;
+    const positionY = pendingImageDrop ? pendingImageDrop.y : 30 + Math.random() * 300;
+    setPendingImageDrop(null);
+
+    uploadBoardImage(boardId, file)
+      .then(({ url }) =>
+        createBoardImageCard(boardId, {
+          imageUrl: url,
+          positionX,
+          positionY,
+        })
+      )
+      .then((created) => {
+        setImageCards((prev) => [...prev, created]);
+      })
+      .catch(() => {
+        // Silently fail
+      });
+  }
+
+  async function handleImageDragStop(id: string, x: number, y: number) {
+    setImageCards((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, positionX: x, positionY: y } : img))
+    );
+    if (!boardId) return;
+    try {
+      await patchBoardImageCard(boardId, id, { positionX: x, positionY: y });
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleImageResize(id: string, width: number, height: number) {
+    setImageCards((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, width, height } : img))
+    );
+    if (!boardId) return;
+    try {
+      await patchBoardImageCard(boardId, id, { width, height });
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleImageDelete(id: string) {
+    setImageCards((prev) => prev.filter((img) => img.id !== id));
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== id && c.toItemId !== id));
+    if (!boardId) return;
+    try {
+      await deleteBoardImageCard(boardId, id);
+    } catch {
+      fetchData();
+    }
+  }
+
   async function handleCardDelete(id: string) {
     setIndexCards((prev) => prev.filter((c) => c.id !== id));
     if (editingCardId === id) {
@@ -451,6 +547,9 @@ export function NoteBoardPage() {
       } catch {
         // Silently fail
       }
+    } else if (type === "image-card") {
+      setPendingImageDrop({ x, y });
+      imageFileInputRef.current?.click();
     } else if (type === "index-card") {
       const tempId = `temp-card-${nextTempCardId++}`;
       const now = new Date().toISOString();
@@ -598,7 +697,7 @@ export function NoteBoardPage() {
     );
   }
 
-  const isEmpty = notes.length === 0 && indexCards.length === 0;
+  const isEmpty = notes.length === 0 && indexCards.length === 0 && imageCards.length === 0;
 
   return (
     <div className="relative h-full">
@@ -641,6 +740,21 @@ export function NoteBoardPage() {
             />
           ))}
 
+          {imageCards.map((img) => (
+            <ImageCard
+              key={img.id}
+              image={img}
+              zIndex={zIndexMap[img.id] ?? 0}
+              onDragStop={handleImageDragStop}
+              onDelete={handleImageDelete}
+              onResize={handleImageResize}
+              onBringToFront={bringToFront}
+              onPinMouseDown={handlePinMouseDown}
+              isLinking={linkingFrom !== null}
+              zoom={zoom}
+            />
+          ))}
+
           {indexCards.map((card) => (
             <IndexCard
               key={card.id}
@@ -666,11 +780,19 @@ export function NoteBoardPage() {
               <div className="text-center">
                 <p className="mb-2 text-lg font-medium text-gray-700/70">Your board is empty</p>
                 <p className="text-sm text-gray-600/60">
-                  Click the + button to add a sticky note or index card
+                  Click the + button to add a sticky note, image, or index card
                 </p>
               </div>
             </div>
           )}
+
+          <input
+            ref={imageFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={handleImageFileSelect}
+          />
         </CorkBoard>
       </div>
 
@@ -686,6 +808,14 @@ export function NoteBoardPage() {
           ].join(" ")}
         >
           <div className="py-1">
+            <button
+              type="button"
+              onClick={handleQuickAddImage}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              <ImageIcon className="h-4 w-4 text-emerald-500" />
+              <span>Image</span>
+            </button>
             <button
               type="button"
               onClick={handleQuickAddNote}

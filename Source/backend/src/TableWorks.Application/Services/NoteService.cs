@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Common;
 using ASideNote.Application.DTOs.Notes;
 using ASideNote.Application.DTOs.Tags;
+using ASideNote.Application.Helpers;
 using ASideNote.Application.Interfaces;
 using ASideNote.Core.Entities;
 using ASideNote.Core.Interfaces;
@@ -13,15 +14,21 @@ public sealed class NoteService : INoteService
     private readonly IRepository<Note> _noteRepo;
     private readonly IRepository<NoteTag> _noteTagRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IImageStorageService _imageStorage;
+    private readonly IUserStorageService _userStorage;
 
     public NoteService(
         IRepository<Note> noteRepo,
         IRepository<NoteTag> noteTagRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IImageStorageService imageStorage,
+        IUserStorageService userStorage)
     {
         _noteRepo = noteRepo;
         _noteTagRepo = noteTagRepo;
         _unitOfWork = unitOfWork;
+        _imageStorage = imageStorage;
+        _userStorage = userStorage;
     }
 
     public async Task<PaginatedResponse<NoteSummaryDto>> GetNotesAsync(Guid userId, NoteListQuery query, CancellationToken cancellationToken = default)
@@ -173,6 +180,21 @@ public sealed class NoteService : INoteService
             .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
 
+        if (request.Content is not null)
+        {
+            var oldUrls = HtmlImageUrls.GetImageUrls(note.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(note.Content ?? "")).ToHashSet();
+            var newUrls = HtmlImageUrls.GetImageUrls(request.PatchTitle ? (request.Title ?? "") : (note.Title ?? ""))
+                .Concat(HtmlImageUrls.GetImageUrls(request.Content))
+                .ToHashSet();
+            var removedUrls = oldUrls.Except(newUrls).ToList();
+            foreach (var url in removedUrls)
+            {
+                var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+                if (key is not null)
+                    await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+            }
+        }
+
         if (request.PatchTitle)
             note.Title = request.Title;
         if (request.Content is not null)
@@ -200,6 +222,14 @@ public sealed class NoteService : INoteService
         var note = await _noteRepo.Query()
             .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
+
+        var urls = HtmlImageUrls.GetImageUrls(note.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(note.Content ?? "")).ToList();
+        foreach (var url in urls)
+        {
+            var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+            if (key is not null)
+                await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+        }
 
         _noteRepo.Delete(note);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

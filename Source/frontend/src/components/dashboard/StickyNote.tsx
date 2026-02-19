@@ -564,13 +564,13 @@ export function StickyNote({
             isEditing ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0",
           ].join(" ")}
         >
-          <NoteToolbar
-            editor={activeEditor}
-            noteColor={colorKey}
-            onNoteColorChange={handleNoteColorChange}
-            noteRotation={note.rotation ?? 0}
-            onNoteRotationChange={handleNoteRotationChange}
-          />
+        <NoteToolbar
+          editor={activeEditor}
+          noteColor={colorKey}
+          onNoteColorChange={handleNoteColorChange}
+          noteRotation={note.rotation ?? 0}
+          onNoteRotationChange={handleNoteRotationChange}
+        />
         </div>
 
         {/* Content area */}

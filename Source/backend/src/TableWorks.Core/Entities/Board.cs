@@ -17,6 +17,7 @@ public sealed class Board
     public Project? Project { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
     public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
+    public ICollection<BoardImage> BoardImages { get; set; } = new List<BoardImage>();
     public ICollection<BoardConnection> BoardConnections { get; set; } = new List<BoardConnection>();
     public Drawing? Drawing { get; set; }
 }

@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   StickyNote,
+  Image as ImageIcon,
   FolderOpen,
   ChevronLeft,
   ChevronRight,
@@ -54,6 +55,13 @@ const BOARD_TOOLS = [
     label: "Index Card",
     iconColor: "text-sky-600 dark:text-sky-400",
     swatchColor: "bg-sky-400",
+  },
+  {
+    type: "image-card",
+    icon: ImageIcon,
+    label: "Image",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    swatchColor: "bg-emerald-400",
   },
 ];
 

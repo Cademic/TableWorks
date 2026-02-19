@@ -24,6 +24,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
     public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
     public DbSet<Board> Boards => Set<Board>();
+    public DbSet<BoardImage> BoardImages => Set<BoardImage>();
     public DbSet<Drawing> Drawings => Set<Drawing>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
@@ -90,6 +91,30 @@ public sealed class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasQueryFilter(b => Set<User>().Any(u => u.Id == b.UserId));
+        });
+
+        // ----- BoardImage -----
+        modelBuilder.Entity<BoardImage>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.BoardId);
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.ImageUrl).HasMaxLength(2048).IsRequired();
+
+            entity.HasOne(x => x.Board)
+                .WithMany(x => x.BoardImages)
+                .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(bi => Set<User>().Any(u => u.Id == bi.UserId));
         });
 
         // ----- Notebook -----

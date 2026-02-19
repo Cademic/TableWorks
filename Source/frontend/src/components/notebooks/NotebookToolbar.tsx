@@ -12,6 +12,7 @@ import {
   Undo2,
   Redo2,
   Printer,
+  FileDown,
   Minus,
   Plus,
   Trash2,
@@ -92,6 +93,10 @@ interface NotebookToolbarProps {
   onZoomChange: (zoom: number) => void;
   /** Notebook ID for image uploads (required for upload flow). */
   notebookId: string | undefined;
+  /** Download current content as PDF. */
+  onDownloadPdf?: () => void;
+  /** True while PDF export is in progress. */
+  pdfExporting?: boolean;
 }
 
 function ToolbarButton({
@@ -825,6 +830,8 @@ export function NotebookToolbar({
   zoom,
   onZoomChange,
   notebookId,
+  onDownloadPdf,
+  pdfExporting = false,
 }: NotebookToolbarProps) {
   const setFontFamily = useCallback(
     (value: string) => {
@@ -922,6 +929,15 @@ export function NotebookToolbar({
         >
           <Printer className="h-4 w-4" />
         </ToolbarButton>
+        {onDownloadPdf && (
+          <ToolbarButton
+            onClick={onDownloadPdf}
+            disabled={pdfExporting}
+            title="Download as PDF"
+          >
+            <FileDown className="h-4 w-4" />
+          </ToolbarButton>
+        )}
         <ToolbarDivider />
         <div className="flex items-center gap-1">
           <select

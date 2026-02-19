@@ -275,6 +275,35 @@ export interface CreateBoardConnectionRequest {
   boardId?: string;
 }
 
+// --- Board Image Card DTOs ---
+
+export interface BoardImageSummaryDto {
+  id: string;
+  imageUrl: string;
+  positionX: number;
+  positionY: number;
+  width: number | null;
+  height: number | null;
+  rotation: number | null;
+}
+
+export interface CreateBoardImageRequest {
+  imageUrl: string;
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
+
+export interface PatchBoardImageRequest {
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
+
 // --- Index Card DTOs ---
 
 export interface IndexCardSummaryDto {

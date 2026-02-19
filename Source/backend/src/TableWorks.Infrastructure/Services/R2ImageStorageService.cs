@@ -61,6 +61,47 @@ public sealed class R2ImageStorageService : IImageStorageService
         }
     }
 
+    public async Task<ImageUploadResult> UploadForBoardAsync(Guid boardId, Stream content, string contentType, CancellationToken cancellationToken = default)
+    {
+        var ext = GetExtensionFromContentType(contentType);
+        var key = $"boards/{boardId}/{Guid.NewGuid():N}{ext}";
+
+        long sizeBytes;
+        MemoryStream? ms = null;
+        Stream stream = content;
+        if (!content.CanSeek)
+        {
+            ms = new MemoryStream();
+            await content.CopyToAsync(ms, cancellationToken);
+            ms.Position = 0;
+            stream = ms;
+        }
+        sizeBytes = stream.Length;
+
+        try
+        {
+            var request = new PutObjectRequest
+            {
+                BucketName = _options.Bucket!,
+                Key = key,
+                InputStream = stream,
+                ContentType = contentType,
+                DisablePayloadSigning = true
+            };
+
+            await _s3.PutObjectAsync(request, cancellationToken);
+
+            var url = string.IsNullOrWhiteSpace(_options.PublicBaseUrl)
+                ? $"{_options.ServiceUrl}/{_options.Bucket}/{key}"
+                : $"{_options.PublicBaseUrl.TrimEnd('/')}/{key}";
+            return new ImageUploadResult(url, key, sizeBytes);
+        }
+        finally
+        {
+            ms?.Dispose();
+        }
+    }
+
     public async Task<string?> DeleteByUrlIfOwnedAsync(string url, CancellationToken cancellationToken = default)
     {
         var key = UrlToStorageKey(url);
@@ -109,7 +150,9 @@ public sealed class R2ImageStorageService : IImageStorageService
             var idx = url.IndexOf($"/{_options.Bucket}/", StringComparison.OrdinalIgnoreCase);
             key = url[(idx + _options.Bucket!.Length + 2)..].Split('?')[0].Split('#')[0].Trim();
         }
-        if (string.IsNullOrEmpty(key) || !key.StartsWith("notebooks/", StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(key))
+            return null;
+        if (!key.StartsWith("notebooks/", StringComparison.Ordinal) && !key.StartsWith("boards/", StringComparison.Ordinal))
             return null;
         return key;
     }

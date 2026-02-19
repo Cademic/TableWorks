@@ -22,6 +22,7 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { FontSize } from "../lib/tiptap-font-size";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion } from "../api/notebooks";
+import { exportNotebookToPdf } from "../lib/exportNotebookToPdf";
 import type { NotebookDetailDto, NotebookVersionDto } from "../types";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { PaperShell } from "../components/notebooks/PaperShell";
@@ -248,15 +249,20 @@ export function NotebookEditorPage() {
   const handleExportFormat = useCallback(
     async (format: string) => {
       if (!notebook || !notebookId) return;
+      if (!editor) return;
       setExporting(true);
       try {
-        const { blob, filename } = await downloadNotebookExport(notebookId, format);
-        triggerDownload(blob, filename);
+        if (format === "pdf") {
+          await exportNotebookToPdf(editor.getHTML(), safeFileName(notebook.name));
+        } else {
+          const { blob, filename } = await downloadNotebookExport(notebookId, format);
+          triggerDownload(blob, filename);
+        }
       } finally {
         setExporting(false);
       }
     },
-    [notebookId, notebook],
+    [notebookId, notebook, editor],
   );
 
   const handleSaveAsHtml = useCallback(() => {
@@ -271,6 +277,16 @@ export function NotebookEditorPage() {
     const json = editor.getJSON();
     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
     triggerDownload(blob, `${safeFileName(notebook.name)}.json`);
+  }, [editor, notebook]);
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!editor || !notebook) return;
+    setExporting(true);
+    try {
+      await exportNotebookToPdf(editor.getHTML(), safeFileName(notebook.name));
+    } finally {
+      setExporting(false);
+    }
   }, [editor, notebook]);
 
   const handleImportJson = useCallback(
@@ -371,6 +387,8 @@ export function NotebookEditorPage() {
                 zoom={zoom}
                 onZoomChange={setZoom}
                 notebookId={notebookId ?? undefined}
+                onDownloadPdf={handleDownloadPdf}
+                pdfExporting={exporting}
               />
             </div>
           )}

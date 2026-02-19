@@ -1,6 +1,4 @@
-import { useCallback, useState, useRef } from "react";
-import imageCompression from "browser-image-compression";
-import { uploadNotebookImage } from "../../api/notebooks";
+import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import {
   Bold,
@@ -30,7 +28,6 @@ import {
   Quote,
   Code,
   Code2,
-  Image as ImageIcon,
 } from "lucide-react";
 
 interface IndexCardToolbarProps {
@@ -43,8 +40,6 @@ interface IndexCardToolbarProps {
   hideCardColor?: boolean;
   /** When true, hide the tilt row (e.g. for notebook) */
   hideTilt?: boolean;
-  /** Notebook ID for image uploads. When provided, uses upload API; otherwise falls back to base64. */
-  notebookId?: string;
 }
 
 const ROTATION_PRESETS = [-10, -5, -3, 0, 3, 5, 10];
@@ -498,135 +493,6 @@ function TableOptionsButton({ editor }: { editor: Editor }) {
   );
 }
 
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
-const SMALL_IMAGE_THRESHOLD = 200 * 1024; // 200 KB
-
-async function compressImageIfNeeded(file: File): Promise<File> {
-  if (file.size <= SMALL_IMAGE_THRESHOLD) return file;
-  try {
-    return await imageCompression(file, {
-      maxSizeMB: 5,
-      maxWidthOrHeight: 1200,
-      useWebWorker: true,
-      initialQuality: 0.8,
-    });
-  } catch {
-    return file;
-  }
-}
-
-function ImageButton({ editor, notebookId }: { editor: Editor; notebookId?: string }) {
-  const [showInput, setShowInput] = useState(false);
-  const [url, setUrl] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  function handleSetImage(imageUrl: string) {
-    if (imageUrl.trim()) {
-      editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
-    }
-    setUrl("");
-    setShowInput(false);
-    setUploadError(null);
-  }
-
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setUploadError("Image must be 5MB or less.");
-      return;
-    }
-
-    if (notebookId) {
-      setUploading(true);
-      setUploadError(null);
-      try {
-        const toUpload = await compressImageIfNeeded(file);
-        const { url: imageUrl } = await uploadNotebookImage(notebookId, toUpload);
-        handleSetImage(imageUrl);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload failed.";
-        setUploadError(msg);
-      } finally {
-        setUploading(false);
-      }
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) handleSetImage(dataUrl);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  return (
-    <div className="relative">
-      <ToolbarButton
-        onClick={() => {
-          setShowInput(!showInput);
-        }}
-        title="Insert Image"
-      >
-        <ImageIcon className="h-3.5 w-3.5" />
-      </ToolbarButton>
-      {showInput && (
-        <div className="absolute left-0 top-full z-50 mt-1 flex flex-col gap-1 rounded border border-black/15 bg-white p-1 shadow-lg">
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSetImage(url);
-              }
-              if (e.key === "Escape") {
-                setShowInput(false);
-                setUrl("");
-              }
-            }}
-            placeholder="Image URL"
-            autoFocus
-            onMouseDown={(e) => e.stopPropagation()}
-            className="h-6 w-48 rounded border border-black/15 px-2 text-[10px] text-gray-700 focus:outline-none"
-          />
-          <div className="flex gap-1">
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSetImage(url);
-              }}
-              className="h-6 flex-1 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
-            >
-              Set URL
-            </button>
-            <label className={`h-6 flex-1 rounded px-2 text-[10px] cursor-pointer flex items-center justify-center ${
-              uploading ? "bg-black/5 text-gray-500 cursor-not-allowed" : "bg-black/10 text-gray-700 hover:bg-black/20"
-            }`}>
-              {uploading ? "Uploading…" : "Upload"}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                className="hidden"
-                onChange={handleFileSelect}
-                disabled={uploading}
-              />
-            </label>
-          </div>
-          {uploadError && <p className="text-[10px] text-red-600">{uploadError}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function IndexCardToolbar({
   editor,
   cardColor,
@@ -635,7 +501,6 @@ export function IndexCardToolbar({
   onCardRotationChange,
   hideCardColor = false,
   hideTilt = false,
-  notebookId,
 }: IndexCardToolbarProps) {
   const setFontFamily = useCallback(
     (value: string) => {
@@ -929,11 +794,9 @@ export function IndexCardToolbar({
         </div>
       )}
 
-      {/* Row 4: Content blocks — Image, Table, Task List, Bullet List, Ordered List, Horizontal Rule */}
+      {/* Row 4: Content blocks — Table, Task List, Bullet List, Ordered List, Horizontal Rule */}
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-[10px] text-gray-500 mr-0.5">Insert:</span>
-
-        <ImageButton editor={editor} notebookId={notebookId} />
 
         <TableOptionsButton editor={editor} />
 

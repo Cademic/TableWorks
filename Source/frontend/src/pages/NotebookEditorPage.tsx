@@ -29,7 +29,7 @@ import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
 import { NotebookToolbar } from "../components/notebooks/NotebookToolbar";
 import { NotebookMenuBar } from "../components/notebooks/NotebookMenuBar";
 
-const SAVE_DEBOUNCE_MS = 500; // Debounce saves to prevent race conditions when typing fast
+const SAVE_DEBOUNCE_MS = 1000; // Debounce saves to prevent race conditions when typing fast (1 second)
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
 
 /** Strip legacy pageMargin nodes when loading: lift their content into the doc so top-of-page text is not lost. */

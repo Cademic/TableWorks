@@ -29,7 +29,7 @@ import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
 import { NotebookToolbar } from "../components/notebooks/NotebookToolbar";
 import { NotebookMenuBar } from "../components/notebooks/NotebookMenuBar";
 
-const SAVE_DEBOUNCE_MS = 0;
+const SAVE_DEBOUNCE_MS = 500; // Debounce saves to prevent race conditions when typing fast
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
 
 /** Strip legacy pageMargin nodes when loading: lift their content into the doc so top-of-page text is not lost. */
@@ -109,6 +109,9 @@ export function NotebookEditorPage() {
   const lastSavedJsonRef = useRef<string>("");
   /** Content we last synced into the editor from notebook state; avoid resetting editor after our own save. */
   const lastSyncedContentJsonRef = useRef<string>("");
+  /** Track the latest updatedAt timestamp to prevent race conditions with concurrent saves */
+  const latestUpdatedAtRef = useRef<Date | null>(null);
+  const saveInProgressRef = useRef<boolean>(false);
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const menuImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +125,7 @@ export function NotebookEditorPage() {
           setNotebook(data);
           setBoardName(data.name);
           lastSavedJsonRef.current = data.contentJson ?? "{}";
+          latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
         }
       })
       .catch(() => {
@@ -182,10 +186,20 @@ export function NotebookEditorPage() {
         const json = editor.getJSON();
         const jsonString = JSON.stringify(json);
         if (jsonString === lastSavedJsonRef.current) return;
+        
+        // Wait for any in-progress save to complete before starting a new one
+        while (saveInProgressRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        saveInProgressRef.current = true;
         try {
+          // Use the latest known updatedAt from ref to prevent race conditions
+          const updatedAtToSend = latestUpdatedAtRef.current || (notebook?.updatedAt ? new Date(notebook.updatedAt) : undefined);
+          
           await updateNotebookContent(notebookId, {
             contentJson: jsonString,
-            updatedAt: notebook?.updatedAt,
+            updatedAt: updatedAtToSend,
           });
           lastSavedJsonRef.current = jsonString;
           lastSyncedContentJsonRef.current = jsonString;
@@ -193,9 +207,12 @@ export function NotebookEditorPage() {
           try {
             const data = await getNotebookById(notebookId);
             setNotebook(data);
+            latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
           } catch {
             // Refetch failed; update local state without updatedAt to avoid stale timestamp
-            if (notebook) setNotebook((prev) => (prev ? { ...prev, contentJson: jsonString } : null));
+            if (notebook) {
+              setNotebook((prev) => (prev ? { ...prev, contentJson: jsonString } : null));
+            }
           }
         } catch (err: unknown) {
           const status = (err as { response?: { status?: number } })?.response?.status;
@@ -203,6 +220,7 @@ export function NotebookEditorPage() {
             try {
               const data = await getNotebookById(notebookId);
               setNotebook(data);
+              latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
               const content = parseContentJson(data.contentJson ?? "");
               editor.commands.setContent(content, { emitUpdate: false });
               const jsonStr = data.contentJson ?? "{}";
@@ -212,6 +230,8 @@ export function NotebookEditorPage() {
               // Reload failed; keep editor state
             }
           }
+        } finally {
+          saveInProgressRef.current = false;
         }
       }, SAVE_DEBOUNCE_MS),
     [editor, notebookId, notebook?.updatedAt],
@@ -252,6 +272,7 @@ export function NotebookEditorPage() {
       await restoreNotebookVersion(notebookId, versionId);
       const data = await getNotebookById(notebookId);
       setNotebook(data);
+      latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
       const content = parseContentJson(data.contentJson ?? "");
       editor.commands.setContent(content, { emitUpdate: false });
       const jsonStr = data.contentJson ?? "{}";
@@ -278,11 +299,19 @@ export function NotebookEditorPage() {
         if (format === "pdf") {
           if (editor) {
             const jsonString = JSON.stringify(editor.getJSON());
+            const updatedAtToSend = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
             await updateNotebookContent(notebookId, {
               contentJson: jsonString,
-              updatedAt: notebook.updatedAt,
+              updatedAt: updatedAtToSend,
             });
             lastSavedJsonRef.current = jsonString;
+            // Update ref after successful save
+            try {
+              const data = await getNotebookById(notebookId);
+              latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
+            } catch {
+              // Ignore refetch errors
+            }
           }
           const { blob, filename } = await downloadNotebookExport(notebookId, "pdf");
           triggerDownload(blob, filename);
@@ -317,11 +346,19 @@ export function NotebookEditorPage() {
     try {
       if (editor) {
         const jsonString = JSON.stringify(editor.getJSON());
+        const updatedAtToSend = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
         await updateNotebookContent(notebookId, {
           contentJson: jsonString,
-          updatedAt: notebook.updatedAt,
+          updatedAt: updatedAtToSend,
         });
         lastSavedJsonRef.current = jsonString;
+        // Update ref after successful save
+        try {
+          const data = await getNotebookById(notebookId);
+          latestUpdatedAtRef.current = data.updatedAt ? new Date(data.updatedAt) : null;
+        } catch {
+          // Ignore refetch errors
+        }
       }
       const { blob, filename } = await downloadNotebookExport(notebookId, "pdf");
       triggerDownload(blob, filename);

@@ -189,7 +189,14 @@ export function NotebookEditorPage() {
           });
           lastSavedJsonRef.current = jsonString;
           lastSyncedContentJsonRef.current = jsonString;
-          if (notebook) setNotebook((prev) => (prev ? { ...prev, contentJson: jsonString, updatedAt: new Date().toISOString() } : null));
+          // Refetch to get server's actual updatedAt (avoids clock skew conflicts)
+          try {
+            const data = await getNotebookById(notebookId);
+            setNotebook(data);
+          } catch {
+            // Refetch failed; update local state without updatedAt to avoid stale timestamp
+            if (notebook) setNotebook((prev) => (prev ? { ...prev, contentJson: jsonString } : null));
+          }
         } catch (err: unknown) {
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 409) {

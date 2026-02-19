@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { LineHeight } from "@tiptap/extension-text-style/line-height";
 import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import TextAlign from "@tiptap/extension-text-align";
@@ -19,13 +20,14 @@ import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
-import { ArrowLeft, Download, ChevronDown, Upload, Printer, History } from "lucide-react";
 import { FontSize } from "../lib/tiptap-font-size";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion } from "../api/notebooks";
 import type { NotebookDetailDto, NotebookVersionDto } from "../types";
+import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { PaperShell } from "../components/notebooks/PaperShell";
 import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
-import { IndexCardToolbar } from "../components/dashboard/IndexCardToolbar";
+import { NotebookToolbar } from "../components/notebooks/NotebookToolbar";
+import { NotebookMenuBar } from "../components/notebooks/NotebookMenuBar";
 
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
@@ -81,18 +83,16 @@ function safeFileName(name: string): string {
 export function NotebookEditorPage() {
   const { notebookId } = useParams<{ notebookId: string }>();
   const navigate = useNavigate();
+  const { setBoardName } = useOutletContext<AppLayoutContext>();
   const [notebook, setNotebook] = useState<NotebookDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [versions, setVersions] = useState<NotebookVersionDto[]>([]);
   const [savingVersion, setSavingVersion] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const lastSavedJsonRef = useRef<string>("");
   /** Content we last synced into the editor from notebook state; avoid resetting editor after our own save. */
   const lastSyncedContentJsonRef = useRef<string>("");
-  const downloadMenuRef = useRef<HTMLDivElement>(null);
-  const versionHistoryRef = useRef<HTMLDivElement>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -103,6 +103,7 @@ export function NotebookEditorPage() {
       .then((data) => {
         if (!cancelled) {
           setNotebook(data);
+          setBoardName(data.name);
           lastSavedJsonRef.current = data.contentJson ?? "{}";
         }
       })
@@ -111,13 +112,15 @@ export function NotebookEditorPage() {
       });
     return () => {
       cancelled = true;
+      setBoardName(null);
     };
-  }, [notebookId]);
+  }, [notebookId, setBoardName]);
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false }),
+      StarterKit.configure({ heading: false, link: false, underline: false }),
       TextStyle,
+      LineHeight,
       Color,
       FontFamily,
       FontSize,
@@ -140,7 +143,7 @@ export function NotebookEditorPage() {
     editorProps: {
       attributes: {
         class:
-          "prose prose-zinc dark:prose-invert max-w-none focus:outline-none min-h-[400px]",
+          "prose prose-zinc dark:prose-invert max-w-none focus:outline-none min-h-[400px] text-[12px]",
       },
     },
     immediatelyRender: false,
@@ -202,32 +205,9 @@ export function NotebookEditorPage() {
     navigate("/notebooks");
   }, [navigate]);
 
-  useEffect(() => {
-    if (!downloadMenuOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
-        setDownloadMenuOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [downloadMenuOpen]);
-
-  useEffect(() => {
-    if (!versionHistoryOpen || !notebookId) return;
-    getNotebookVersions(notebookId).then(setVersions).catch(() => setVersions([]));
-  }, [versionHistoryOpen, notebookId]);
-
-  useEffect(() => {
-    if (!versionHistoryOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (versionHistoryRef.current && !versionHistoryRef.current.contains(e.target as Node)) {
-        setVersionHistoryOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [versionHistoryOpen]);
+  const handleFileMenuOpen = useCallback(() => {
+    if (notebookId) getNotebookVersions(notebookId).then(setVersions).catch(() => setVersions([]));
+  }, [notebookId]);
 
   const handleSaveVersion = useCallback(async () => {
     if (!notebookId) return;
@@ -252,7 +232,6 @@ export function NotebookEditorPage() {
       const jsonStr = data.contentJson ?? "{}";
       lastSavedJsonRef.current = jsonStr;
       lastSyncedContentJsonRef.current = jsonStr;
-      setVersionHistoryOpen(false);
     },
     [notebookId, editor],
   );
@@ -268,7 +247,6 @@ export function NotebookEditorPage() {
 
   const handleExportFormat = useCallback(
     async (format: string) => {
-      setDownloadMenuOpen(false);
       if (!notebook || !notebookId) return;
       setExporting(true);
       try {
@@ -282,7 +260,6 @@ export function NotebookEditorPage() {
   );
 
   const handleSaveAsHtml = useCallback(() => {
-    setDownloadMenuOpen(false);
     if (!editor || !notebook) return;
     const html = editor.getHTML();
     const blob = new Blob([html], { type: "text/html; charset=utf-8" });
@@ -290,7 +267,6 @@ export function NotebookEditorPage() {
   }, [editor, notebook]);
 
   const handleSaveAsJson = useCallback(() => {
-    setDownloadMenuOpen(false);
     if (!editor || !notebook) return;
     const json = editor.getJSON();
     const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
@@ -301,7 +277,6 @@ export function NotebookEditorPage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !editor) return;
-      setDownloadMenuOpen(false);
       file
         .text()
         .then((text) => {
@@ -363,192 +338,55 @@ export function NotebookEditorPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      {/* Notepad-style header */}
-      <div className="notepad-card flex-shrink-0 border-b border-border/50">
+      {/* Toolbar header - overflow-visible so Download/Version history dropdowns aren't clipped */}
+      <div className="notepad-card flex-shrink-0 !overflow-visible border-b border-border/50 z-10">
         <div className="notepad-spiral-strip" />
+        {editor && (
+          <div className="hidden sm:block border-b border-gray-200 dark:border-gray-700">
+            <NotebookMenuBar
+              editor={editor}
+              zoom={zoom}
+              onZoomChange={setZoom}
+              onPrint={() => window.print()}
+              onExport={handleExportFormat}
+              onSaveAsHtml={handleSaveAsHtml}
+              onSaveAsJson={handleSaveAsJson}
+              onImportClick={() => importFileInputRef.current?.click()}
+              onFileMenuOpen={handleFileMenuOpen}
+              exporting={exporting}
+              versions={versions}
+              savingVersion={savingVersion}
+              onSaveVersion={handleSaveVersion}
+              onRestoreVersion={handleRestoreVersion}
+              formatVersionDate={formatVersionDate}
+            />
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="rounded-lg p-2 text-foreground/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
-              aria-label="Back to notebooks"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <span className="truncate text-base font-semibold text-foreground">{notebook.name}</span>
           {editor && (
-            <div className="ml-2 hidden sm:block">
-              <IndexCardToolbar
+            <div className="hidden sm:block w-full">
+              <NotebookToolbar
                 editor={editor}
-                cardColor="white"
-                onCardColorChange={() => {}}
-                cardRotation={0}
-                onCardRotationChange={() => {}}
-                hideCardColor
-                hideTilt
+                zoom={zoom}
+                onZoomChange={setZoom}
+                notebookId={notebookId ?? undefined}
               />
             </div>
           )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {editor && (
-            <div ref={downloadMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setDownloadMenuOpen((v) => !v)}
-                disabled={exporting}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground/70 transition-all hover:bg-amber-100/50 hover:text-foreground disabled:opacity-50 dark:hover:bg-amber-900/20"
-                aria-label="Download"
-                aria-expanded={downloadMenuOpen}
-              >
-                <Download className="h-4 w-4" />
-                <span>Download</span>
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              {downloadMenuOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg border border-border bg-background py-1 shadow-xl">
-                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Print</div>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20 flex items-center gap-2"
-                    onClick={() => { setDownloadMenuOpen(false); window.print(); }}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    Print / Save as PDF
-                  </button>
-                  <div className="my-1 border-t border-border/50" />
-                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Export (server)</div>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={() => handleExportFormat("pdf")}
-                  >
-                    PDF
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={() => handleExportFormat("txt")}
-                  >
-                    Plain text (.txt)
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={() => handleExportFormat("md")}
-                  >
-                    Markdown (.md)
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={() => handleExportFormat("html")}
-                  >
-                    HTML
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={() => handleExportFormat("docx")}
-                  >
-                    Word (.docx)
-                  </button>
-                  <div className="my-1 border-t border-border/50" />
-                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Save for editing</div>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={handleSaveAsHtml}
-                  >
-                    Save as HTML
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20"
-                    onClick={handleSaveAsJson}
-                  >
-                    Save as JSON
-                  </button>
-                  <div className="my-1 border-t border-border/50" />
-                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Import</div>
-                  <button
-                    type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-amber-50 hover:text-foreground dark:hover:bg-amber-900/20 flex items-center gap-2"
-                    onClick={() => importFileInputRef.current?.click()}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    Import from file (.json)
-                  </button>
-                  <input
-                    ref={importFileInputRef}
-                    type="file"
-                    accept=".json,application/json"
-                    className="hidden"
-                    aria-hidden
-                    onChange={handleImportJson}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-          {notebookId && (
-            <div ref={versionHistoryRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setVersionHistoryOpen((v) => !v)}
-                disabled={savingVersion}
-                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-foreground/70 transition-all hover:bg-amber-100/50 hover:text-foreground disabled:opacity-50 dark:hover:bg-amber-900/20"
-                aria-label="Version history"
-                aria-expanded={versionHistoryOpen}
-              >
-                <History className="h-4 w-4" />
-                <span>Version history</span>
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              {versionHistoryOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[220px] max-h-[320px] flex flex-col rounded-lg border border-border bg-background py-1 shadow-xl">
-                  <div className="px-2 py-1 text-xs font-medium text-foreground/60">Version history</div>
-                  <button
-                    type="button"
-                    className="mx-2 mb-1 rounded-lg px-2 py-1.5 text-left text-sm font-medium transition-colors hover:bg-amber-50 disabled:opacity-50 dark:hover:bg-amber-900/20"
-                    onClick={handleSaveVersion}
-                    disabled={savingVersion}
-                  >
-                    {savingVersion ? "Saving…" : "Save version"}
-                  </button>
-                  <div className="my-1 border-t border-border/50" />
-                  <div className="overflow-y-auto px-2 py-1">
-                    {versions.length === 0 ? (
-                      <p className="text-xs text-foreground/60 py-2">No versions yet. Save a version to restore later.</p>
-                    ) : (
-                      <ul className="space-y-1">
-                        {versions.map((v) => (
-                          <li key={v.id} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20">
-                            <span className="min-w-0 truncate text-foreground/80" title={v.label ? `${formatVersionDate(v.createdAt)} — ${v.label}` : formatVersionDate(v.createdAt)}>
-                              {formatVersionDate(v.createdAt)}{v.label ? ` — ${v.label}` : ""}
-                            </span>
-                            <button
-                              type="button"
-                              className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
-                              onClick={() => handleRestoreVersion(v.id)}
-                            >
-                              Restore
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        </div>
+        <input
+          ref={importFileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-hidden
+          onChange={handleImportJson}
+        />
       </div>
       <div className="flex-1 overflow-hidden">
-        <ZoomablePaperShell>
+        <ZoomablePaperShell zoom={zoom} onZoomChange={setZoom}>
           <PaperShell>
             <EditorContent editor={editor} />
           </PaperShell>

@@ -111,7 +111,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false }),
+      StarterKit.configure({ heading: false, link: false, underline: false }),
       TextStyle,
       Color,
       FontFamily,
@@ -323,6 +323,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
                   onCardRotationChange={() => {}}
                   hideCardColor
                   hideTilt
+                  notebookId={notebook.id}
                 />
               </div>
             )}
@@ -434,6 +435,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
           >
             <X className="h-5 w-5" />
           </button>
+        </div>
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

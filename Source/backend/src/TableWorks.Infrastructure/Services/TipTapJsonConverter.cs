@@ -124,6 +124,13 @@ public static class TipTapJsonConverter
             case "hardBreak":
                 sb.Append("<br/>");
                 break;
+            case "image":
+                var imgSrc = node.TryGetProperty("attrs", out var imgAttrs) && imgAttrs.TryGetProperty("src", out var srcEl)
+                    ? srcEl.GetString() ?? ""
+                    : "";
+                if (!string.IsNullOrEmpty(imgSrc))
+                    sb.Append($"<img src=\"{WebUtility.HtmlEncode(imgSrc)}\" alt=\"\" />");
+                break;
             default:
                 if (content.HasValue)
                     foreach (var child in content.Value.EnumerateArray())
@@ -164,6 +171,9 @@ public static class TipTapJsonConverter
                 break;
             case "hardBreak":
                 sb.AppendLine();
+                break;
+            case "image":
+                sb.Append("[Image]");
                 break;
             case "codeBlock":
                 if (content.HasValue)
@@ -266,6 +276,12 @@ public static class TipTapJsonConverter
                 break;
             case "hardBreak":
                 sb.Append("\n");
+                break;
+            case "image":
+                var mdSrc = node.TryGetProperty("attrs", out var mdImgAttrs) && mdImgAttrs.TryGetProperty("src", out var mdSrcEl)
+                    ? mdSrcEl.GetString() ?? ""
+                    : "";
+                sb.Append(!string.IsNullOrEmpty(mdSrc) ? $"![image]({mdSrc})\n\n" : "");
                 break;
             default:
                 if (content.HasValue)

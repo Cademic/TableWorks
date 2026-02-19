@@ -13,14 +13,19 @@ namespace ASideNote.API.Controllers;
 [Route("api/v{version:apiVersion}/notebooks")]
 public sealed class NotebooksController : ControllerBase
 {
+    private const long MaxImageSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private static readonly string[] AllowedImageTypes = { "image/jpeg", "image/png", "image/webp", "image/gif" };
+
     private readonly INotebookService _notebookService;
     private readonly INotebookExportService _exportService;
+    private readonly IImageStorageService _imageStorage;
     private readonly ICurrentUserService _currentUserService;
 
-    public NotebooksController(INotebookService notebookService, INotebookExportService exportService, ICurrentUserService currentUserService)
+    public NotebooksController(INotebookService notebookService, INotebookExportService exportService, IImageStorageService imageStorage, ICurrentUserService currentUserService)
     {
         _notebookService = notebookService;
         _exportService = exportService;
+        _imageStorage = imageStorage;
         _currentUserService = currentUserService;
     }
 
@@ -138,6 +143,42 @@ public sealed class NotebooksController : ControllerBase
         return Ok();
     }
 
+    /// <summary>Upload an image for the notebook. Returns public URL. Accepts JPEG, PNG, WebP, GIF; max 5MB.</summary>
+    [HttpPost("{id:guid}/images")]
+    [ProducesResponseType(typeof(ImageUploadResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [RequestSizeLimit(MaxImageSizeBytes)]
+    public async Task<IActionResult> UploadImage(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "FileRequired", message = "No file provided." });
+
+        if (file.Length > MaxImageSizeBytes)
+            return BadRequest(new { error = "FileTooLarge", message = "Image must be 5MB or less." });
+
+        var contentType = file.ContentType?.Trim().ToLowerInvariant() ?? "";
+        if (!AllowedImageTypes.Contains(contentType))
+            return BadRequest(new { error = "InvalidImageType", message = "Only JPEG, PNG, WebP, and GIF images are allowed." });
+
+        await _notebookService.GetNotebookByIdAsync(_currentUserService.UserId, id, cancellationToken);
+
+        var ext = contentType switch
+        {
+            "image/jpeg" => "jpg",
+            "image/png" => "png",
+            "image/webp" => "webp",
+            "image/gif" => "gif",
+            _ => "jpg"
+        };
+        var key = $"notebooks/{id}/{Guid.NewGuid():N}.{ext}";
+
+        await using var stream = file.OpenReadStream();
+        var url = await _imageStorage.UploadAsync(stream, contentType, key, cancellationToken);
+
+        return Ok(new ImageUploadResponse { Url = url });
+    }
+
     /// <summary>Export notebook as file (pdf, txt, md, html, docx). Returns 404 if not found or not owner.</summary>
     [HttpGet("{id:guid}/export")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -157,4 +198,9 @@ public sealed class NotebooksController : ControllerBase
 public sealed class NotebookTogglePinRequest
 {
     public bool IsPinned { get; set; }
+}
+
+public sealed class ImageUploadResponse
+{
+    public string Url { get; set; } = "";
 }

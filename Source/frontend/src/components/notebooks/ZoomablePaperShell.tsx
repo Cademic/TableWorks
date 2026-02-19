@@ -7,8 +7,12 @@ interface ZoomablePaperShellProps {
   minZoom?: number;
   /** Maximum zoom level (e.g., 2 = 200%) */
   maxZoom?: number;
-  /** Initial zoom level */
+  /** Initial zoom level (used when zoom/onZoomChange not provided) */
   initialZoom?: number;
+  /** Controlled zoom level (when provided with onZoomChange) */
+  zoom?: number;
+  /** Callback when zoom changes (use with zoom for controlled mode) */
+  onZoomChange?: (zoom: number) => void;
 }
 
 export function ZoomablePaperShell({
@@ -16,10 +20,19 @@ export function ZoomablePaperShell({
   minZoom = 0.5,
   maxZoom = 2,
   initialZoom = 1,
+  zoom: controlledZoom,
+  onZoomChange,
 }: ZoomablePaperShellProps) {
-  const [zoom, setZoom] = useState(initialZoom);
+  const [internalZoom, setInternalZoom] = useState(initialZoom);
+  const zoom = controlledZoom ?? internalZoom;
+  const setZoom = onZoomChange ?? setInternalZoom;
   const containerRef = useRef<HTMLDivElement>(null);
   const lastPinchDistanceRef = useRef<number | null>(null);
+
+  const applyZoomDelta = (delta: number) => {
+    const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom + delta));
+    setZoom(Math.round(newZoom * 100) / 100);
+  };
 
   // Handle Ctrl+scroll wheel zoom (desktop)
   useEffect(() => {
@@ -32,15 +45,12 @@ export function ZoomablePaperShell({
       e.stopPropagation();
 
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom((prev) => {
-        const newZoom = Math.max(minZoom, Math.min(maxZoom, prev + delta));
-        return Math.round(newZoom * 100) / 100; // Round to 2 decimals
-      });
+      applyZoomDelta(delta);
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [minZoom, maxZoom]);
+  }, [minZoom, maxZoom, zoom]);
 
   // Handle touch pinch-to-zoom (mobile)
   useEffect(() => {
@@ -64,10 +74,7 @@ export function ZoomablePaperShell({
         const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
         const delta = distance - lastPinchDistanceRef.current;
         const zoomDelta = delta * 0.01; // Adjust sensitivity
-        setZoom((prev) => {
-          const newZoom = Math.max(minZoom, Math.min(maxZoom, prev + zoomDelta));
-          return Math.round(newZoom * 100) / 100;
-        });
+        applyZoomDelta(zoomDelta);
         lastPinchDistanceRef.current = distance;
       }
     };
@@ -87,7 +94,7 @@ export function ZoomablePaperShell({
       container.removeEventListener("touchend", handleTouchEnd);
       container.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [minZoom, maxZoom]);
+  }, [minZoom, maxZoom, zoom]);
 
   const handleZoomChange = (newZoom: number) => {
     const clampedZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
@@ -111,8 +118,8 @@ export function ZoomablePaperShell({
         {children}
       </div>
       
-      {/* Zoom controls in bottom left */}
-      <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg">
+      {/* Zoom controls fixed at bottom of viewport (offset on desktop to clear sidebar w-60) */}
+      <div className="fixed bottom-4 left-4 lg:left-[17rem] z-50 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg">
         <button
           type="button"
           onClick={() => handleZoomChange(zoom - 0.1)}

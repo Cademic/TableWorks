@@ -58,7 +58,7 @@ export function ConfirmDialog({
       />
 
       {/* Dialog */}
-      <div className="relative mx-4 w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl">
+      <div className="relative mx-4 w-full max-w-sm min-w-0 rounded-2xl border border-border bg-surface p-6 shadow-2xl overflow-hidden">
         {/* Close button */}
         <button
           type="button"
@@ -69,7 +69,7 @@ export function ConfirmDialog({
         </button>
 
         {/* Icon + Content */}
-        <div className="flex gap-4">
+        <div className="flex min-w-0 gap-4">
           {/* Warning icon */}
           <div
             className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
@@ -87,9 +87,9 @@ export function ConfirmDialog({
             />
           </div>
 
-          <div className="min-w-0 flex-1 pr-4">
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <p className="mt-1.5 text-sm text-foreground/50">{message}</p>
+          <div className="min-w-0 flex-1 overflow-hidden pr-4">
+            <h3 className="text-sm font-semibold text-foreground break-words">{title}</h3>
+            <p className="mt-1.5 text-sm text-foreground/50 break-words">{message}</p>
           </div>
         </div>
 

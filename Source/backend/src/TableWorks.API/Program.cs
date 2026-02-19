@@ -276,6 +276,37 @@ else
 }
 
 // ---------------------------------------------------------------------------
+// Image Storage (R2 or NoOp when not configured)
+// ---------------------------------------------------------------------------
+builder.Services.Configure<ASideNote.Infrastructure.Services.R2Options>(options =>
+{
+    builder.Configuration.GetSection(ASideNote.Infrastructure.Services.R2Options.SectionName).Bind(options);
+    // Overlay env vars (plan: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_URL)
+    var accountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? Environment.GetEnvironmentVariable("R2__AccountId");
+    var accessKey = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? Environment.GetEnvironmentVariable("R2__AccessKeyId");
+    var secretKey = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey");
+    var bucket = Environment.GetEnvironmentVariable("R2_BUCKET") ?? Environment.GetEnvironmentVariable("R2__Bucket");
+    var publicUrl = Environment.GetEnvironmentVariable("R2_PUBLIC_URL") ?? Environment.GetEnvironmentVariable("R2__PublicUrl");
+    var endpoint = Environment.GetEnvironmentVariable("R2_ENDPOINT") ?? Environment.GetEnvironmentVariable("R2__Endpoint");
+    if (!string.IsNullOrWhiteSpace(accountId)) options.AccountId = accountId;
+    if (!string.IsNullOrWhiteSpace(accessKey)) options.AccessKeyId = accessKey;
+    if (!string.IsNullOrWhiteSpace(secretKey)) options.SecretAccessKey = secretKey;
+    if (!string.IsNullOrWhiteSpace(bucket)) options.Bucket = bucket;
+    if (!string.IsNullOrWhiteSpace(publicUrl)) options.PublicUrl = publicUrl;
+    if (!string.IsNullOrWhiteSpace(endpoint)) options.Endpoint = endpoint;
+});
+var r2AccessKey = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? Environment.GetEnvironmentVariable("R2__AccessKeyId") ?? builder.Configuration["R2:AccessKeyId"];
+var r2Secret = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey") ?? builder.Configuration["R2:SecretAccessKey"];
+var r2Bucket = Environment.GetEnvironmentVariable("R2_BUCKET") ?? Environment.GetEnvironmentVariable("R2__Bucket") ?? builder.Configuration["R2:Bucket"];
+var r2PublicUrl = Environment.GetEnvironmentVariable("R2_PUBLIC_URL") ?? Environment.GetEnvironmentVariable("R2__PublicUrl") ?? builder.Configuration["R2:PublicUrl"];
+var r2Configured = !string.IsNullOrWhiteSpace(r2AccessKey) && !string.IsNullOrWhiteSpace(r2Secret)
+    && !string.IsNullOrWhiteSpace(r2Bucket) && !string.IsNullOrWhiteSpace(r2PublicUrl);
+if (r2Configured)
+    builder.Services.AddSingleton<IImageStorageService, R2ImageStorageService>();
+else
+    builder.Services.AddSingleton<IImageStorageService, NoOpImageStorageService>();
+
+// ---------------------------------------------------------------------------
 // Application Services
 // ---------------------------------------------------------------------------
 builder.Services.AddScoped<ITokenService, TokenService>();

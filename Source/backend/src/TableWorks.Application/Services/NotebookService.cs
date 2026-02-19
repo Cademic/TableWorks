@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Common;
@@ -16,19 +17,51 @@ public sealed class NotebookService : INotebookService
     private readonly IRepository<Project> _projectRepo;
     private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IImageStorageService _imageStorage;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
         IRepository<NotebookVersion> versionRepo,
         IRepository<Project> projectRepo,
         IRepository<ProjectMember> memberRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IImageStorageService imageStorage)
     {
         _notebookRepo = notebookRepo;
         _versionRepo = versionRepo;
         _projectRepo = projectRepo;
         _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
+        _imageStorage = imageStorage;
+    }
+
+    private static IReadOnlyList<string> ExtractImageUrls(string contentJson)
+    {
+        if (string.IsNullOrWhiteSpace(contentJson)) return Array.Empty<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(contentJson);
+            var list = new List<string>();
+            CollectImageUrls(doc.RootElement, list);
+            return list;
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static void CollectImageUrls(JsonElement node, List<string> urls)
+    {
+        if (node.TryGetProperty("type", out var type) && type.GetString() == "image"
+            && node.TryGetProperty("attrs", out var attrs) && attrs.TryGetProperty("src", out var src))
+        {
+            var s = src.GetString();
+            if (!string.IsNullOrWhiteSpace(s)) urls.Add(s);
+        }
+        if (node.TryGetProperty("content", out var content))
+            foreach (var child in content.EnumerateArray())
+                CollectImageUrls(child, urls);
     }
 
     private async Task<string?> GetProjectRoleAsync(Guid userId, Guid projectId, CancellationToken cancellationToken)
@@ -165,6 +198,12 @@ public sealed class NotebookService : INotebookService
                 throw new InvalidOperationException("Document was modified elsewhere. Reload to get the latest version.");
         }
 
+        var oldUrls = ExtractImageUrls(notebook.ContentJson ?? "").ToHashSet(StringComparer.Ordinal);
+        var newUrls = ExtractImageUrls(request.ContentJson ?? "").ToHashSet(StringComparer.Ordinal);
+        var removedUrls = oldUrls.Except(newUrls);
+        foreach (var url in removedUrls)
+            await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+
         notebook.ContentJson = request.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}";
         notebook.UpdatedAt = DateTime.UtcNow;
 
@@ -177,6 +216,10 @@ public sealed class NotebookService : INotebookService
         var notebook = await _notebookRepo.Query()
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        var imageUrls = ExtractImageUrls(notebook.ContentJson ?? "");
+        foreach (var url in imageUrls)
+            await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
 
         _notebookRepo.Delete(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

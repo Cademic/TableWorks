@@ -261,7 +261,14 @@ public static class TipTapJsonConverter
             case "hardBreak":
                 sb.Append("<br/>");
                 break;
+            case "pageMargin":
+                // Legacy page-break wrapper: output only its content (no wrapper element).
+                if (content.HasValue)
+                    foreach (var child in content.Value.EnumerateArray())
+                        await AppendHtmlAsync(child, sb, resolver, ct);
+                break;
             default:
+                // Unknown block (e.g. custom nodes): recurse into content so text is not lost.
                 if (content.HasValue)
                     foreach (var child in content.Value.EnumerateArray())
                         await AppendHtmlAsync(child, sb, resolver, ct);

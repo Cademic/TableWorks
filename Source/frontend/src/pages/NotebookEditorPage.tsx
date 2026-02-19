@@ -22,7 +22,6 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { FontSize } from "../lib/tiptap-font-size";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion, uploadNotebookImage } from "../api/notebooks";
-import { exportNotebookToPdf } from "../lib/exportNotebookToPdf";
 import type { NotebookDetailDto, NotebookVersionDto } from "../types";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { PaperShell } from "../components/notebooks/PaperShell";
@@ -30,23 +29,39 @@ import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
 import { NotebookToolbar } from "../components/notebooks/NotebookToolbar";
 import { NotebookMenuBar } from "../components/notebooks/NotebookMenuBar";
 
-const SAVE_DEBOUNCE_MS = 800;
+const SAVE_DEBOUNCE_MS = 0;
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
 
-/** Strip legacy pageMargin nodes when loading (backwards compat for docs saved with page breaks). */
+/** Strip legacy pageMargin nodes when loading: lift their content into the doc so top-of-page text is not lost. */
 function stripLegacyPageMargins(doc: object): object {
   if (!doc || typeof doc !== "object") return doc;
   const d = doc as { content?: unknown[] };
   if (!Array.isArray(d.content)) return doc;
-  const content = d.content
-    .filter((n) => typeof n === "object" && n !== null && (n as { type?: string }).type !== "pageMargin")
-    .map((n) => {
-      if (typeof n !== "object" || n === null) return n;
-      const node = n as { content?: unknown[] };
-      if (!Array.isArray(node.content)) return n;
-      return { ...node, content: (stripLegacyPageMargins({ content: node.content }) as { content: unknown[] }).content };
-    });
-  return { ...doc, content };
+  return { ...doc, content: flattenPageMargins(d.content) };
+}
+
+/** Flatten pageMargin nodes (lift their children into the parent) and recurse into other nodes' content. */
+function flattenPageMargins(nodes: unknown[]): unknown[] {
+  const out: unknown[] = [];
+  for (const n of nodes) {
+    if (typeof n !== "object" || n === null) {
+      out.push(n);
+      continue;
+    }
+    const node = n as { type?: string; content?: unknown[] };
+    if (node.type === "pageMargin" && Array.isArray(node.content)) {
+      out.push(...flattenPageMargins(node.content));
+    } else {
+      out.push(processNodeContent(n as Record<string, unknown>));
+    }
+  }
+  return out;
+}
+
+function processNodeContent(node: Record<string, unknown>): Record<string, unknown> {
+  const content = node.content;
+  if (!Array.isArray(content)) return node;
+  return { ...node, content: flattenPageMargins(content) };
 }
 
 function parseContentJson(raw: string | undefined): object {
@@ -173,7 +188,8 @@ export function NotebookEditorPage() {
             updatedAt: notebook?.updatedAt,
           });
           lastSavedJsonRef.current = jsonString;
-          if (notebook) setNotebook((prev) => (prev ? { ...prev, updatedAt: new Date().toISOString() } : null));
+          lastSyncedContentJsonRef.current = jsonString;
+          if (notebook) setNotebook((prev) => (prev ? { ...prev, contentJson: jsonString, updatedAt: new Date().toISOString() } : null));
         } catch (err: unknown) {
           const status = (err as { response?: { status?: number } })?.response?.status;
           if (status === 409) {
@@ -250,11 +266,19 @@ export function NotebookEditorPage() {
   const handleExportFormat = useCallback(
     async (format: string) => {
       if (!notebook || !notebookId) return;
-      if (!editor) return;
       setExporting(true);
       try {
         if (format === "pdf") {
-          await exportNotebookToPdf(editor.getHTML(), safeFileName(notebook.name));
+          if (editor) {
+            const jsonString = JSON.stringify(editor.getJSON());
+            await updateNotebookContent(notebookId, {
+              contentJson: jsonString,
+              updatedAt: notebook.updatedAt,
+            });
+            lastSavedJsonRef.current = jsonString;
+          }
+          const { blob, filename } = await downloadNotebookExport(notebookId, "pdf");
+          triggerDownload(blob, filename);
         } else {
           const { blob, filename } = await downloadNotebookExport(notebookId, format);
           triggerDownload(blob, filename);
@@ -281,14 +305,23 @@ export function NotebookEditorPage() {
   }, [editor, notebook]);
 
   const handleDownloadPdf = useCallback(async () => {
-    if (!editor || !notebook) return;
+    if (!notebookId || !notebook) return;
     setExporting(true);
     try {
-      await exportNotebookToPdf(editor.getHTML(), safeFileName(notebook.name));
+      if (editor) {
+        const jsonString = JSON.stringify(editor.getJSON());
+        await updateNotebookContent(notebookId, {
+          contentJson: jsonString,
+          updatedAt: notebook.updatedAt,
+        });
+        lastSavedJsonRef.current = jsonString;
+      }
+      const { blob, filename } = await downloadNotebookExport(notebookId, "pdf");
+      triggerDownload(blob, filename);
     } finally {
       setExporting(false);
     }
-  }, [editor, notebook]);
+  }, [notebookId, notebook, editor]);
 
   const handleMenuImageFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

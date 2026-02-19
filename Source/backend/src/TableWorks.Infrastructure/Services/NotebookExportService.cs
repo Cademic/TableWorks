@@ -95,10 +95,12 @@ public sealed class NotebookExportService : INotebookExportService
             var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
             await using var browser = await playwright.Chromium.LaunchAsync(new Microsoft.Playwright.BrowserTypeLaunchOptions { Headless = true });
             var page = await browser.NewPageAsync();
+            // Match editor paper: US Letter 8.5×11in at 96dpi = 816×1056; content width 816 - 96*2 = 624px
+            await page.SetViewportSizeAsync(816, 1056);
             await page.SetContentAsync(html, new Microsoft.Playwright.PageSetContentOptions { WaitUntil = Microsoft.Playwright.WaitUntilState.Load });
             var pdfBytes = await page.PdfAsync(new Microsoft.Playwright.PagePdfOptions
             {
-                Format = "A4",
+                Format = "Letter",
                 Margin = new Microsoft.Playwright.Margin { Top = "1in", Right = "1in", Bottom = "1in", Left = "1in" },
                 PrintBackground = true
             });
@@ -124,7 +126,8 @@ public sealed class NotebookExportService : INotebookExportService
   <meta name=""viewport"" content=""width=device-width, initial-scale=1"">
   <title>{System.Net.WebUtility.HtmlEncode(notebookName)}</title>
   <style>
-    body {{ font-family: system-ui, sans-serif; line-height: 1.6; max-width: 816px; margin: 0 auto; padding: 96px; color: #18181b; background: #fff; }}
+    body {{ font-family: system-ui, sans-serif; line-height: 1.6; width: 624px; max-width: 624px; margin: 0 auto; padding: 0; color: #18181b; background: #fff; box-sizing: border-box; }}
+    * {{ box-sizing: border-box; }}
     .prose {{ max-width: none; }}
     .prose p {{ margin: 0 0 0.75em; }}
     .prose ul, .prose ol {{ margin: 0.5em 0; padding-left: 1.5em; }}
@@ -133,6 +136,7 @@ public sealed class NotebookExportService : INotebookExportService
     .prose code {{ background: #f4f4f5; padding: 0.2em 0.4em; border-radius: 4px; font-size: 0.9em; }}
     .prose pre {{ background: #f4f4f5; padding: 1em; overflow-x: auto; border-radius: 6px; }}
     .prose a {{ color: #2563eb; text-decoration: underline; }}
+    .prose img {{ max-width: 100%; height: auto; display: block; vertical-align: middle; }}
   </style>
 </head>
 <body class=""prose"">

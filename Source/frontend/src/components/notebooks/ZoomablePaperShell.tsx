@@ -148,9 +148,9 @@ export function ZoomablePaperShell({
         {children}
       </div>
       
-      {/* Zoom controls: near bottom-left; on desktop (lg) offset so they don't overlap sidebar (w-60 expanded, w-16 collapsed) */}
+      {/* Zoom controls: near bottom-left; on desktop (lg) offset so they don't overlap sidebar (w-60 expanded, w-16 collapsed). Hidden when printing. */}
       <div
-        className={`fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg transition-[left] duration-200 ${
+        className={`notebook-zoom-controls fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg transition-[left] duration-200 ${
           sidebarExpanded ? "lg:left-[17rem]" : "lg:left-[5rem]"
         }`}
       >

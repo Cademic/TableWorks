@@ -868,6 +868,31 @@ body {
 }
 
 @media print {
+  /* Show only the document: hide app chrome (sidebar, navbar, toolbar, zoom). */
+  .sidebar-surface,
+  .navbar-surface,
+  .notepad-card,
+  .notebook-zoom-controls,
+  .zoomable-paper-container .fixed {
+    display: none !important;
+  }
+
+  /* Main content area: no padding so the paper can use full width. */
+  main {
+    padding: 0 !important;
+  }
+
+  /* Zoomable container: no scaling, no padding — just the paper at 100%. */
+  .zoomable-paper-container {
+    padding: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .zoomable-paper-content {
+    transform: none !important;
+  }
+
   .paper-shell-outer {
     padding: 0;
     background: transparent;

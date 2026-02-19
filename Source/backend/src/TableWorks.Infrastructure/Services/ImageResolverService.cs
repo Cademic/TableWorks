@@ -30,6 +30,10 @@ public sealed class ImageResolverService : IImageResolver
         if (string.IsNullOrWhiteSpace(url))
             return null;
 
+        url = url.Trim();
+        if (url.StartsWith("//", StringComparison.Ordinal))
+            url = "https:" + url;
+
         if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             return DecodeDataUrl(url);
 

@@ -29,19 +29,35 @@ import { IndexCardToolbar } from "../dashboard/IndexCardToolbar";
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
 
+/** Strip legacy pageMargin nodes: lift their content into the doc so top-of-page text is not lost. */
 function stripLegacyPageMargins(doc: object): object {
   if (!doc || typeof doc !== "object") return doc;
   const d = doc as { content?: unknown[] };
   if (!Array.isArray(d.content)) return doc;
-  const content = d.content
-    .filter((n) => typeof n === "object" && n !== null && (n as { type?: string }).type !== "pageMargin")
-    .map((n) => {
-      if (typeof n !== "object" || n === null) return n;
-      const node = n as { content?: unknown[] };
-      if (!Array.isArray(node.content)) return n;
-      return { ...node, content: (stripLegacyPageMargins({ content: node.content }) as { content: unknown[] }).content };
-    });
-  return { ...doc, content };
+  return { ...doc, content: flattenPageMargins(d.content) };
+}
+
+function flattenPageMargins(nodes: unknown[]): unknown[] {
+  const out: unknown[] = [];
+  for (const n of nodes) {
+    if (typeof n !== "object" || n === null) {
+      out.push(n);
+      continue;
+    }
+    const node = n as { type?: string; content?: unknown[] };
+    if (node.type === "pageMargin" && Array.isArray(node.content)) {
+      out.push(...flattenPageMargins(node.content));
+    } else {
+      out.push(processNodeContent(n as Record<string, unknown>));
+    }
+  }
+  return out;
+}
+
+function processNodeContent(node: Record<string, unknown>): Record<string, unknown> {
+  const content = node.content;
+  if (!Array.isArray(content)) return node;
+  return { ...node, content: flattenPageMargins(content) };
 }
 
 function parseContentJson(raw: string | undefined): object {

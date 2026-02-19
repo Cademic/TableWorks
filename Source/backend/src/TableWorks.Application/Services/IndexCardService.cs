@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Common;
 using ASideNote.Application.DTOs.IndexCards;
 using ASideNote.Application.DTOs.Tags;
+using ASideNote.Application.Helpers;
 using ASideNote.Application.Interfaces;
 using ASideNote.Core.Entities;
 using ASideNote.Core.Interfaces;
@@ -13,15 +14,21 @@ public sealed class IndexCardService : IIndexCardService
     private readonly IRepository<IndexCard> _cardRepo;
     private readonly IRepository<IndexCardTag> _cardTagRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IImageStorageService _imageStorage;
+    private readonly IUserStorageService _userStorage;
 
     public IndexCardService(
         IRepository<IndexCard> cardRepo,
         IRepository<IndexCardTag> cardTagRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IImageStorageService imageStorage,
+        IUserStorageService userStorage)
     {
         _cardRepo = cardRepo;
         _cardTagRepo = cardTagRepo;
         _unitOfWork = unitOfWork;
+        _imageStorage = imageStorage;
+        _userStorage = userStorage;
     }
 
     public async Task<PaginatedResponse<IndexCardSummaryDto>> GetIndexCardsAsync(Guid userId, IndexCardListQuery query, CancellationToken cancellationToken = default)
@@ -142,6 +149,21 @@ public sealed class IndexCardService : IIndexCardService
             .FirstOrDefaultAsync(c => c.Id == cardId && c.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Index card not found.");
 
+        if (request.Content is not null)
+        {
+            var oldUrls = HtmlImageUrls.GetImageUrls(card.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(card.Content ?? "")).ToHashSet();
+            var newUrls = HtmlImageUrls.GetImageUrls(request.PatchTitle ? (request.Title ?? "") : (card.Title ?? ""))
+                .Concat(HtmlImageUrls.GetImageUrls(request.Content))
+                .ToHashSet();
+            var removedUrls = oldUrls.Except(newUrls).ToList();
+            foreach (var url in removedUrls)
+            {
+                var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+                if (key is not null)
+                    await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+            }
+        }
+
         if (request.PatchTitle)
             card.Title = request.Title;
         if (request.Content is not null)
@@ -169,6 +191,14 @@ public sealed class IndexCardService : IIndexCardService
         var card = await _cardRepo.Query()
             .FirstOrDefaultAsync(c => c.Id == cardId && c.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Index card not found.");
+
+        var urls = HtmlImageUrls.GetImageUrls(card.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(card.Content ?? "")).ToList();
+        foreach (var url in urls)
+        {
+            var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+            if (key is not null)
+                await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+        }
 
         _cardRepo.Delete(card);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -162,9 +162,6 @@ export function AddExistingNotebookDialog({
                         {notebook.name}
                       </span>
                       <span className="text-[10px] text-foreground/40">
-                        {notebook.pageCount}{" "}
-                        {notebook.pageCount === 1 ? "page" : "pages"}
-                        {" · "}
                         Updated {formatRelativeDate(notebook.updatedAt)}
                       </span>
                     </div>

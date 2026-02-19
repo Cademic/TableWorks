@@ -25,6 +25,7 @@ import { NotebookCard } from "../components/notebooks/NotebookCard";
 import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDialog";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
+import { EventDetailsPopup } from "../components/calendar/EventDetailsPopup";
 import { useAuth } from "../context/AuthContext";
 import type { BoardSummaryDto, CalendarEventDto, FriendDto, NotebookSummaryDto, ProjectSummaryDto } from "../types";
 
@@ -57,6 +58,7 @@ export function DashboardPage() {
   const [boards, setBoards] = useState<BoardSummaryDto[]>([]);
   const [activeProjects, setActiveProjects] = useState<ProjectSummaryDto[]>([]);
   const [notebooks, setNotebooks] = useState<NotebookSummaryDto[]>([]);
+  const [totalNotebooks, setTotalNotebooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -75,6 +77,7 @@ export function DashboardPage() {
   const [notebookDeleteTarget, setNotebookDeleteTarget] = useState<NotebookSummaryDto | null>(null);
   const [friends, setFriends] = useState<FriendDto[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventDto[]>([]);
+  const [detailsEvent, setDetailsEvent] = useState<CalendarEventDto | null>(null);
 
   const fetchBoards = useCallback(async () => {
     try {
@@ -82,11 +85,12 @@ export function DashboardPage() {
       const [boardResult, projectResult, notebookResult] = await Promise.all([
         getBoards({ limit: 100 }),
         getProjects({ status: "Active" }).catch(() => [] as ProjectSummaryDto[]),
-        getNotebooks({ limit: 100 }).catch(() => ({ items: [] as NotebookSummaryDto[] })),
+        getNotebooks({ limit: 100 }).catch(() => ({ items: [] as NotebookSummaryDto[], total: 0 })),
       ]);
       setBoards(boardResult.items);
       setActiveProjects(projectResult);
       setNotebooks(notebookResult.items);
+      setTotalNotebooks(notebookResult.total ?? 0);
     } catch {
       setError("Failed to load boards.");
     } finally {
@@ -324,12 +328,13 @@ export function DashboardPage() {
       setCreateNotebookError(null);
       const created = await createNotebook({ name });
       setNotebooks((prev) => [created, ...prev]);
+      setTotalNotebooks((t) => t + 1);
       setIsCreateNotebookOpen(false);
       setIsCreateOpen(false); // close Get Started modal if it was used
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setCreateNotebookError(err.response.data?.message ?? "A notebook with that name already exists.");
+        setCreateNotebookError(err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to create another.");
       } else {
         setCreateNotebookError("Failed to create notebook. Please try again.");
         console.error("Failed to create notebook:", err);
@@ -379,6 +384,7 @@ export function DashboardPage() {
     const id = notebookDeleteTarget.id;
     setNotebookDeleteTarget(null);
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
+    setTotalNotebooks((t) => Math.max(0, t - 1));
     try {
       await deleteNotebook(id);
       refreshPinnedNotebooks();
@@ -409,33 +415,35 @@ export function DashboardPage() {
     [notebooks],
   );
 
-  const nextUpcomingDisplay = useMemo(() => {
+  const nextUpcoming = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayMs = todayStart.getTime();
 
-    const candidates: { startMs: number; title: string }[] = [];
+    type Candidate = { startMs: number; title: string; event?: CalendarEventDto; project?: ProjectSummaryDto };
+    const candidates: Candidate[] = [];
 
     for (const ev of calendarEvents) {
       const start = new Date(ev.startDate).getTime();
       if (start >= todayMs) {
-        candidates.push({ startMs: start, title: ev.title });
+        candidates.push({ startMs: start, title: ev.title, event: ev });
       }
     }
     for (const proj of activeProjects) {
       if (proj.startDate) {
         const start = new Date(proj.startDate).getTime();
         if (start >= todayMs) {
-          candidates.push({ startMs: start, title: proj.name });
+          candidates.push({ startMs: start, title: proj.name, project: proj });
         }
       }
     }
 
-    if (candidates.length === 0) return "No upcoming events";
+    if (candidates.length === 0) return { display: "No upcoming events", event: undefined, project: undefined };
     candidates.sort((a, b) => a.startMs - b.startMs);
-    const title = candidates[0].title;
+    const first = candidates[0];
     const maxLen = 18;
-    return title.length > maxLen ? title.slice(0, maxLen).trim() + "…" : title;
+    const display = first.title.length > maxLen ? first.title.slice(0, maxLen).trim() + "…" : first.title;
+    return { display, event: first.event, project: first.project };
   }, [calendarEvents, activeProjects]);
 
   const friendsOnline = useMemo(() => {
@@ -452,6 +460,14 @@ export function DashboardPage() {
       new Date(b.updatedAt) > new Date(latest.updatedAt) ? b : latest,
     );
   }, [boards]);
+
+  const projectNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of activeProjects) {
+      map[p.id] = p.name;
+    }
+    return map;
+  }, [activeProjects]);
 
   if (isLoading) {
     return (
@@ -522,8 +538,15 @@ export function DashboardPage() {
             color="rose"
             icon={Calendar}
             label="Next Up"
-            value={nextUpcomingDisplay}
+            value={nextUpcoming.display}
             rotation={1.5}
+            onClick={
+              nextUpcoming.event
+                ? () => setDetailsEvent(nextUpcoming.event!)
+                : nextUpcoming.project
+                  ? () => navigate(`/projects/${nextUpcoming.project!.id}`)
+                  : undefined
+            }
           />
           <StatSticky
             color="sky"
@@ -694,6 +717,7 @@ export function DashboardPage() {
         isOpen={isCreateOpen}
         error={createBoardError}
         createNotebookError={createNotebookError}
+        canCreateNotebook={totalNotebooks < 5}
         onClose={() => {
           setIsCreateOpen(false);
           setCreateBoardError(null);
@@ -754,6 +778,19 @@ export function DashboardPage() {
         onConfirm={confirmDeleteNotebook}
         onCancel={() => setNotebookDeleteTarget(null)}
       />
+
+      {detailsEvent && (
+        <EventDetailsPopup
+          event={detailsEvent}
+          projectName={detailsEvent.projectId ? projectNameMap[detailsEvent.projectId] ?? null : null}
+          isOpen={!!detailsEvent}
+          onClose={() => setDetailsEvent(null)}
+          onEdit={() => {
+            setDetailsEvent(null);
+            navigate(`/calendar?eventId=${detailsEvent.id}`);
+          }}
+        />
+      )}
 
       {/* Rename Board Dialog */}
       {renameTarget && (

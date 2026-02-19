@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   StickyNote,
+  Image as ImageIcon,
   FolderOpen,
   ChevronLeft,
   ChevronRight,
@@ -55,6 +56,13 @@ const BOARD_TOOLS = [
     iconColor: "text-sky-600 dark:text-sky-400",
     swatchColor: "bg-sky-400",
   },
+  {
+    type: "image-card",
+    icon: ImageIcon,
+    label: "Image",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    swatchColor: "bg-emerald-400",
+  },
 ];
 
 const BOARD_TYPE_ICON: Record<string, typeof ClipboardList> = {
@@ -83,7 +91,7 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
 
   function isActive(path: string) {
     if (path === "/dashboard") return location.pathname === "/dashboard";
-    if (path === "/notebooks") return location.pathname === "/notebooks";
+    if (path === "/notebooks") return location.pathname === "/notebooks" || location.pathname.startsWith("/notebooks/");
     return location.pathname.startsWith(path);
   }
 

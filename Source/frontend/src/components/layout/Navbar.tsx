@@ -1,11 +1,11 @@
-import { useRef, useState, useEffect } from "react";
-import { ArrowLeft, BookOpen, User, Settings, LogOut, ChevronDown, Menu } from "lucide-react";
+import { useRef, useState, useEffect, useMemo } from "react";
+import { User, Settings, LogOut, ChevronDown, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getAvatarUrl } from "../../constants/avatars";
 
 interface NavbarProps {
-  /** Board name to display when viewing a board page */
+  /** Item name (notebook, board, project) when viewing a detail page */
   boardName?: string | null;
   /** Called when hamburger is clicked (mobile only) */
   onToggleSidebar?: () => void;
@@ -13,14 +13,63 @@ interface NavbarProps {
   showMenuButton?: boolean;
 }
 
-const PAGE_META: Record<string, { label: string; icon: typeof BookOpen }> = {
-  "/dashboard": { label: "Dashboard", icon: BookOpen },
-  "/profile": { label: "Profile", icon: BookOpen },
-  "/projects": { label: "Projects", icon: BookOpen },
-  "/calendar": { label: "Calendar", icon: BookOpen },
-  "/chalkboards": { label: "Chalk Boards", icon: BookOpen },
-  "/settings": { label: "Settings", icon: BookOpen },
-};
+type BreadcrumbSegment = { label: string; path: string };
+
+function getBreadcrumbs(pathname: string, itemName: string | null): BreadcrumbSegment[] {
+  const segments: BreadcrumbSegment[] = [{ label: "Dashboard", path: "/dashboard" }];
+
+  if (pathname === "/dashboard") return segments;
+
+  if (pathname.startsWith("/notebooks")) {
+    segments.push({ label: "Notebooks", path: "/notebooks" });
+    if (/^\/notebooks\/[^/]+$/.test(pathname) && itemName) {
+      segments.push({ label: itemName, path: pathname });
+    }
+    return segments;
+  }
+
+  if (pathname.startsWith("/boards")) {
+    segments.push({ label: "Boards", path: "/boards" });
+    if (/^\/boards\/[^/]+$/.test(pathname) && itemName) {
+      segments.push({ label: itemName, path: pathname });
+    }
+    return segments;
+  }
+
+  if (pathname.startsWith("/projects")) {
+    segments.push({ label: "Projects", path: "/projects" });
+    if (/^\/projects\/[^/]+$/.test(pathname) && itemName) {
+      segments.push({ label: itemName, path: pathname });
+    }
+    return segments;
+  }
+
+  if (pathname.startsWith("/chalkboards")) {
+    segments.push({ label: "Chalk Boards", path: "/chalkboards" });
+    if (/^\/chalkboards\/[^/]+$/.test(pathname) && itemName) {
+      segments.push({ label: itemName, path: pathname });
+    }
+    return segments;
+  }
+
+  const sectionLabels: Record<string, string> = {
+    "/profile": "Profile",
+    "/calendar": "Calendar",
+    "/settings": "Settings",
+  };
+  for (const [path, label] of Object.entries(sectionLabels)) {
+    if (pathname === path || pathname.startsWith(path + "/")) {
+      segments.push({ label, path });
+      if (path === "/profile" && pathname !== "/profile") {
+        const username = pathname.split("/")[2];
+        if (username && itemName) segments.push({ label: itemName, path: pathname });
+      }
+      return segments;
+    }
+  }
+
+  return segments;
+}
 
 export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarProps) {
   const { user, logout } = useAuth();
@@ -29,7 +78,10 @@ export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarPro
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isOnBoardPage = location.pathname.startsWith("/boards/");
+  const breadcrumbs = useMemo(
+    () => getBreadcrumbs(location.pathname, boardName ?? null),
+    [location.pathname, boardName],
+  );
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -42,14 +94,6 @@ export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarPro
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [dropdownOpen]);
-
-  function getPageTitle(): string {
-    for (const [path, meta] of Object.entries(PAGE_META)) {
-      if (path === "/dashboard" && location.pathname === "/dashboard") return meta.label;
-      if (path !== "/dashboard" && location.pathname.startsWith(path)) return meta.label;
-    }
-    return "Dashboard";
-  }
 
   const userInitial = user?.username?.charAt(0).toUpperCase() ?? "?";
   const avatarUrl = user?.profilePictureKey ? getAvatarUrl(user.profilePictureKey) : null;
@@ -68,24 +112,43 @@ export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarPro
             <Menu className="h-5 w-5" />
           </button>
         )}
-        {isOnBoardPage ? (
-          <>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-foreground/50 transition-all hover:bg-foreground/5 hover:text-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Dashboard</span>
-            </button>
-            <span className="text-sm text-foreground/20 select-none">/</span>
-            <h2 className="text-sm font-semibold text-foreground truncate">
-              {boardName ?? "Note Board"}
-            </h2>
-          </>
-        ) : (
-          <h2 className="text-sm font-semibold text-foreground">{getPageTitle()}</h2>
-        )}
+        <nav className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden" aria-label="Breadcrumb">
+          {breadcrumbs.map((seg, i) => {
+            const isLast = i === breadcrumbs.length - 1;
+            const isFirst = i === 0;
+            const showShortFirst = isFirst && seg.label === "Dashboard";
+            return (
+              <span
+                key={seg.path + i}
+                className={`flex items-center gap-1.5 min-w-0 ${isLast ? "flex-1 overflow-hidden" : "shrink-0"}`}
+              >
+                {i > 0 && (
+                  <span className="text-sm text-foreground/20 select-none shrink-0">/</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => navigate(seg.path)}
+                  className={`rounded-lg px-2 py-1 text-sm transition-all truncate text-left ${
+                    isLast
+                      ? "min-w-0 flex-1 font-semibold text-foreground hover:bg-foreground/5"
+                      : "text-foreground/60 hover:bg-foreground/5 hover:text-foreground max-w-[100px] sm:max-w-none"
+                  }`}
+                  aria-current={isLast ? "page" : undefined}
+                  title={seg.label}
+                >
+                  {showShortFirst ? (
+                    <>
+                      <span className="sm:hidden">…</span>
+                      <span className="hidden sm:inline">{seg.label}</span>
+                    </>
+                  ) : (
+                    seg.label
+                  )}
+                </button>
+              </span>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Right: User menu dropdown */}

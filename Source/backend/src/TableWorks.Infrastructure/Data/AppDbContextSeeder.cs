@@ -32,7 +32,7 @@ public static class AppDbContextSeeder
     {
         var passwordHash = passwordHasher.HashPassword(TestUserPassword);
 
-        if (!await dbContext.Users.AnyAsync(u => u.Email == "admin1@localhost"))
+        if (!await dbContext.Users.AnyAsync(u => u.Email == "admin1@localhost" || u.Username == "admin1"))
         {
             await dbContext.Users.AddAsync(new User
             {
@@ -56,7 +56,7 @@ public static class AppDbContextSeeder
             logger.LogInformation("Seeded verified admin user: admin1@localhost (using shared local test password).");
         }
 
-        if (!await dbContext.Users.AnyAsync(u => u.Email == "admin2@localhost"))
+        if (!await dbContext.Users.AnyAsync(u => u.Email == "admin2@localhost" || u.Username == "admin2"))
         {
             await dbContext.Users.AddAsync(new User
             {
@@ -85,7 +85,7 @@ public static class AppDbContextSeeder
     {
         var passwordHash = passwordHasher.HashPassword(TestUserPassword);
 
-        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser1@localhost"))
+        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser1@localhost" || u.Username == "testuser1"))
         {
             await dbContext.Users.AddAsync(new User
             {
@@ -109,7 +109,7 @@ public static class AppDbContextSeeder
             logger.LogInformation("Seeded verified test user: testuser1@localhost (using shared local test password).");
         }
 
-        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser2@localhost"))
+        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser2@localhost" || u.Username == "testuser2"))
         {
             await dbContext.Users.AddAsync(new User
             {
@@ -133,7 +133,7 @@ public static class AppDbContextSeeder
             logger.LogInformation("Seeded verified test user: testuser2@localhost (using shared local test password).");
         }
 
-        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser3@localhost"))
+        if (!await dbContext.Users.AnyAsync(u => u.Email == "testuser3@localhost" || u.Username == "testuser3"))
         {
             await dbContext.Users.AddAsync(new User
             {
@@ -160,7 +160,8 @@ public static class AppDbContextSeeder
 
     private static async Task SeedAdminUserAsync(AppDbContext dbContext, ILogger logger)
     {
-        var adminExists = await dbContext.Users.AnyAsync(u => u.Id == AdminUserId);
+        var adminExists = await dbContext.Users.AnyAsync(u =>
+            u.Id == AdminUserId || u.Username == "admin" || u.Email == "admin@asidenote.local");
 
         if (adminExists)
         {

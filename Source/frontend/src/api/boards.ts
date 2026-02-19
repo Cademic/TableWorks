@@ -1,7 +1,10 @@
 import type {
+  BoardImageSummaryDto,
   BoardSummaryDto,
+  CreateBoardImageRequest,
   CreateBoardRequest,
   PaginatedResponse,
+  PatchBoardImageRequest,
   UpdateBoardRequest,
 } from "../types";
 import { apiClient } from "./client";
@@ -36,4 +39,41 @@ export async function toggleBoardPin(id: string, isPinned: boolean): Promise<voi
 export async function getPinnedBoards(): Promise<BoardSummaryDto[]> {
   const response = await apiClient.get<BoardSummaryDto[]>("/boards/pinned");
   return response.data;
+}
+
+/** Upload an image file for a board. Returns the image URL. */
+export async function uploadBoardImage(boardId: string, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ url: string }>(`/boards/${boardId}/images`, formData);
+  return response.data;
+}
+
+/** Get all image cards on a board. */
+export async function getBoardImageCards(boardId: string): Promise<BoardImageSummaryDto[]> {
+  const response = await apiClient.get<BoardImageSummaryDto[]>(`/boards/${boardId}/image-cards`);
+  return response.data;
+}
+
+/** Create an image card on a board. */
+export async function createBoardImageCard(
+  boardId: string,
+  data: CreateBoardImageRequest
+): Promise<BoardImageSummaryDto> {
+  const response = await apiClient.post<BoardImageSummaryDto>(`/boards/${boardId}/image-cards`, data);
+  return response.data;
+}
+
+/** Patch an image card. */
+export async function patchBoardImageCard(
+  boardId: string,
+  id: string,
+  data: PatchBoardImageRequest
+): Promise<void> {
+  await apiClient.patch(`/boards/${boardId}/image-cards/${id}`, data);
+}
+
+/** Delete an image card. */
+export async function deleteBoardImageCard(boardId: string, id: string): Promise<void> {
+  await apiClient.delete(`/boards/${boardId}/image-cards/${id}`);
 }

@@ -14,11 +14,13 @@ public sealed class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUserStorageService _userStorage;
 
-    public UsersController(IUserService userService, ICurrentUserService currentUserService)
+    public UsersController(IUserService userService, ICurrentUserService currentUserService, IUserStorageService userStorage)
     {
         _userService = userService;
         _currentUserService = currentUserService;
+        _userStorage = userStorage;
     }
 
     [HttpGet("me")]
@@ -36,6 +38,15 @@ public sealed class UsersController : ControllerBase
     {
         await _userService.UpdateProfileAsync(_currentUserService.UserId, request, cancellationToken);
         return Ok();
+    }
+
+    /// <summary>Get current user's storage usage and limit (bytes).</summary>
+    [HttpGet("me/storage")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStorageUsage(CancellationToken cancellationToken)
+    {
+        var (usedBytes, limitBytes) = await _userStorage.GetStorageUsageAsync(_currentUserService.UserId, cancellationToken);
+        return Ok(new { usedBytes, limitBytes });
     }
 
     [HttpGet("me/preferences")]

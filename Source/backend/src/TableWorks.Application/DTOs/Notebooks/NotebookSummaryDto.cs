@@ -9,5 +9,4 @@ public sealed class NotebookSummaryDto
     public DateTime? PinnedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public int PageCount { get; set; }
 }

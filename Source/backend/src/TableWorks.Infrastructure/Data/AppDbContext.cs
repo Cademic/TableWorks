@@ -24,6 +24,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<IndexCardTag> IndexCardTags => Set<IndexCardTag>();
     public DbSet<BoardConnection> BoardConnections => Set<BoardConnection>();
     public DbSet<Board> Boards => Set<Board>();
+    public DbSet<BoardImage> BoardImages => Set<BoardImage>();
     public DbSet<Drawing> Drawings => Set<Drawing>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
@@ -31,7 +32,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<UserPinnedProject> UserPinnedProjects => Set<UserPinnedProject>();
     public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
     public DbSet<Notebook> Notebooks => Set<Notebook>();
-    public DbSet<NotebookPage> NotebookPages => Set<NotebookPage>();
+    public DbSet<NotebookVersion> NotebookVersions => Set<NotebookVersion>();
+    public DbSet<UserStorageItem> UserStorageItems => Set<UserStorageItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +50,24 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.Email).IsUnique();
             entity.HasIndex(x => x.Username).IsUnique();
             entity.HasQueryFilter(u => u.DeletedAt == null);
+        });
+
+        // ----- UserStorageItem -----
+        modelBuilder.Entity<UserStorageItem>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.HasIndex(x => x.StorageKey).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.StorageKey).HasMaxLength(512);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.StorageItems)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(i => Set<User>().Any(u => u.Id == i.UserId));
         });
 
         // ----- Board -----
@@ -73,6 +93,30 @@ public sealed class AppDbContext : DbContext
             entity.HasQueryFilter(b => Set<User>().Any(u => u.Id == b.UserId));
         });
 
+        // ----- BoardImage -----
+        modelBuilder.Entity<BoardImage>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+
+            entity.HasIndex(x => x.BoardId);
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.ImageUrl).HasMaxLength(2048).IsRequired();
+
+            entity.HasOne(x => x.Board)
+                .WithMany(x => x.BoardImages)
+                .HasForeignKey(x => x.BoardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(bi => Set<User>().Any(u => u.Id == bi.UserId));
+        });
+
         // ----- Notebook -----
         modelBuilder.Entity<Notebook>(entity =>
         {
@@ -83,6 +127,8 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.CreatedAt);
             entity.HasIndex(x => x.UpdatedAt);
+
+            entity.Property(x => x.ContentJson).HasColumnType("jsonb");
 
             entity.HasOne(x => x.User)
                 .WithMany(x => x.Notebooks)
@@ -97,19 +143,19 @@ public sealed class AppDbContext : DbContext
             entity.HasQueryFilter(n => Set<User>().Any(u => u.Id == n.UserId));
         });
 
-        // ----- NotebookPage -----
-        modelBuilder.Entity<NotebookPage>(entity =>
+        // ----- NotebookVersion -----
+        modelBuilder.Entity<NotebookVersion>(entity =>
         {
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
 
             entity.HasIndex(x => x.NotebookId);
-            entity.HasIndex(x => new { x.NotebookId, x.PageIndex }).IsUnique();
+            entity.HasIndex(x => x.CreatedAt);
 
-            entity.Property(x => x.Content).HasColumnType("text");
+            entity.Property(x => x.ContentJson).HasColumnType("jsonb");
 
             entity.HasOne(x => x.Notebook)
-                .WithMany(x => x.Pages)
+                .WithMany()
                 .HasForeignKey(x => x.NotebookId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

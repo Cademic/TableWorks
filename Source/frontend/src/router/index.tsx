@@ -1,10 +1,10 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../components/layout/AppLayout";
 import { LandingPage } from "../pages/LandingPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { NoteBoardPage } from "../pages/NoteBoardPage";
-import { ChalkBoardPage } from "../pages/ChalkBoardPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import { ProjectDetailPage } from "../pages/ProjectDetailPage";
 import { CalendarsPage } from "../pages/CalendarsPage";
@@ -20,7 +20,18 @@ import { VerifyEmailPage } from "../pages/VerifyEmailPage";
 import { PrivacyPolicyPage } from "../pages/PrivacyPolicyPage";
 import { TermsAndConditionsPage } from "../pages/TermsAndConditionsPage";
 import { AdminRoute } from "../components/auth/AdminRoute";
-import { AdminPage } from "../pages/AdminPage";
+
+const ChalkBoardPage = lazy(() => import("../pages/ChalkBoardPage").then((m) => ({ default: m.ChalkBoardPage })));
+const NotebookEditorPage = lazy(() => import("../pages/NotebookEditorPage").then((m) => ({ default: m.NotebookEditorPage })));
+const AdminPage = lazy(() => import("../pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center" aria-hidden>
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+    </div>
+  );
+}
 
 export function AppRouter() {
   return (
@@ -30,6 +41,7 @@ export function AppRouter() {
         v7_relativeSplatPath: true,
       }}
     >
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
@@ -44,6 +56,7 @@ export function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/notebooks" element={<NotebooksPage />} />
+            <Route path="/notebooks/:notebookId" element={<NotebookEditorPage />} />
             <Route path="/boards" element={<BoardsPage />} />
             <Route path="/boards/:boardId" element={<NoteBoardPage />} />
             <Route path="/chalkboards/:boardId" element={<ChalkBoardPage />} />
@@ -64,6 +77,7 @@ export function AppRouter() {
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

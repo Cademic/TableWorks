@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { getPinnedBoards } from "../../api/boards";
 import { getPinnedProjects } from "../../api/projects";
 import { getPinnedNotebooks } from "../../api/notebooks";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
-import { NotebookModal } from "../notebooks/NotebookModal";
 import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../../types";
 
 /** Tailwind `lg` breakpoint — below this: sidebar becomes hamburger drawer */
@@ -25,12 +24,14 @@ export interface AppLayoutContext {
   refreshPinnedBoards: () => void;
   refreshPinnedProjects: () => void;
   openNotebook: (id: string) => void;
-  closeNotebook: () => void;
   refreshPinnedNotebooks: () => void;
+  /** Desktop only: true when sidebar is expanded (w-60), false when collapsed (w-16). */
+  isSidebarOpen: boolean;
 }
 
 export function AppLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= SIDEBAR_BREAKPOINT);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < SIDEBAR_BREAKPOINT);
   const [boardName, setBoardName] = useState<string | null>(null);
@@ -38,7 +39,6 @@ export function AppLayout() {
   const [pinnedBoards, setPinnedBoards] = useState<BoardSummaryDto[]>([]);
   const [pinnedProjects, setPinnedProjects] = useState<ProjectSummaryDto[]>([]);
   const [pinnedNotebooks, setPinnedNotebooks] = useState<NotebookSummaryDto[]>([]);
-  const [openNotebookId, setOpenNotebookId] = useState<string | null>(null);
 
   /** Track whether the user has manually toggled the sidebar since the last
    *  automatic resize change. When the breakpoint triggers we reset this flag
@@ -113,13 +113,12 @@ export function AppLayout() {
     }
   }, []);
 
-  const openNotebook = useCallback((id: string) => {
-    setOpenNotebookId(id);
-  }, []);
-
-  const closeNotebook = useCallback(() => {
-    setOpenNotebookId(null);
-  }, []);
+  const openNotebook = useCallback(
+    (id: string) => {
+      navigate(`/notebooks/${id}`);
+    },
+    [navigate],
+  );
 
   // Fetch pinned boards, projects, and notebooks on mount
   useEffect(() => {
@@ -136,8 +135,8 @@ export function AppLayout() {
     refreshPinnedBoards,
     refreshPinnedProjects,
     openNotebook,
-    closeNotebook,
     refreshPinnedNotebooks,
+    isSidebarOpen,
   };
 
   return (
@@ -189,9 +188,6 @@ export function AppLayout() {
           <Outlet context={outletContext} />
         </main>
       </div>
-      {openNotebookId && (
-        <NotebookModal notebookId={openNotebookId} onClose={closeNotebook} />
-      )}
     </div>
   );
 }

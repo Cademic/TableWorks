@@ -16,6 +16,7 @@ interface CreateBoardDialogProps {
   isOpen: boolean;
   error?: string | null;
   createNotebookError?: string | null;
+  canCreateNotebook?: boolean;
   onClose: () => void;
   onCreateBoard: (name: string, description: string, boardType: string) => void;
   onCreateProject: (
@@ -50,6 +51,7 @@ export function CreateBoardDialog({
   isOpen,
   error,
   createNotebookError,
+  canCreateNotebook = true,
   onClose,
   onCreateBoard,
   onCreateProject,
@@ -416,6 +418,11 @@ export function CreateBoardDialog({
         {/* ─── Notebook Tab ─────────────────────── */}
         {tab === "notebook" && onCreateNotebook && (
           <form onSubmit={handleSubmitNotebook} className="flex flex-col gap-4">
+            {!canCreateNotebook && (
+              <p className="text-xs text-foreground/50">
+                Maximum 5 notebooks. Delete one to create another.
+              </p>
+            )}
             <div>
               <label htmlFor="notebook-name" className="mb-1.5 block text-xs font-medium text-foreground/60">
                 Notebook Name
@@ -428,7 +435,8 @@ export function CreateBoardDialog({
                 placeholder="My notebook"
                 maxLength={100}
                 autoFocus
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                disabled={!canCreateNotebook}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             <div className="flex items-center justify-end gap-2 pt-2">
@@ -441,7 +449,7 @@ export function CreateBoardDialog({
               </button>
               <button
                 type="submit"
-                disabled={!notebookName.trim()}
+                disabled={!notebookName.trim() || !canCreateNotebook}
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Create Notebook

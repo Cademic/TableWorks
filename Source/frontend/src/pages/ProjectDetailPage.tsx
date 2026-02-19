@@ -34,7 +34,7 @@ import {
 } from "../api/projects";
 import axios from "axios";
 import { createBoard } from "../api/boards";
-import { createNotebook } from "../api/notebooks";
+import { createNotebook, getNotebooks } from "../api/notebooks";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { NotebookCard } from "../components/notebooks/NotebookCard";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
@@ -91,7 +91,7 @@ function toInputDate(dateStr: string | null): string {
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { openNotebook } = useOutletContext<AppLayoutContext>();
+  const { openNotebook, setBoardName } = useOutletContext<AppLayoutContext>();
 
   const [project, setProject] = useState<ProjectDetailDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,6 +111,7 @@ export function ProjectDetailPage() {
   );
   const [removeBoardTarget, setRemoveBoardTarget] = useState<BoardSummaryDto | null>(null);
   const [removeNotebookTarget, setRemoveNotebookTarget] = useState<NotebookSummaryDto | null>(null);
+  const [userNotebookTotal, setUserNotebookTotal] = useState(0);
 
   // Tab strip scroll (arrows when tabs overflow on small screens)
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -216,6 +217,18 @@ export function ProjectDetailPage() {
     fetchProject();
   }, [fetchProject]);
 
+  useEffect(() => {
+    setBoardName(project?.name ?? null);
+    return () => setBoardName(null);
+  }, [project?.name, setBoardName]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    getNotebooks({ limit: 1 })
+      .then((r) => setUserNotebookTotal(r.total))
+      .catch(() => {});
+  }, [projectId]);
+
   async function handleCreateBoard(
     name: string,
     description: string,
@@ -295,7 +308,7 @@ export function ProjectDetailPage() {
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
-        setCreateNotebookError(err.response.data?.message ?? "A notebook with that name already exists.");
+        setCreateNotebookError(err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to create another.");
       } else {
         setCreateNotebookError("Failed to create notebook. Please try again.");
         console.error("Failed to create notebook:", err);
@@ -612,6 +625,7 @@ export function ProjectDetailPage() {
           <NotebooksTab
             notebooks={project.notebooks ?? []}
             canEdit={canEdit}
+            canCreateNotebook={userNotebookTotal < 5}
             onCreateNotebook={() => setIsCreateNotebookOpen(true)}
             onAddExisting={() => setIsAddExistingNotebookOpen(true)}
             onRemoveNotebook={handleRemoveNotebook}
@@ -873,6 +887,7 @@ function BoardsTab({ boards, canEdit, onCreateBoard, onAddExisting, onRemoveBoar
 interface NotebooksTabProps {
   notebooks: NotebookSummaryDto[];
   canEdit: boolean;
+  canCreateNotebook: boolean;
   onCreateNotebook: () => void;
   onAddExisting: () => void;
   onRemoveNotebook: (id: string) => void;
@@ -882,6 +897,7 @@ interface NotebooksTabProps {
 function NotebooksTab({
   notebooks,
   canEdit,
+  canCreateNotebook,
   onCreateNotebook,
   onAddExisting,
   onRemoveNotebook,
@@ -895,6 +911,11 @@ function NotebooksTab({
         </h3>
         {canEdit && (
           <div className="flex items-center gap-2">
+            {!canCreateNotebook && (
+              <span className="text-xs text-foreground/50">
+                Maximum 5 notebooks. Delete one to create another.
+              </span>
+            )}
             <button
               type="button"
               onClick={onAddExisting}
@@ -906,7 +927,8 @@ function NotebooksTab({
             <button
               type="button"
               onClick={onCreateNotebook}
-              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500"
+              disabled={!canCreateNotebook}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
             >
               <Plus className="h-3.5 w-3.5" />
               New Notebook
@@ -924,7 +946,12 @@ function NotebooksTab({
             No notebooks in this project yet
           </p>
           {canEdit && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!canCreateNotebook && (
+                <span className="w-full text-xs text-foreground/50">
+                  Maximum 5 notebooks. Delete one to create another.
+                </span>
+              )}
               <button
                 type="button"
                 onClick={onAddExisting}
@@ -936,7 +963,8 @@ function NotebooksTab({
               <button
                 type="button"
                 onClick={onCreateNotebook}
-                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm"
+                disabled={!canCreateNotebook}
+                className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background px-4 py-2 text-xs font-medium text-foreground/60 transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Create New Notebook

@@ -157,7 +157,6 @@ export interface NotebookSummaryDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  pageCount: number;
 }
 
 export interface NotebookDetailDto {
@@ -167,7 +166,7 @@ export interface NotebookDetailDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  pages: string[];
+  contentJson: string;
 }
 
 export interface CreateNotebookRequest {
@@ -179,8 +178,22 @@ export interface UpdateNotebookRequest {
   name: string;
 }
 
-export interface UpdateNotebookPagesRequest {
-  pages: string[];
+export interface UpdateNotebookContentRequest {
+  contentJson: string;
+  /** Optional: last known updatedAt for optimistic concurrency. If server version differs, API returns 409. */
+  updatedAt?: string;
+}
+
+export interface NotebookVersionDto {
+  id: string;
+  notebookId: string;
+  createdAt: string;
+  label: string | null;
+  contentJson?: string;
+}
+
+export interface CreateNotebookVersionRequest {
+  label?: string;
 }
 
 // --- Note DTOs ---
@@ -260,6 +273,35 @@ export interface CreateBoardConnectionRequest {
   fromItemId: string;
   toItemId: string;
   boardId?: string;
+}
+
+// --- Board Image Card DTOs ---
+
+export interface BoardImageSummaryDto {
+  id: string;
+  imageUrl: string;
+  positionX: number;
+  positionY: number;
+  width: number | null;
+  height: number | null;
+  rotation: number | null;
+}
+
+export interface CreateBoardImageRequest {
+  imageUrl: string;
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+}
+
+export interface PatchBoardImageRequest {
+  positionX?: number;
+  positionY?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
 }
 
 // --- Index Card DTOs ---

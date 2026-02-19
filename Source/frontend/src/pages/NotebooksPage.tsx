@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
-import { BookOpen, Plus, PencilLine } from "lucide-react";
+import { BookOpen, Plus, PencilLine, Upload } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import {
   getNotebooks,
@@ -9,6 +9,7 @@ import {
   deleteNotebook,
   updateNotebook,
   toggleNotebookPin,
+  updateNotebookContent,
 } from "../api/notebooks";
 import { NotebookCard } from "../components/notebooks/NotebookCard";
 import { CreateNotebookDialog } from "../components/notebooks/CreateNotebookDialog";
@@ -18,6 +19,7 @@ import type { NotebookSummaryDto } from "../types";
 export function NotebooksPage() {
   const { openNotebook, refreshPinnedNotebooks } = useOutletContext<AppLayoutContext>();
   const [notebooks, setNotebooks] = useState<NotebookSummaryDto[]>([]);
+  const [totalNotebooks, setTotalNotebooks] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -25,12 +27,16 @@ export function NotebooksPage() {
   const [deleteTarget, setDeleteTarget] = useState<NotebookSummaryDto | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchNotebooks = useCallback(async () => {
     try {
       setError(null);
       const result = await getNotebooks({ limit: 200 });
       setNotebooks(result.items);
+      setTotalNotebooks(result.total);
     } catch {
       setError("Failed to load notebooks.");
     } finally {
@@ -42,17 +48,58 @@ export function NotebooksPage() {
     fetchNotebooks();
   }, [fetchNotebooks]);
 
+  /** Derive notebook name from file name: strip path and remove .json extension. */
+  function nameFromFileName(fileName: string): string {
+    const base = fileName.replace(/^.*[/\\]/, "").trim();
+    const withoutExt = base.replace(/\.json$/i, "").trim();
+    return withoutExt || "Imported notebook";
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (totalNotebooks >= 5) {
+      setImportError("Maximum 5 notebooks. Delete one to import another.");
+      return;
+    }
+    setImportError(null);
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as { type?: string; content?: unknown[] };
+      const isTipTapDoc = parsed && typeof parsed === "object" && parsed.type === "doc";
+      const contentJson = isTipTapDoc ? JSON.stringify(parsed) : JSON.stringify({ type: "doc", content: [] });
+      const name = nameFromFileName(file.name);
+      const created = await createNotebook({ name });
+      await updateNotebookContent(created.id, { contentJson });
+      setNotebooks((prev) => [created, ...prev]);
+      setTotalNotebooks((t) => t + 1);
+      openNotebook(created.id);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        setImportError(err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to import another.");
+      } else {
+        setImportError("Invalid or unsupported file. Use a notebook JSON export.");
+        console.error("Import failed:", err);
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function handleCreate(name: string) {
     try {
       setCreateError(null);
       const created = await createNotebook({ name });
       setNotebooks((prev) => [created, ...prev]);
+      setTotalNotebooks((t) => t + 1);
       setIsCreateOpen(false);
       openNotebook(created.id);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         setCreateError(
-          err.response.data?.message ?? "A notebook with that name already exists.",
+          err.response.data?.message ?? "Maximum 5 notebooks allowed. Delete one to create another.",
         );
       } else {
         setCreateError("Failed to create notebook. Please try again.");
@@ -71,6 +118,7 @@ export function NotebooksPage() {
     const id = deleteTarget.id;
     setDeleteTarget(null);
     setNotebooks((prev) => prev.filter((n) => n.id !== id));
+    setTotalNotebooks((t) => Math.max(0, t - 1));
     try {
       await deleteNotebook(id);
       refreshPinnedNotebooks();
@@ -159,14 +207,42 @@ export function NotebooksPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md dark:bg-amber-600 dark:hover:bg-amber-500"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Notebook</span>
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {importError && (
+              <span className="text-xs text-red-500">{importError}</span>
+            )}
+            {totalNotebooks >= 5 && (
+              <span className="text-xs text-foreground/50">
+                Maximum 5 notebooks. Delete one to create another.
+              </span>
+            )}
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              aria-hidden
+              onChange={handleImportFile}
+            />
+            <button
+              type="button"
+              onClick={() => importFileInputRef.current?.click()}
+              disabled={totalNotebooks >= 5 || importing}
+              className="flex flex-shrink-0 items-center gap-2 rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-medium text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-foreground/5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Upload className="h-4 w-4" />
+              <span>{importing ? "Importing…" : "Import"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              disabled={totalNotebooks >= 5}
+              className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Notebook</span>
+            </button>
+          </div>
         </div>
 
         {/* Notebook grid or empty state */}

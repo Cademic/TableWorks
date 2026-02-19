@@ -22,14 +22,20 @@ public sealed class PasswordHasher : IPasswordHasher
 
     public bool VerifyPassword(string password, string storedHash)
     {
+        if (string.IsNullOrEmpty(storedHash)) return false;
         var parts = storedHash.Split('.');
         if (parts.Length != 2) return false;
-
-        var salt = Convert.FromBase64String(parts[0]);
-        var expectedHash = Convert.FromBase64String(parts[1]);
-        var actualHash = ComputeHash(password, salt);
-
-        return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash);
+        try
+        {
+            var salt = Convert.FromBase64String(parts[0]);
+            var expectedHash = Convert.FromBase64String(parts[1]);
+            var actualHash = ComputeHash(password, salt);
+            return CryptographicOperations.FixedTimeEquals(expectedHash, actualHash);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 
     private static byte[] ComputeHash(string password, byte[] salt)

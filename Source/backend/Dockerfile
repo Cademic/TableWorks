@@ -35,14 +35,12 @@ COPY entrypoint.sh /app/publish/entrypoint.sh
 RUN sed -i 's/\r$//' /app/publish/entrypoint.sh && chmod +x /app/publish/entrypoint.sh
 
 # ---------------------------------------------------------------------------
-# Stage 3: Runtime (minimal image)
+# Stage 3: Runtime (Playwright .NET image for server-side PDF export)
+# Uses official image so Chromium is available for notebook PDF export on Render.
+# Version must match Microsoft.Playwright package (see Infrastructure.csproj).
 # ---------------------------------------------------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/playwright/dotnet:v1.58.0-noble AS runtime
 WORKDIR /app
-
-# Security: run as non-root user
-RUN addgroup --system --gid 1001 appgroup && \
-    adduser --system --uid 1001 --ingroup appgroup appuser
 
 COPY --from=publish /app/publish .
 
@@ -50,8 +48,7 @@ COPY --from=publish /app/publish .
 ENV ASPNETCORE_URLS=http://+:10000
 EXPOSE 10000
 
-USER appuser
-
-# Run migrations on start (creates Notebooks/NotebookPages etc.) then start the API
+# Run as root so Chromium can run (we only render our own HTML to PDF; see Playwright Docker docs).
+# On Render: optional Docker run flag --ipc=host can help if Chromium OOMs (set in Render dashboard if needed).
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD []

@@ -19,6 +19,15 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
+  Highlighter,
+  Link as LinkIcon,
+  Subscript as SubscriptIcon,
+  Superscript as SuperscriptIcon,
+  Eraser,
+  Quote,
+  Code,
+  Code2,
 } from "lucide-react";
 
 interface IndexCardToolbarProps {
@@ -40,6 +49,17 @@ const FONT_FAMILIES = [
   { label: "Serif", value: "Georgia, Cambria, 'Times New Roman', serif" },
   { label: "Mono", value: "ui-monospace, SFMono-Regular, Menlo, monospace" },
   { label: "Cursive", value: "'Segoe Script', 'Comic Sans MS', cursive" },
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, Arial, sans-serif" },
+  { label: "Times", value: "Times, 'Times New Roman', serif" },
+  { label: "Courier", value: "Courier, 'Courier New', monospace" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Trebuchet", value: "'Trebuchet MS', sans-serif" },
+  { label: "Palatino", value: "Palatino, 'Palatino Linotype', serif" },
+  { label: "Garamond", value: "Garamond, serif" },
+  { label: "Bookman", value: "'Bookman Old Style', serif" },
+  { label: "Comic Sans", value: "'Comic Sans MS', cursive" },
+  { label: "Impact", value: "Impact, sans-serif" },
 ];
 
 const MIN_FONT_SIZE = 8;
@@ -184,6 +204,295 @@ function FontSizeInput({ editor }: { editor: Editor }) {
   );
 }
 
+const HIGHLIGHT_COLORS = [
+  { label: "Yellow", value: "#fef08a" },
+  { label: "Green", value: "#86efac" },
+  { label: "Blue", value: "#93c5fd" },
+  { label: "Pink", value: "#f9a8d4" },
+  { label: "Orange", value: "#fdba74" },
+  { label: "Purple", value: "#c4b5fd" },
+];
+
+function ColorPickerButton({
+  editor,
+  currentColor,
+  type,
+}: {
+  editor: Editor;
+  currentColor: string;
+  type: "text" | "highlight";
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [customColor, setCustomColor] = useState(currentColor);
+
+  function handleColorChange(color: string) {
+    if (type === "text") {
+      editor.chain().focus().setColor(color).run();
+    } else {
+      editor.chain().focus().toggleHighlight({ color }).run();
+    }
+    setCustomColor(color);
+    setShowPicker(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setShowPicker(!showPicker);
+        }}
+        title="More colors"
+        className="h-4 w-4 rounded border border-black/20 bg-gradient-to-br from-red-500 via-yellow-500 via-green-500 via-blue-500 to-purple-500 hover:scale-110 transition-transform"
+      />
+      {showPicker && (
+        <div className="absolute left-0 top-full z-50 mt-1 rounded border border-black/15 bg-white p-2 shadow-lg">
+          <input
+            type="color"
+            value={customColor}
+            onChange={(e) => setCustomColor(e.target.value)}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="h-8 w-full cursor-pointer"
+          />
+          <div className="mt-1 flex gap-1">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleColorChange(customColor);
+              }}
+              className="h-6 flex-1 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setShowPicker(false);
+              }}
+              className="h-6 flex-1 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HighlightButton({ editor }: { editor: Editor }) {
+  const [showColors, setShowColors] = useState(false);
+  const highlightColor = editor.getAttributes("highlight").color || "#fef08a";
+
+  return (
+    <div className="relative">
+      <ToolbarButton
+        isActive={editor.isActive("highlight")}
+        onClick={() => {
+          if (editor.isActive("highlight")) {
+            editor.chain().focus().unsetHighlight().run();
+          } else {
+            editor.chain().focus().toggleHighlight({ color: highlightColor }).run();
+          }
+        }}
+        title="Highlight"
+      >
+        <Highlighter className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      {showColors && (
+        <div className="absolute left-0 top-full z-50 mt-1 flex gap-0.5 rounded border border-black/15 bg-white p-1 shadow-lg">
+          {HIGHLIGHT_COLORS.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().toggleHighlight({ color: c.value }).run();
+                setShowColors(false);
+              }}
+              title={c.label}
+              className={[
+                "h-5 w-5 rounded border transition-transform",
+                highlightColor === c.value
+                  ? "scale-110 border-gray-800 ring-1 ring-gray-400"
+                  : "border-black/20 hover:scale-110",
+              ].join(" ")}
+              style={{ backgroundColor: c.value }}
+            />
+          ))}
+          <ColorPickerButton editor={editor} currentColor={highlightColor} type="highlight" />
+        </div>
+      )}
+      <button
+        type="button"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setShowColors(!showColors);
+        }}
+        className="ml-0.5 h-6 w-3 rounded border border-black/15 bg-white/60 text-[8px] text-gray-600 hover:bg-black/10"
+        title="Highlight color"
+      >
+        ▼
+      </button>
+    </div>
+  );
+}
+
+function LinkButton({ editor }: { editor: Editor }) {
+  const [showInput, setShowInput] = useState(false);
+  const [url, setUrl] = useState("");
+  const isLink = editor.isActive("link");
+
+  function handleSetLink() {
+    if (url.trim()) {
+      editor.chain().focus().setLink({ href: url.trim() }).run();
+    } else {
+      editor.chain().focus().unsetLink().run();
+    }
+    setUrl("");
+    setShowInput(false);
+  }
+
+  return (
+    <div className="relative">
+      <ToolbarButton
+        isActive={isLink}
+        onClick={() => {
+          if (isLink) {
+            editor.chain().focus().unsetLink().run();
+          } else {
+            const previousUrl = editor.getAttributes("link").href || "";
+            setUrl(previousUrl);
+            setShowInput(true);
+          }
+        }}
+        title="Link"
+      >
+        <LinkIcon className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      {showInput && (
+        <div className="absolute left-0 top-full z-50 mt-1 flex gap-1 rounded border border-black/15 bg-white p-1 shadow-lg">
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSetLink();
+              }
+              if (e.key === "Escape") {
+                setShowInput(false);
+                setUrl("");
+              }
+            }}
+            placeholder="Enter URL"
+            autoFocus
+            onMouseDown={(e) => e.stopPropagation()}
+            className="h-6 w-48 rounded border border-black/15 px-2 text-[10px] text-gray-700 focus:outline-none"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSetLink();
+            }}
+            className="h-6 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+          >
+            Set
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TableOptionsButton({ editor }: { editor: Editor }) {
+  const [showDialog, setShowDialog] = useState(false);
+  const [rows, setRows] = useState(3);
+  const [cols, setCols] = useState(3);
+  const [withHeaderRow, setWithHeaderRow] = useState(true);
+
+  function handleInsertTable() {
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow }).run();
+    setShowDialog(false);
+  }
+
+  return (
+    <div className="relative">
+      <ToolbarButton
+        onClick={() => setShowDialog(true)}
+        title="Insert Table"
+      >
+        <Table className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      {showDialog && (
+        <div className="absolute left-0 top-full z-50 mt-1 rounded border border-black/15 bg-white p-2 shadow-lg">
+          <div className="mb-2 text-[10px] font-medium text-gray-700">Table Options</div>
+          <div className="mb-2 flex items-center gap-2">
+            <label className="text-[10px] text-gray-600">Rows:</label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={rows}
+              onChange={(e) => setRows(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="h-6 w-16 rounded border border-black/15 px-1 text-center text-[10px] text-gray-700 focus:outline-none"
+            />
+          </div>
+          <div className="mb-2 flex items-center gap-2">
+            <label className="text-[10px] text-gray-600">Cols:</label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              value={cols}
+              onChange={(e) => setCols(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="h-6 w-16 rounded border border-black/15 px-1 text-center text-[10px] text-gray-700 focus:outline-none"
+            />
+          </div>
+          <div className="mb-2 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={withHeaderRow}
+              onChange={(e) => setWithHeaderRow(e.target.checked)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="h-3 w-3"
+            />
+            <label className="text-[10px] text-gray-600">Header row</label>
+          </div>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                handleInsertTable();
+              }}
+              className="h-6 flex-1 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+            >
+              Insert
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setShowDialog(false);
+              }}
+              className="h-6 flex-1 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function IndexCardToolbar({
   editor,
   cardColor,
@@ -268,6 +577,46 @@ export function IndexCardToolbar({
 
         <div className="mx-0.5 h-4 w-px bg-black/10" />
 
+        {/* Heading dropdown */}
+        <select
+          value={
+            editor.isActive("heading", { level: 1 })
+              ? "1"
+              : editor.isActive("heading", { level: 2 })
+                ? "2"
+                : editor.isActive("heading", { level: 3 })
+                  ? "3"
+                  : editor.isActive("heading", { level: 4 })
+                    ? "4"
+                    : editor.isActive("heading", { level: 5 })
+                      ? "5"
+                      : editor.isActive("heading", { level: 6 })
+                        ? "6"
+                        : "0"
+          }
+          onChange={(e) => {
+            const level = parseInt(e.target.value, 10);
+            if (level === 0) {
+              editor.chain().focus().setParagraph().run();
+            } else {
+              editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }).run();
+            }
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="h-6 rounded border border-black/15 bg-white/60 px-1 text-[10px] text-gray-700 focus:outline-none"
+          title="Heading"
+        >
+          <option value="0">Normal</option>
+          <option value="1">Heading 1</option>
+          <option value="2">Heading 2</option>
+          <option value="3">Heading 3</option>
+          <option value="4">Heading 4</option>
+          <option value="5">Heading 5</option>
+          <option value="6">Heading 6</option>
+        </select>
+
+        <div className="mx-0.5 h-4 w-px bg-black/10" />
+
         {/* Text alignment */}
         <ToolbarButton
           isActive={editor.isActive({ textAlign: "left" })}
@@ -289,6 +638,13 @@ export function IndexCardToolbar({
           title="Align Right"
         >
           <AlignRight className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          isActive={editor.isActive({ textAlign: "justify" })}
+          onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+          title="Justify"
+        >
+          <AlignJustify className="h-3.5 w-3.5" />
         </ToolbarButton>
 
         <div className="mx-0.5 h-4 w-px bg-black/10" />
@@ -314,7 +670,69 @@ export function IndexCardToolbar({
               style={{ backgroundColor: c.value }}
             />
           ))}
+          <ColorPickerButton editor={editor} currentColor={currentColor} type="text" />
         </div>
+
+        <div className="mx-0.5 h-4 w-px bg-black/10" />
+
+        {/* Highlight */}
+        <HighlightButton editor={editor} />
+
+        {/* Link */}
+        <LinkButton editor={editor} />
+
+        {/* Subscript / Superscript */}
+        <ToolbarButton
+          isActive={editor.isActive("subscript")}
+          onClick={() => editor.chain().focus().toggleSubscript().run()}
+          title="Subscript"
+        >
+          <SubscriptIcon className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          isActive={editor.isActive("superscript")}
+          onClick={() => editor.chain().focus().toggleSuperscript().run()}
+          title="Superscript"
+        >
+          <SuperscriptIcon className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        <div className="mx-0.5 h-4 w-px bg-black/10" />
+
+        {/* Blockquote */}
+        <ToolbarButton
+          isActive={editor.isActive("blockquote")}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          title="Blockquote"
+        >
+          <Quote className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        {/* Code */}
+        <ToolbarButton
+          isActive={editor.isActive("code")}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          title="Inline Code"
+        >
+          <Code className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          isActive={editor.isActive("codeBlock")}
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          title="Code Block"
+        >
+          <Code2 className="h-3.5 w-3.5" />
+        </ToolbarButton>
+
+        {/* Clear formatting */}
+        <ToolbarButton
+          onClick={() => {
+            editor.chain().focus().clearNodes().unsetAllMarks().run();
+          }}
+          title="Clear Formatting"
+        >
+          <Eraser className="h-3.5 w-3.5" />
+        </ToolbarButton>
       </div>
 
       {/* Row 2: Card color (optional) */}
@@ -380,18 +798,7 @@ export function IndexCardToolbar({
       <div className="flex flex-wrap items-center gap-1">
         <span className="text-[10px] text-gray-500 mr-0.5">Insert:</span>
 
-        <ToolbarButton
-          onClick={() =>
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          }
-          title="Insert Table (3×3)"
-        >
-          <Table className="h-3.5 w-3.5" />
-        </ToolbarButton>
+        <TableOptionsButton editor={editor} />
 
         <ToolbarButton
           isActive={editor.isActive("taskList")}

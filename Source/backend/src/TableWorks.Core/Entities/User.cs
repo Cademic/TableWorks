@@ -26,6 +26,12 @@ public sealed class User
     /// <summary>When set, the user is soft-deleted and excluded from all queries.</summary>
     public DateTime? DeletedAt { get; set; }
 
+    /// <summary>Total bytes of stored images (R2).</summary>
+    public long StorageUsedBytes { get; set; }
+
+    /// <summary>Storage limit in bytes (default 500 MB).</summary>
+    public long StorageLimitBytes { get; set; } = 524_288_000;
+
     public UserPreferences? Preferences { get; set; }
     public ICollection<Note> Notes { get; set; } = new List<Note>();
     public ICollection<IndexCard> IndexCards { get; set; } = new List<IndexCard>();
@@ -43,4 +49,5 @@ public sealed class User
     public ICollection<FriendRequest> SentFriendRequests { get; set; } = new List<FriendRequest>();
     public ICollection<FriendRequest> ReceivedFriendRequests { get; set; } = new List<FriendRequest>();
     public ICollection<Notebook> Notebooks { get; set; } = new List<Notebook>();
+    public ICollection<UserStorageItem> StorageItems { get; set; } = new List<UserStorageItem>();
 }

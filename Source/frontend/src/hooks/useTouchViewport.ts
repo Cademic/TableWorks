@@ -94,15 +94,15 @@ export function useTouchViewport(
         
         const t1 = touches[0];
         const t2 = touches[1];
-        const rect = viewport!.getBoundingClientRect();
         const d0 = getDistance(t1, t2);
-        const midpoint = getMidpoint(t1, t2, rect);
+        const rect1 = viewport!.getBoundingClientRect();
+        const midpoint = getMidpoint(t1, t2, rect1);
 
         // Start with pan mode (can switch to pinch if distance changes)
         // Capture current pan/zoom state at gesture start
         touchModeRef.current = "pan";
-        const startMidpointX = midpoint.x + rect.left;
-        const startMidpointY = midpoint.y + rect.top;
+        const startMidpointX = midpoint.x + rect1.left;
+        const startMidpointY = midpoint.y + rect1.top;
         touchStartRef.current = {
           type: "pan",
           x: startMidpointX,
@@ -142,9 +142,9 @@ export function useTouchViewport(
 
       const t1 = touches[0];
       const t2 = touches[1];
-      const rect = viewport!.getBoundingClientRect();
+      const rect2 = viewport!.getBoundingClientRect();
       const currentDistance = getDistance(t1, t2);
-      const currentMidpoint = getMidpoint(t1, t2, rect);
+      const currentMidpoint = getMidpoint(t1, t2, rect2);
       const initialDistance = start.type === "pan" ? start.initialDistance : undefined;
       const initialMidpoint = start.type === "pan" ? start.initialMidpoint : undefined;
 
@@ -193,8 +193,8 @@ export function useTouchViewport(
       } else if (mode === "pan" && start.type === "pan") {
         // Update pan (2-finger pan) - use midpoint movement
         // Calculate incremental delta from last touch position for smooth continuous movement
-        const midpointX = currentMidpoint.x + rect.left;
-        const midpointY = currentMidpoint.y + rect.top;
+        const midpointX = currentMidpoint.x + rect2.left;
+        const midpointY = currentMidpoint.y + rect2.top;
         const dx = (resolutionFactor * (midpointX - start.x)) / zoomRef.current;
         const dy = (resolutionFactor * (midpointY - start.y)) / zoomRef.current;
         

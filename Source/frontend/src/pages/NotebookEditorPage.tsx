@@ -195,7 +195,8 @@ export function NotebookEditorPage() {
         saveInProgressRef.current = true;
         try {
           // Use the latest known updatedAt from ref to prevent race conditions
-          const updatedAtToSend = latestUpdatedAtRef.current || (notebook?.updatedAt ? new Date(notebook.updatedAt) : undefined);
+          const updatedAtRef = latestUpdatedAtRef.current || (notebook?.updatedAt ? new Date(notebook.updatedAt) : undefined);
+          const updatedAtToSend = updatedAtRef?.toISOString();
           
           await updateNotebookContent(notebookId, {
             contentJson: jsonString,
@@ -299,10 +300,10 @@ export function NotebookEditorPage() {
         if (format === "pdf") {
           if (editor) {
             const jsonString = JSON.stringify(editor.getJSON());
-            const updatedAtToSend = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
+            const updatedAtRef = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
             await updateNotebookContent(notebookId, {
               contentJson: jsonString,
-              updatedAt: updatedAtToSend,
+              updatedAt: updatedAtRef?.toISOString(),
             });
             lastSavedJsonRef.current = jsonString;
             // Update ref after successful save
@@ -346,10 +347,10 @@ export function NotebookEditorPage() {
     try {
       if (editor) {
         const jsonString = JSON.stringify(editor.getJSON());
-        const updatedAtToSend = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
+        const updatedAtRef = latestUpdatedAtRef.current || (notebook.updatedAt ? new Date(notebook.updatedAt) : undefined);
         await updateNotebookContent(notebookId, {
           contentJson: jsonString,
-          updatedAt: updatedAtToSend,
+          updatedAt: updatedAtRef?.toISOString(),
         });
         lastSavedJsonRef.current = jsonString;
         // Update ref after successful save

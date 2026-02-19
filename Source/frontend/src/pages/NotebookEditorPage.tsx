@@ -21,7 +21,7 @@ import Superscript from "@tiptap/extension-superscript";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { FontSize } from "../lib/tiptap-font-size";
-import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion } from "../api/notebooks";
+import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion, uploadNotebookImage } from "../api/notebooks";
 import { exportNotebookToPdf } from "../lib/exportNotebookToPdf";
 import type { NotebookDetailDto, NotebookVersionDto } from "../types";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
@@ -84,7 +84,7 @@ function safeFileName(name: string): string {
 export function NotebookEditorPage() {
   const { notebookId } = useParams<{ notebookId: string }>();
   const navigate = useNavigate();
-  const { setBoardName } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, isSidebarOpen } = useOutletContext<AppLayoutContext>();
   const [notebook, setNotebook] = useState<NotebookDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -95,6 +95,7 @@ export function NotebookEditorPage() {
   /** Content we last synced into the editor from notebook state; avoid resetting editor after our own save. */
   const lastSyncedContentJsonRef = useRef<string>("");
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const menuImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!notebookId) return;
@@ -289,6 +290,21 @@ export function NotebookEditorPage() {
     }
   }, [editor, notebook]);
 
+  const handleMenuImageFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file || !editor || !notebookId) return;
+      try {
+        const { url } = await uploadNotebookImage(notebookId, file);
+        editor.chain().focus().setImage({ src: url }).run();
+      } catch {
+        // Upload failed; user can try again or use By URL
+      }
+    },
+    [editor, notebookId],
+  );
+
   const handleImportJson = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -375,6 +391,7 @@ export function NotebookEditorPage() {
               onSaveVersion={handleSaveVersion}
               onRestoreVersion={handleRestoreVersion}
               formatVersionDate={formatVersionDate}
+              onInsertImageUpload={() => menuImageInputRef.current?.click()}
             />
           </div>
         )}
@@ -402,9 +419,17 @@ export function NotebookEditorPage() {
           aria-hidden
           onChange={handleImportJson}
         />
+        <input
+          ref={menuImageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          aria-hidden
+          onChange={handleMenuImageFileSelect}
+        />
       </div>
-      <div className="flex-1 overflow-hidden">
-        <ZoomablePaperShell zoom={zoom} onZoomChange={setZoom}>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <ZoomablePaperShell zoom={zoom} onZoomChange={setZoom} sidebarExpanded={isSidebarOpen}>
           <PaperShell>
             <EditorContent editor={editor} />
           </PaperShell>

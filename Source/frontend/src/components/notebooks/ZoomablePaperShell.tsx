@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 
+/** US Letter width at 96dpi – must match PaperShell so scale-to-fit is correct. */
+const PAPER_WIDTH_PX = 816;
+/** Horizontal padding around the paper in the container (p-5 = 20px each side). */
+const CONTAINER_PADDING_PX = 40;
+
 interface ZoomablePaperShellProps {
   children: ReactNode;
   /** Minimum zoom level (e.g., 0.5 = 50%) */
@@ -13,6 +18,8 @@ interface ZoomablePaperShellProps {
   zoom?: number;
   /** Callback when zoom changes (use with zoom for controlled mode) */
   onZoomChange?: (zoom: number) => void;
+  /** When true, sidebar is expanded (w-60); position zoom controls to clear it. When false, position next to collapsed sidebar (w-16). Desktop (lg) only. */
+  sidebarExpanded?: boolean;
 }
 
 export function ZoomablePaperShell({
@@ -22,12 +29,35 @@ export function ZoomablePaperShell({
   initialZoom = 1,
   zoom: controlledZoom,
   onZoomChange,
+  sidebarExpanded = true,
 }: ZoomablePaperShellProps) {
   const [internalZoom, setInternalZoom] = useState(initialZoom);
   const zoom = controlledZoom ?? internalZoom;
   const setZoom = onZoomChange ?? setInternalZoom;
+  const [containerWidth, setContainerWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastPinchDistanceRef = useRef<number | null>(null);
+
+  // Shrink page when container is narrower than paper so the page doesn’t touch the window edge
+  const fitScale =
+    containerWidth > 0
+      ? Math.min(1, (containerWidth - CONTAINER_PADDING_PX) / PAPER_WIDTH_PX)
+      : 1;
+  const effectiveScale = fitScale * zoom;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width;
+        setContainerWidth(w);
+      }
+    });
+    ro.observe(el);
+    setContainerWidth(el.getBoundingClientRect().width);
+    return () => ro.disconnect();
+  }, []);
 
   const applyZoomDelta = (delta: number) => {
     const newZoom = Math.max(minZoom, Math.min(maxZoom, zoom + delta));
@@ -109,7 +139,7 @@ export function ZoomablePaperShell({
       <div
         className="zoomable-paper-content"
         style={{
-          transform: `scale(${zoom})`,
+          transform: `scale(${effectiveScale})`,
           transformOrigin: "top center",
           transition: "transform 0.1s ease-out",
           willChange: "transform",
@@ -118,8 +148,12 @@ export function ZoomablePaperShell({
         {children}
       </div>
       
-      {/* Zoom controls fixed at bottom of viewport (offset on desktop to clear sidebar w-60) */}
-      <div className="fixed bottom-4 left-4 lg:left-[17rem] z-50 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg">
+      {/* Zoom controls: near bottom-left; on desktop (lg) offset so they don't overlap sidebar (w-60 expanded, w-16 collapsed) */}
+      <div
+        className={`fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 shadow-lg transition-[left] duration-200 ${
+          sidebarExpanded ? "lg:left-[17rem]" : "lg:left-[5rem]"
+        }`}
+      >
         <button
           type="button"
           onClick={() => handleZoomChange(zoom - 0.1)}

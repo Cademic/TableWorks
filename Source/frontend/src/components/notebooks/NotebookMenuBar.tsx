@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { Printer, Upload, ChevronRight } from "lucide-react";
+import { Printer, Upload, ChevronRight, Search, Link as LinkIcon } from "lucide-react";
 import type { NotebookVersionDto } from "../../types";
 
 const FONT_FAMILIES = [
@@ -49,6 +49,8 @@ interface NotebookMenuBarProps {
   onSaveVersion: () => void;
   onRestoreVersion: (versionId: string) => void;
   formatVersionDate: (createdAt: string) => string;
+  /** Called when user chooses Insert → Image → Upload from computer (opens file picker). */
+  onInsertImageUpload?: () => void;
 }
 
 const menuItemClass =
@@ -95,7 +97,20 @@ function HoverSubmenu({
         {label}
         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
       </div>
-      {open && <div className={submenuClass}>{children}</div>}
+      {open && (
+        <div
+          className={submenuClass}
+          onMouseEnter={() => {
+            clearCloseTimer();
+            setOpen(true);
+          }}
+          onMouseLeave={() => {
+            closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+          }}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -190,11 +205,39 @@ export function NotebookMenuBar({
   onSaveVersion,
   onRestoreVersion,
   formatVersionDate,
+  onInsertImageUpload,
 }: NotebookMenuBarProps) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  const [linkPopupOpen, setLinkPopupOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const linkInputRef = useRef<HTMLInputElement>(null);
+  /** Selection when Format menu was opened; restored when applying font size so it applies to the right text. */
+  const formatMenuSelectionRef = useRef<{ from: number; to: number } | null>(null);
 
   const closeMenu = () => setOpenMenu(null);
+
+  const openLinkPopup = () => {
+    closeMenu();
+    setLinkUrl(editor?.getAttributes("link").href ?? "");
+    setLinkPopupOpen(true);
+    setTimeout(() => linkInputRef.current?.focus(), 0);
+  };
+
+  const applyLink = () => {
+    if (linkUrl.trim()) {
+      editor?.chain().focus().setLink({ href: linkUrl.trim() }).run();
+    } else {
+      editor?.chain().focus().unsetLink().run();
+    }
+    setLinkUrl("");
+    setLinkPopupOpen(false);
+  };
+
+  const closeLinkPopup = () => {
+    setLinkPopupOpen(false);
+    setLinkUrl("");
+  };
 
   useEffect(() => {
     if (!openMenu) return;
@@ -219,8 +262,17 @@ export function NotebookMenuBar({
   const dropdownClass =
     "absolute left-0 top-full z-50 mt-1 min-w-[200px] max-w-[320px] max-h-[400px] overflow-visible rounded-lg border border-border bg-background py-1 shadow-xl";
 
+  const captureFormatSelection = () => {
+    const sel = editor?.state.selection;
+    if (sel) formatMenuSelectionRef.current = { from: sel.from, to: sel.to };
+  };
+
   return (
-    <div ref={menuBarRef} className="flex items-center gap-1 px-2 py-1.5">
+    <div
+      ref={menuBarRef}
+      className="flex items-center gap-1 px-2 py-1.5"
+      onMouseEnter={captureFormatSelection}
+    >
       {/* File */}
       <div className="relative">
         <button
@@ -389,7 +441,14 @@ export function NotebookMenuBar({
       <div className="relative">
         <button
           type="button"
-          onClick={() => setOpenMenu(openMenu === "format" ? null : "format")}
+          onMouseDown={(e) => {
+            if (openMenu !== "format") {
+              const sel = editor?.state.selection;
+              if (sel) formatMenuSelectionRef.current = { from: sel.from, to: sel.to };
+            }
+            e.preventDefault();
+            setOpenMenu(openMenu === "format" ? null : "format");
+          }}
           className={menuTriggerClass("format")}
         >
           Format
@@ -474,7 +533,24 @@ export function NotebookMenuBar({
                     key={s}
                     type="button"
                     className="rounded px-2 py-1 text-sm hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                    onClick={() => { closeMenu(); editor.chain().focus().setFontSize(`${s}px`).run(); }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const size = s;
+                      const saved = formatMenuSelectionRef.current;
+                      if (saved) {
+                        editor
+                          .chain()
+                          .focus()
+                          .setTextSelection({ from: saved.from, to: saved.to })
+                          .setFontSize(`${size}px`)
+                          .run();
+                        formatMenuSelectionRef.current = null;
+                      } else {
+                        editor.chain().focus().setFontSize(`${size}px`).run();
+                      }
+                      requestAnimationFrame(() => closeMenu());
+                    }}
                   >
                     {s}
                   </button>
@@ -548,17 +624,49 @@ export function NotebookMenuBar({
         </button>
         {openMenu === "insert" && (
           <div className={dropdownClass}>
-            <button
-              type="button"
-              className={menuItemClass}
-              onClick={() => {
-                closeMenu();
-                const url = window.prompt("Image URL");
-                if (url?.trim()) editor.chain().focus().setImage({ src: url.trim() }).run();
-              }}
+            <HoverSubmenu
+              label="Image"
+              menuItemWithSubmenuClass={menuItemWithSubmenuClass}
+              submenuClass={submenuClass}
             >
-              Image
-            </button>
+              <button
+                type="button"
+                className={menuItemClass}
+                onClick={() => {
+                  closeMenu();
+                  onInsertImageUpload?.();
+                }}
+                disabled={!onInsertImageUpload}
+              >
+                <Upload className="h-3.5 w-3.5 shrink-0" />
+                Upload from computer
+              </button>
+              <button
+                type="button"
+                className={menuItemClass}
+                onClick={() => {
+                  closeMenu();
+                  const q = window.prompt("Search for images");
+                  if (q?.trim()) window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q.trim())}`, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <Search className="h-3.5 w-3.5 shrink-0" />
+                Search the web
+              </button>
+              <div className={dividerClass} />
+              <button
+                type="button"
+                className={menuItemClass}
+                onClick={() => {
+                  closeMenu();
+                  const url = window.prompt("Image URL");
+                  if (url?.trim()) editor.chain().focus().setImage({ src: url.trim() }).run();
+                }}
+              >
+                <LinkIcon className="h-3.5 w-3.5 shrink-0" />
+                By URL
+              </button>
+            </HoverSubmenu>
             <button
               type="button"
               className={menuItemClass}
@@ -569,12 +677,7 @@ export function NotebookMenuBar({
             <button
               type="button"
               className={menuItemClass}
-              onClick={() => {
-                closeMenu();
-                const url = window.prompt("Link URL");
-                if (url?.trim()) editor.chain().focus().setLink({ href: url.trim() }).run();
-                else editor.chain().focus().unsetLink().run();
-              }}
+              onClick={openLinkPopup}
             >
               Link
             </button>
@@ -636,6 +739,55 @@ export function NotebookMenuBar({
           </div>
         )}
       </div>
+
+      {/* Link URL popup */}
+      {linkPopupOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+          onClick={closeLinkPopup}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Insert link"
+        >
+          <div
+            className="min-w-[320px] rounded-lg border border-border bg-background p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <label htmlFor="link-url-input" className="mb-2 block text-sm font-medium text-foreground">
+              Link URL
+            </label>
+            <input
+              ref={linkInputRef}
+              id="link-url-input"
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") applyLink();
+                if (e.key === "Escape") closeLinkPopup();
+              }}
+              placeholder="https://..."
+              className="mb-3 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeLinkPopup}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground hover:bg-foreground/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyLink}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                Set link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,8 @@ export interface AppLayoutContext {
   refreshPinnedProjects: () => void;
   openNotebook: (id: string) => void;
   refreshPinnedNotebooks: () => void;
+  /** Desktop only: true when sidebar is expanded (w-60), false when collapsed (w-16). */
+  isSidebarOpen: boolean;
 }
 
 export function AppLayout() {
@@ -134,6 +136,7 @@ export function AppLayout() {
     refreshPinnedProjects,
     openNotebook,
     refreshPinnedNotebooks,
+    isSidebarOpen,
   };
 
   return (

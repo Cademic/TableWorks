@@ -164,12 +164,15 @@ public sealed class NotebookService : INotebookService
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
 
+        // Optimistic concurrency: only conflict when the server has a *newer* version (modified elsewhere).
+        // Allow clock skew by only treating server > client as a conflict, with a small tolerance.
         if (request.UpdatedAt.HasValue)
         {
             var clientUpdated = request.UpdatedAt.Value.Kind == DateTimeKind.Utc
                 ? request.UpdatedAt.Value
                 : DateTime.SpecifyKind(request.UpdatedAt.Value, DateTimeKind.Utc);
-            if (Math.Abs((notebook.UpdatedAt - clientUpdated).TotalSeconds) > 1)
+            const int skewSeconds = 5;
+            if (notebook.UpdatedAt > clientUpdated.AddSeconds(skewSeconds))
                 throw new InvalidOperationException("Document was modified elsewhere. Reload to get the latest version.");
         }
 

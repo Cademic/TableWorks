@@ -1,5 +1,55 @@
 # Database scripts
 
+## Connecting to Render PostgreSQL (SQL shell)
+
+Use the **External Database URL** from Render (Dashboard → your PostgreSQL service → Connections).
+
+### Option A: `psql` (command line)
+
+If you have [PostgreSQL client tools](https://www.postgresql.org/download/windows/) installed:
+
+```powershell
+# PowerShell: set password so psql doesn't prompt (replace with your actual URL components)
+$env:PGPASSWORD = "your_password"
+psql -h dpg-xxxxx.oregon-postgres.render.com -p 5432 -U your_user -d your_database_name "sslmode=require"
+```
+
+Or pass the full URL (works with recent psql):
+
+```powershell
+psql "postgresql://user:password@hostname.oregon-postgres.render.com:5432/database_name?sslmode=require"
+```
+
+Replace `user`, `password`, `hostname`, and `database_name` with the values from your Render External Database URL.
+
+### Option B: GUI (DBeaver, pgAdmin, Azure Data Studio, etc.)
+
+1. Create a new PostgreSQL connection.
+2. **Host:** from the URL (e.g. `dpg-xxxxx.oregon-postgres.render.com`).
+3. **Port:** 5432.
+4. **Database:** database name from the URL (e.g. `asidenote_db_staging`).
+5. **Username / Password:** from the URL.
+6. Enable **SSL** (e.g. SSL mode = require).
+7. Connect, then open a SQL editor and paste/run the script.
+
+---
+
+## manual-notebook-schema-fix.sql
+
+**When to use:** The live API returns **503** on `GET /api/v1/notebooks/{id}` and you’ve confirmed (e.g. from the 503 response body or logs) that the database is missing `ContentJson` on `Notebooks` and/or the `NotebookVersions` table (or the old `NotebookPages` table is still present).
+
+**What it does:** Drops `NotebookPages`, adds `ContentJson` to `Notebooks` if missing, creates `NotebookVersions` if missing, and marks the corresponding EF migrations as applied.
+
+**Fix:** Connect to the **same database your live API uses** (see “Connecting to Render PostgreSQL” above), then run:
+
+```bash
+psql "postgresql://user:password@host:5432/dbname?sslmode=require" -f scripts/manual-notebook-schema-fix.sql
+```
+
+Or in a GUI: open the script file, paste into the SQL editor, and execute.
+
+---
+
 ## add-board-images-table.sql
 
 **When to use:** You get **503 Service Unavailable** on `GET` or `POST` `/api/v1/boards/{id}/image-cards`, and you cannot run `dotnet ef database update` because the API process is running (build fails with "file is locked").

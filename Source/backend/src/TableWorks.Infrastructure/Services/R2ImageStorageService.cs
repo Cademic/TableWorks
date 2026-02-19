@@ -2,6 +2,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using ASideNote.Application.Interfaces;
 using ASideNote.Infrastructure.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ASideNote.Infrastructure.Services;
@@ -10,11 +11,13 @@ public sealed class R2ImageStorageService : IImageStorageService
 {
     private readonly IAmazonS3 _s3;
     private readonly R2Options _options;
+    private readonly ILogger<R2ImageStorageService> _logger;
 
-    public R2ImageStorageService(IAmazonS3 s3, IOptions<R2Options> options)
+    public R2ImageStorageService(IAmazonS3 s3, IOptions<R2Options> options, ILogger<R2ImageStorageService> logger)
     {
         _s3 = s3;
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<ImageUploadResult> UploadAsync(Guid notebookId, Stream content, string contentType, CancellationToken cancellationToken = default)
@@ -62,7 +65,10 @@ public sealed class R2ImageStorageService : IImageStorageService
     {
         var key = UrlToStorageKey(url);
         if (key is null)
+        {
+            _logger.LogDebug("Could not resolve storage key from URL {Url}", url?.Length > 100 ? url[..100] + "..." : url);
             return null;
+        }
 
         try
         {
@@ -72,10 +78,12 @@ public sealed class R2ImageStorageService : IImageStorageService
                 Key = key
             };
             await _s3.DeleteObjectAsync(request, cancellationToken);
+            _logger.LogInformation("Deleted R2 object {Key}", key);
             return key;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Failed to delete R2 object {Key} from URL {Url}", key, url?.Length > 80 ? url[..80] + "..." : url);
             return null;
         }
     }
@@ -84,21 +92,24 @@ public sealed class R2ImageStorageService : IImageStorageService
     {
         if (string.IsNullOrWhiteSpace(url))
             return null;
+        url = url.Trim();
         if (url.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             return null;
+
         string? key = null;
         if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
         {
             var baseUrl = _options.PublicBaseUrl.TrimEnd('/') + "/";
             if (url.StartsWith(baseUrl, StringComparison.OrdinalIgnoreCase))
-                key = url[baseUrl.Length..].TrimStart('/');
+                key = url[baseUrl.Length..].TrimStart('/').Split('?')[0].Split('#')[0].Trim();
         }
-        if (key is null && url.Contains($"/{_options.Bucket}/", StringComparison.OrdinalIgnoreCase))
+        if (key is null && !string.IsNullOrEmpty(_options.Bucket) &&
+            url.Contains($"/{_options.Bucket}/", StringComparison.OrdinalIgnoreCase))
         {
             var idx = url.IndexOf($"/{_options.Bucket}/", StringComparison.OrdinalIgnoreCase);
-            key = url[(idx + _options.Bucket!.Length + 2)..].Split('?')[0];
+            key = url[(idx + _options.Bucket!.Length + 2)..].Split('?')[0].Split('#')[0].Trim();
         }
-        if (key is null || !key.StartsWith("notebooks/", StringComparison.Ordinal))
+        if (string.IsNullOrEmpty(key) || !key.StartsWith("notebooks/", StringComparison.Ordinal))
             return null;
         return key;
     }

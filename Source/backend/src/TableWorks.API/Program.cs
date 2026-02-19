@@ -309,7 +309,8 @@ builder.Services.Configure<ASideNote.Infrastructure.Options.R2Options>(options =
     options.SecretAccessKey ??= Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey");
     options.Bucket ??= Environment.GetEnvironmentVariable("R2_BUCKET") ?? Environment.GetEnvironmentVariable("R2__Bucket");
     options.AccountId ??= Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? Environment.GetEnvironmentVariable("R2__AccountId");
-    options.PublicBaseUrl ??= Environment.GetEnvironmentVariable("R2_PUBLIC_BASE_URL") ?? Environment.GetEnvironmentVariable("R2__PublicBaseUrl");
+    options.PublicBaseUrl ??= Environment.GetEnvironmentVariable("R2_PUBLIC_BASE_URL") ?? Environment.GetEnvironmentVariable("R2__PublicBaseUrl")
+        ?? Environment.GetEnvironmentVariable("R2_PUBLIC_URL") ?? Environment.GetEnvironmentVariable("R2__PublicUrl");
 });
 var r2AccessKey = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? Environment.GetEnvironmentVariable("R2__AccessKeyId") ?? builder.Configuration["R2:AccessKeyId"];
 var r2SecretKey = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey") ?? builder.Configuration["R2:SecretAccessKey"];

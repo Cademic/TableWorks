@@ -91,7 +91,7 @@ function toInputDate(dateStr: string | null): string {
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { openNotebook } = useOutletContext<AppLayoutContext>();
+  const { openNotebook, setBoardName } = useOutletContext<AppLayoutContext>();
 
   const [project, setProject] = useState<ProjectDetailDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -216,6 +216,11 @@ export function ProjectDetailPage() {
   useEffect(() => {
     fetchProject();
   }, [fetchProject]);
+
+  useEffect(() => {
+    setBoardName(project?.name ?? null);
+    return () => setBoardName(null);
+  }, [project?.name, setBoardName]);
 
   useEffect(() => {
     if (!projectId) return;

@@ -1,17 +1,16 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
 import { AppLayout } from "../components/layout/AppLayout";
 import { LandingPage } from "../pages/LandingPage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { NoteBoardPage } from "../pages/NoteBoardPage";
-import { ChalkBoardPage } from "../pages/ChalkBoardPage";
 import { ProjectsPage } from "../pages/ProjectsPage";
 import { ProjectDetailPage } from "../pages/ProjectDetailPage";
 import { CalendarsPage } from "../pages/CalendarsPage";
 import { ChalkBoardsPage } from "../pages/ChalkBoardsPage";
 import { BoardsPage } from "../pages/BoardsPage";
 import { NotebooksPage } from "../pages/NotebooksPage";
-import { NotebookEditorPage } from "../pages/NotebookEditorPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { LoginPage } from "../pages/LoginPage";
@@ -21,7 +20,18 @@ import { VerifyEmailPage } from "../pages/VerifyEmailPage";
 import { PrivacyPolicyPage } from "../pages/PrivacyPolicyPage";
 import { TermsAndConditionsPage } from "../pages/TermsAndConditionsPage";
 import { AdminRoute } from "../components/auth/AdminRoute";
-import { AdminPage } from "../pages/AdminPage";
+
+const ChalkBoardPage = lazy(() => import("../pages/ChalkBoardPage").then((m) => ({ default: m.ChalkBoardPage })));
+const NotebookEditorPage = lazy(() => import("../pages/NotebookEditorPage").then((m) => ({ default: m.NotebookEditorPage })));
+const AdminPage = lazy(() => import("../pages/AdminPage").then((m) => ({ default: m.AdminPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center" aria-hidden>
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+    </div>
+  );
+}
 
 export function AppRouter() {
   return (
@@ -31,6 +41,7 @@ export function AppRouter() {
         v7_relativeSplatPath: true,
       }}
     >
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
@@ -66,6 +77,7 @@ export function AppRouter() {
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

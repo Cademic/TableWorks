@@ -292,7 +292,6 @@ builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
 builder.Services.AddScoped<INotebookService, NotebookService>();

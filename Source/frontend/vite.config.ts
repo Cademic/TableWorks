@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => ({
             "@tiptap/extension-font-family",
             "@tiptap/extension-text-style",
           ],
+          fabric: ["fabric"],
           vendor: ["axios", "lucide-react", "react-draggable"],
         },
       },

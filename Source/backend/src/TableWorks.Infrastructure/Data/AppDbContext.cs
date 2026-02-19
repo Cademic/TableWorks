@@ -32,6 +32,7 @@ public sealed class AppDbContext : DbContext
     public DbSet<FriendRequest> FriendRequests => Set<FriendRequest>();
     public DbSet<Notebook> Notebooks => Set<Notebook>();
     public DbSet<NotebookVersion> NotebookVersions => Set<NotebookVersion>();
+    public DbSet<UserStorageItem> UserStorageItems => Set<UserStorageItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,6 +49,24 @@ public sealed class AppDbContext : DbContext
             entity.HasIndex(x => x.Email).IsUnique();
             entity.HasIndex(x => x.Username).IsUnique();
             entity.HasQueryFilter(u => u.DeletedAt == null);
+        });
+
+        // ----- UserStorageItem -----
+        modelBuilder.Entity<UserStorageItem>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.HasIndex(x => x.StorageKey).IsUnique();
+            entity.HasIndex(x => x.UserId);
+
+            entity.Property(x => x.StorageKey).HasMaxLength(512);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.StorageItems)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasQueryFilter(i => Set<User>().Any(u => u.Id == i.UserId));
         });
 
         // ----- Board -----

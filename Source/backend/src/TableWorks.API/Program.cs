@@ -238,9 +238,10 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("postgres");
 
 // ---------------------------------------------------------------------------
-// HttpContext accessor
+// HttpContext accessor & HttpClient
 // ---------------------------------------------------------------------------
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient();
 
 // ---------------------------------------------------------------------------
 // Repositories & Unit of Work
@@ -295,6 +296,47 @@ builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
 builder.Services.AddScoped<INotebookService, NotebookService>();
 builder.Services.AddScoped<INotebookExportService, NotebookExportService>();
+builder.Services.AddScoped<IUserStorageService, ASideNote.Infrastructure.Services.UserStorageService>();
+builder.Services.AddScoped<IImageResolver, ASideNote.Infrastructure.Services.ImageResolverService>();
+
+// ---------------------------------------------------------------------------
+// R2 / Image Storage (optional – env: R2__AccessKeyId, R2__SecretAccessKey, R2__Bucket, R2__AccountId)
+// ---------------------------------------------------------------------------
+builder.Services.Configure<ASideNote.Infrastructure.Options.R2Options>(options =>
+{
+    builder.Configuration.GetSection("R2").Bind(options);
+    options.AccessKeyId ??= Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? Environment.GetEnvironmentVariable("R2__AccessKeyId");
+    options.SecretAccessKey ??= Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey");
+    options.Bucket ??= Environment.GetEnvironmentVariable("R2_BUCKET") ?? Environment.GetEnvironmentVariable("R2__Bucket");
+    options.AccountId ??= Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? Environment.GetEnvironmentVariable("R2__AccountId");
+    options.PublicBaseUrl ??= Environment.GetEnvironmentVariable("R2_PUBLIC_BASE_URL") ?? Environment.GetEnvironmentVariable("R2__PublicBaseUrl");
+});
+var r2AccessKey = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID") ?? Environment.GetEnvironmentVariable("R2__AccessKeyId") ?? builder.Configuration["R2:AccessKeyId"];
+var r2SecretKey = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY") ?? Environment.GetEnvironmentVariable("R2__SecretAccessKey") ?? builder.Configuration["R2:SecretAccessKey"];
+var r2Bucket = Environment.GetEnvironmentVariable("R2_BUCKET") ?? Environment.GetEnvironmentVariable("R2__Bucket") ?? builder.Configuration["R2:Bucket"];
+var r2AccountId = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID") ?? Environment.GetEnvironmentVariable("R2__AccountId") ?? builder.Configuration["R2:AccountId"];
+var r2Configured = !string.IsNullOrWhiteSpace(r2AccessKey) && !string.IsNullOrWhiteSpace(r2SecretKey) && !string.IsNullOrWhiteSpace(r2Bucket) && !string.IsNullOrWhiteSpace(r2AccountId);
+
+if (r2Configured)
+{
+    builder.Services.AddSingleton<Amazon.S3.IAmazonS3>(sp =>
+    {
+        var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ASideNote.Infrastructure.Options.R2Options>>().Value;
+        var cfg = new Amazon.S3.AmazonS3Config
+        {
+            ServiceURL = $"https://{opts.AccountId}.r2.cloudflarestorage.com",
+            ForcePathStyle = true
+        };
+        return new Amazon.S3.AmazonS3Client(opts.AccessKeyId, opts.SecretAccessKey, cfg);
+    });
+    builder.Services.AddSingleton<ASideNote.Infrastructure.Services.IR2ClientProvider, ASideNote.Infrastructure.Services.R2ClientProvider>();
+    builder.Services.AddScoped<IImageStorageService, ASideNote.Infrastructure.Services.R2ImageStorageService>();
+}
+else
+{
+    builder.Services.AddSingleton<ASideNote.Infrastructure.Services.IR2ClientProvider, ASideNote.Infrastructure.Services.NullR2ClientProvider>();
+    builder.Services.AddScoped<IImageStorageService, ASideNote.Infrastructure.Services.NoOpImageStorageService>();
+}
 
 // ---------------------------------------------------------------------------
 // Build

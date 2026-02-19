@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Common;
+using ASideNote.Application.Helpers;
 using ASideNote.Application.Interfaces;
 using ASideNote.Core.Entities;
 using ASideNote.Core.Interfaces;
@@ -16,19 +17,25 @@ public sealed class NotebookService : INotebookService
     private readonly IRepository<Project> _projectRepo;
     private readonly IRepository<ProjectMember> _memberRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IImageStorageService _imageStorage;
+    private readonly IUserStorageService _userStorage;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
         IRepository<NotebookVersion> versionRepo,
         IRepository<Project> projectRepo,
         IRepository<ProjectMember> memberRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IImageStorageService imageStorage,
+        IUserStorageService userStorage)
     {
         _notebookRepo = notebookRepo;
         _versionRepo = versionRepo;
         _projectRepo = projectRepo;
         _memberRepo = memberRepo;
         _unitOfWork = unitOfWork;
+        _imageStorage = imageStorage;
+        _userStorage = userStorage;
     }
 
     private async Task<string?> GetProjectRoleAsync(Guid userId, Guid projectId, CancellationToken cancellationToken)
@@ -165,6 +172,17 @@ public sealed class NotebookService : INotebookService
                 throw new InvalidOperationException("Document was modified elsewhere. Reload to get the latest version.");
         }
 
+        var oldUrls = TipTapImageUrls.GetImageUrls(notebook.ContentJson ?? "{}").ToHashSet();
+        var newUrls = TipTapImageUrls.GetImageUrls(request.ContentJson ?? "{}").ToHashSet();
+        var removedUrls = oldUrls.Except(newUrls).ToList();
+
+        foreach (var url in removedUrls)
+        {
+            var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+            if (key is not null)
+                await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+        }
+
         notebook.ContentJson = request.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}";
         notebook.UpdatedAt = DateTime.UtcNow;
 
@@ -177,6 +195,14 @@ public sealed class NotebookService : INotebookService
         var notebook = await _notebookRepo.Query()
             .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        var urls = TipTapImageUrls.GetImageUrls(notebook.ContentJson ?? "{}");
+        foreach (var url in urls)
+        {
+            var key = await _imageStorage.DeleteByUrlIfOwnedAsync(url, cancellationToken);
+            if (key is not null)
+                await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
+        }
 
         _notebookRepo.Delete(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -18,6 +18,14 @@ public sealed class AuthService : IAuthService
     private static string GetRandomDefaultAvatarKey() =>
         DefaultAvatarKeys[RandomNumberGenerator.GetInt32(DefaultAvatarKeys.Length)];
 
+    private static long GetStorageLimitBytesFromEnv()
+    {
+        var mb = Environment.GetEnvironmentVariable("USER_STORAGE_LIMIT_MB");
+        if (string.IsNullOrWhiteSpace(mb) || !long.TryParse(mb, out var limitMb) || limitMb <= 0)
+            return 524_288_000;
+        return limitMb * 1024L * 1024L;
+    }
+
     private readonly IRepository<User> _userRepo;
     private readonly IRepository<RefreshToken> _refreshTokenRepo;
     private readonly IRepository<EmailVerificationToken> _verificationTokenRepo;
@@ -75,6 +83,7 @@ public sealed class AuthService : IAuthService
         var user = new User
         {
             Username = request.Username,
+            StorageLimitBytes = GetStorageLimitBytesFromEnv(),
             Email = request.Email,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = "User",
@@ -361,6 +370,7 @@ public sealed class AuthService : IAuthService
                 {
                     Username = await GenerateUniqueUsername(googleName, cancellationToken),
                     Email = googleEmail,
+                    StorageLimitBytes = GetStorageLimitBytesFromEnv(),
                     PasswordHash = string.Empty, // No password for Google-only accounts
                     Role = "User",
                     CreatedAt = DateTime.UtcNow,

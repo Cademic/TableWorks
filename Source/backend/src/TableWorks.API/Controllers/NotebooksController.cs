@@ -13,15 +13,27 @@ namespace ASideNote.API.Controllers;
 [Route("api/v{version:apiVersion}/notebooks")]
 public sealed class NotebooksController : ControllerBase
 {
+    private const long MaxImageSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private static readonly string[] AllowedImageTypes = { "image/jpeg", "image/png", "image/webp", "image/gif" };
+
     private readonly INotebookService _notebookService;
     private readonly INotebookExportService _exportService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IImageStorageService _imageStorage;
+    private readonly IUserStorageService _userStorage;
 
-    public NotebooksController(INotebookService notebookService, INotebookExportService exportService, ICurrentUserService currentUserService)
+    public NotebooksController(
+        INotebookService notebookService,
+        INotebookExportService exportService,
+        ICurrentUserService currentUserService,
+        IImageStorageService imageStorage,
+        IUserStorageService userStorage)
     {
         _notebookService = notebookService;
         _exportService = exportService;
         _currentUserService = currentUserService;
+        _imageStorage = imageStorage;
+        _userStorage = userStorage;
     }
 
     [HttpGet]
@@ -65,6 +77,46 @@ public sealed class NotebooksController : ControllerBase
     {
         await _notebookService.UpdateNotebookAsync(_currentUserService.UserId, id, request, cancellationToken);
         return Ok();
+    }
+
+    /// <summary>Upload an image for a notebook. Returns the image URL to insert into content. Accepts JPEG, PNG, WebP, GIF; max 5MB.</summary>
+    [HttpPost("{id:guid}/images")]
+    [ProducesResponseType(typeof(ImageUploadResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
+    [RequestSizeLimit(MaxImageSizeBytes)]
+    public async Task<IActionResult> UploadImage(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "FileRequired", message = "No file provided." });
+
+        if (file.Length > MaxImageSizeBytes)
+            return BadRequest(new { error = "FileTooLarge", message = "Image must be 5MB or less." });
+
+        var contentType = (file.ContentType ?? "").Trim().ToLowerInvariant();
+        if (!AllowedImageTypes.Contains(contentType))
+            return BadRequest(new { error = "InvalidImageType", message = "Only JPEG, PNG, WebP, and GIF images are allowed." });
+
+        var userId = _currentUserService.UserId;
+        try
+        {
+            _ = await _notebookService.GetNotebookByIdAsync(userId, id, cancellationToken);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+
+        var sizeBytes = file.Length;
+        if (!await _userStorage.CanUploadAsync(userId, sizeBytes, cancellationToken))
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new { error = "StorageQuotaExceeded", message = "Storage quota exceeded. Delete some images to free space." });
+
+        await using var stream = file.OpenReadStream();
+        var result = await _imageStorage.UploadAsync(id, stream, contentType, cancellationToken);
+        await _userStorage.RecordUploadAsync(userId, result.StorageKey, result.SizeBytes, cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, new ImageUploadResponse { Url = result.Url });
     }
 
     [HttpPut("{id:guid}/content")]
@@ -157,4 +209,9 @@ public sealed class NotebooksController : ControllerBase
 public sealed class NotebookTogglePinRequest
 {
     public bool IsPinned { get; set; }
+}
+
+public sealed class ImageUploadResponse
+{
+    public string Url { get; set; } = "";
 }

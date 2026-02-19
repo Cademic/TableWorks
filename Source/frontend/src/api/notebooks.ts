@@ -87,3 +87,13 @@ export async function getNotebookVersionById(notebookId: string, versionId: stri
 export async function restoreNotebookVersion(notebookId: string, versionId: string): Promise<void> {
   await apiClient.post(`/notebooks/${notebookId}/versions/${versionId}/restore`);
 }
+
+/** Upload an image for a notebook. Returns the image URL to insert into content. */
+export async function uploadNotebookImage(notebookId: string, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.post<{ url: string }>(`/notebooks/${notebookId}/images`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}

@@ -9,10 +9,12 @@ namespace ASideNote.Infrastructure.Services;
 public sealed class NotebookExportService : INotebookExportService
 {
     private readonly IRepository<Notebook> _notebookRepo;
+    private readonly IImageResolver _imageResolver;
 
-    public NotebookExportService(IRepository<Notebook> notebookRepo)
+    public NotebookExportService(IRepository<Notebook> notebookRepo, IImageResolver imageResolver)
     {
         _notebookRepo = notebookRepo;
+        _imageResolver = imageResolver;
     }
 
     public async Task<NotebookExportResult?> ExportAsync(Guid userId, Guid notebookId, string format, CancellationToken cancellationToken = default)
@@ -31,10 +33,10 @@ public sealed class NotebookExportService : INotebookExportService
         return formatLower switch
         {
             "txt" => ExportTxt(contentJson, safeName),
-            "md" or "markdown" => ExportMd(contentJson, safeName),
-            "html" => ExportHtml(contentJson, safeName),
+            "md" or "markdown" => await ExportMdAsync(contentJson, safeName, cancellationToken),
+            "html" => await ExportHtmlAsync(contentJson, safeName, cancellationToken),
             "pdf" => await ExportPdfAsync(contentJson, safeName, cancellationToken),
-            "docx" => ExportDocx(contentJson, safeName),
+            "docx" => await ExportDocxAsync(contentJson, safeName, cancellationToken),
             _ => null
         };
     }
@@ -50,9 +52,9 @@ public sealed class NotebookExportService : INotebookExportService
         };
     }
 
-    private static NotebookExportResult ExportMd(string contentJson, string baseName)
+    private async Task<NotebookExportResult> ExportMdAsync(string contentJson, string baseName, CancellationToken cancellationToken)
     {
-        var md = TipTapJsonConverter.ToMarkdown(contentJson);
+        var md = await TipTapJsonConverter.ToMarkdownAsync(contentJson, _imageResolver, embedImages: true, cancellationToken);
         return new NotebookExportResult
         {
             Content = Encoding.UTF8.GetBytes(md),
@@ -61,9 +63,9 @@ public sealed class NotebookExportService : INotebookExportService
         };
     }
 
-    private static NotebookExportResult ExportDocx(string contentJson, string baseName)
+    private async Task<NotebookExportResult> ExportDocxAsync(string contentJson, string baseName, CancellationToken cancellationToken)
     {
-        var bytes = TipTapJsonToDocx.ToDocx(contentJson);
+        var bytes = await TipTapJsonToDocx.ToDocxAsync(contentJson, _imageResolver, cancellationToken);
         return new NotebookExportResult
         {
             Content = bytes,
@@ -72,9 +74,9 @@ public sealed class NotebookExportService : INotebookExportService
         };
     }
 
-    private static NotebookExportResult ExportHtml(string contentJson, string baseName)
+    private async Task<NotebookExportResult> ExportHtmlAsync(string contentJson, string baseName, CancellationToken cancellationToken)
     {
-        var body = TipTapJsonConverter.ToHtml(contentJson);
+        var body = await TipTapJsonConverter.ToHtmlAsync(contentJson, _imageResolver, embedImages: true, cancellationToken);
         var html = WrapHtmlDocument(notebookName: baseName, bodyContent: body);
         return new NotebookExportResult
         {
@@ -86,7 +88,7 @@ public sealed class NotebookExportService : INotebookExportService
 
     private async Task<NotebookExportResult?> ExportPdfAsync(string contentJson, string baseName, CancellationToken cancellationToken)
     {
-        var body = TipTapJsonConverter.ToHtml(contentJson);
+        var body = await TipTapJsonConverter.ToHtmlAsync(contentJson, _imageResolver, embedImages: true, cancellationToken);
         var html = WrapHtmlDocument(notebookName: baseName, bodyContent: body);
         try
         {

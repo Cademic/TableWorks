@@ -92,8 +92,6 @@ export async function restoreNotebookVersion(notebookId: string, versionId: stri
 export async function uploadNotebookImage(notebookId: string, file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await apiClient.post<{ url: string }>(`/notebooks/${notebookId}/images`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const response = await apiClient.post<{ url: string }>(`/notebooks/${notebookId}/images`, formData);
   return response.data;
 }

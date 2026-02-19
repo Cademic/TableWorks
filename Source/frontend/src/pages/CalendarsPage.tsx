@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar } from "lucide-react";
 import {
   getCalendarEvents,
@@ -27,6 +27,8 @@ function toLocalDateStr(date: Date): string {
 
 export function CalendarsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const eventIdFromUrl = searchParams.get("eventId");
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEventDto[]>([]);
   const [projects, setProjects] = useState<ProjectSummaryDto[]>([]);
@@ -45,9 +47,17 @@ export function CalendarsPage() {
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth();
 
-      // Fetch a range that covers leading/trailing days in the grid
-      const from = new Date(year, month - 1, 1).toISOString();
-      const to = new Date(year, month + 2, 0).toISOString();
+      // When opening a specific event from URL, fetch a wider range to ensure we have it
+      let from: string;
+      let to: string;
+      if (eventIdFromUrl) {
+        const now = new Date();
+        from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        to = new Date(now.getFullYear() + 2, 11, 31).toISOString();
+      } else {
+        from = new Date(year, month - 1, 1).toISOString();
+        to = new Date(year, month + 2, 0).toISOString();
+      }
 
       const [eventsResult, projectsResult] = await Promise.all([
         getCalendarEvents({ from, to }),
@@ -61,11 +71,29 @@ export function CalendarsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentDate]);
+  }, [currentDate, eventIdFromUrl]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // When eventId is in URL, find the event and open details popup
+  useEffect(() => {
+    if (!eventIdFromUrl || events.length === 0) return;
+    const event = events.find((e) => e.id === eventIdFromUrl || e.recurrenceSourceId === eventIdFromUrl);
+    if (event) {
+      setDetailsEvent(event);
+      // Optionally navigate to the event's month
+      const eventDate = new Date(event.startDate);
+      setCurrentDate(new Date(eventDate.getFullYear(), eventDate.getMonth(), 1));
+      // Clear eventId from URL
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("eventId");
+        return next;
+      }, { replace: true });
+    }
+  }, [eventIdFromUrl, events, setSearchParams]);
 
   function handlePreviousMonth() {
     setCurrentDate(

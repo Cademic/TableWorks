@@ -320,6 +320,9 @@ public static class TipTapJsonConverter
             case "hardBreak":
                 sb.AppendLine();
                 break;
+            case "image":
+                sb.Append("[Image]");
+                break;
             case "codeBlock":
                 if (content.HasValue)
                     foreach (var child in content.Value.EnumerateArray())

@@ -18,8 +18,8 @@ public sealed class NotebooksController : ControllerBase
 
     private readonly INotebookService _notebookService;
     private readonly INotebookExportService _exportService;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IImageStorageService _imageStorage;
+    private readonly ICurrentUserService _currentUserService;
     private readonly IUserStorageService _userStorage;
 
     public NotebooksController(

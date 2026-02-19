@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ASideNote.Application.DTOs.Notebooks;
 using ASideNote.Application.DTOs.Common;

@@ -79,11 +79,6 @@ export async function getNotebookVersions(id: string): Promise<NotebookVersionDt
   return response.data;
 }
 
-export async function getNotebookVersionById(notebookId: string, versionId: string): Promise<NotebookVersionDto> {
-  const response = await apiClient.get<NotebookVersionDto>(`/notebooks/${notebookId}/versions/${versionId}`);
-  return response.data;
-}
-
 export async function restoreNotebookVersion(notebookId: string, versionId: string): Promise<void> {
   await apiClient.post(`/notebooks/${notebookId}/versions/${versionId}/restore`);
 }

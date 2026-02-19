@@ -117,29 +117,4 @@ public sealed class AdminController : ControllerBase
         await _adminService.DeleteUserNotebookAsync(id, cancellationToken);
         return NoContent();
     }
-
-    [HttpGet("notes")]
-    [ProducesResponseType(typeof(PaginatedResponse<AdminNoteDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetNotes([FromQuery] AdminNoteListQuery query, CancellationToken cancellationToken)
-    {
-        var result = await _adminService.GetNotesAsync(query, cancellationToken);
-        return Ok(result);
-    }
-
-    [HttpDelete("notes/{id:guid}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeleteNote(Guid id, CancellationToken cancellationToken)
-    {
-        await _adminService.DeleteNoteAsync(id, cancellationToken);
-        return Ok();
-    }
-
-    [HttpGet("audit-logs")]
-    [ProducesResponseType(typeof(PaginatedResponse<AuditLogDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAuditLogs([FromQuery] AuditLogListQuery query, CancellationToken cancellationToken)
-    {
-        var result = await _adminService.GetAuditLogsAsync(query, cancellationToken);
-        return Ok(result);
-    }
 }

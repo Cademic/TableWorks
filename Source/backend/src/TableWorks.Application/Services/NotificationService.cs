@@ -73,17 +73,10 @@ public sealed class NotificationService : INotificationService
 
     public async Task MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        var unread = await _notifRepo.Query()
+        // Bulk update: more efficient than loading all and updating individually
+        await _notifRepo.Query()
             .Where(n => n.UserId == userId && !n.IsRead)
-            .ToListAsync(cancellationToken);
-
-        foreach (var notif in unread)
-        {
-            notif.IsRead = true;
-            _notifRepo.Update(notif);
-        }
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true), cancellationToken);
     }
 
     public async Task DeleteNotificationAsync(Guid userId, Guid notificationId, CancellationToken cancellationToken = default)

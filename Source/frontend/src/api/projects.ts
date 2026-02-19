@@ -2,7 +2,6 @@ import type {
   AddMemberRequest,
   CreateProjectRequest,
   ProjectDetailDto,
-  ProjectMemberDto,
   ProjectSummaryDto,
   UpdateMemberRoleRequest,
   UpdateProjectRequest,
@@ -48,15 +47,6 @@ export async function addMember(
   data: AddMemberRequest,
 ): Promise<void> {
   await apiClient.post(`/projects/${projectId}/members`, data);
-}
-
-export async function getMembers(
-  projectId: string,
-): Promise<ProjectMemberDto[]> {
-  const response = await apiClient.get<ProjectMemberDto[]>(
-    `/projects/${projectId}/members`,
-  );
-  return response.data;
 }
 
 export async function updateMemberRole(

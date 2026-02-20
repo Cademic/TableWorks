@@ -9,6 +9,8 @@ interface CorkBoardProps {
   /** Board-space (canvas) coords when mouse moves over the viewport */
   onBoardMouseMove?: (x: number, y: number) => void;
   onBoardMouseLeave?: () => void;
+  /** Called when user clicks the board background (not on a note/card) */
+  onBoardClick?: () => void;
   zoom: number;
   panX: number;
   panY: number;
@@ -23,7 +25,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
+export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -268,6 +270,11 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
             transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
             width: "10000px",
             height: "10000px",
+          }}
+          onClick={(e) => {
+            if (onBoardClick && e.target === e.currentTarget) {
+              onBoardClick();
+            }
           }}
         >
           {children}

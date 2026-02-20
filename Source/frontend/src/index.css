@@ -220,6 +220,12 @@ body {
   white-space: pre-wrap;
 }
 
+/* Remote text cursor blink */
+@keyframes remote-caret-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
 /* TipTap editor styles */
 .tiptap-editor-area {
   overflow: hidden;

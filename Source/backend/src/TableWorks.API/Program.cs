@@ -317,7 +317,10 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookAccessService, ASideNote.Application.Services.NotebookAccessService>();
 builder.Services.AddScoped<INotebookExportService, NotebookExportService>();
+builder.Services.AddScoped<ASideNote.Application.Interfaces.INotebookHubBroadcaster, ASideNote.API.Services.NotebookHubBroadcaster>();
+builder.Services.AddSingleton<ASideNote.Application.Interfaces.INotebookPresenceService, ASideNote.API.Services.NotebookPresenceService>();
 builder.Services.AddScoped<IUserStorageService, ASideNote.Infrastructure.Services.UserStorageService>();
 builder.Services.AddScoped<IImageResolver, ASideNote.Infrastructure.Services.ImageResolverService>();
 
@@ -480,6 +483,7 @@ app.MapGet("/health/db", (AppDbContext db, IWebHostEnvironment env) =>
 
 app.MapControllers();
 app.MapHub<ASideNote.API.Hubs.BoardHub>("/hubs/board");
+app.MapHub<ASideNote.API.Hubs.NotebookHub>("/hubs/notebook");
 
 app.Run();
 

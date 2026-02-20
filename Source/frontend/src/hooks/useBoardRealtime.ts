@@ -17,6 +17,17 @@ function getHubBaseUrl(): string {
   return "";
 }
 
+/** Payload for ImageCardAdded / ImageCardUpdated - full image summary */
+export interface ImageCardUpdatePayload {
+  id: string;
+  imageUrl?: string;
+  positionX?: number;
+  positionY?: number;
+  width?: number | null;
+  height?: number | null;
+  rotation?: number | null;
+}
+
 /** Payload sent with NoteUpdated / IndexCardUpdated when backend has full entity to push */
 export interface BoardItemUpdatePayload {
   id: string;
@@ -36,11 +47,20 @@ export interface UseBoardRealtimeOptions {
   onPresenceUpdate?: (users: BoardPresenceUser[]) => void;
   onUserFocusingItem?: (userId: string, itemType: string, itemId: string | null) => void;
   onCursorPosition?: (userId: string, x: number, y: number) => void;
+  onTextCursorPosition?: (userId: string, itemType: string, itemId: string, field: "title" | "content", position: number) => void;
+  onUserLeft?: (userId: string) => void;
+  /** Called when an image is deleted; merge by removing from state instead of refetch to avoid stale data. */
+  onImageCardDeleted?: (imageId: string) => void;
+  /** Called when an image is added with full payload; merge immediately (no refetch). */
+  onImageCardAdded?: (payload: ImageCardUpdatePayload) => void;
+  /** Called when an image is updated with full payload; merge immediately (no refetch). */
+  onImageCardUpdated?: (payload: ImageCardUpdatePayload) => void;
 }
 
 export interface UseBoardRealtimeReturn {
   sendFocus: (itemType: string, itemId: string | null) => void;
   sendCursor: (x: number, y: number) => void;
+  sendTextCursor: (itemType: string, itemId: string, field: "title" | "content", position: number) => void;
 }
 
 /**
@@ -61,11 +81,21 @@ export function useBoardRealtime(
   const onPresenceUpdateRef = useRef(options.onPresenceUpdate);
   const onUserFocusingItemRef = useRef(options.onUserFocusingItem);
   const onCursorPositionRef = useRef(options.onCursorPosition);
+  const onTextCursorPositionRef = useRef(options.onTextCursorPosition);
+  const onUserLeftRef = useRef(options.onUserLeft);
+  const onImageCardDeletedRef = useRef(options.onImageCardDeleted);
+  const onImageCardAddedRef = useRef(options.onImageCardAdded);
+  const onImageCardUpdatedRef = useRef(options.onImageCardUpdated);
   onNoteUpdatedRef.current = options.onNoteUpdated;
   onIndexCardUpdatedRef.current = options.onIndexCardUpdated;
   onPresenceUpdateRef.current = options.onPresenceUpdate;
   onUserFocusingItemRef.current = options.onUserFocusingItem;
   onCursorPositionRef.current = options.onCursorPosition;
+  onTextCursorPositionRef.current = options.onTextCursorPosition;
+  onUserLeftRef.current = options.onUserLeft;
+  onImageCardDeletedRef.current = options.onImageCardDeleted;
+  onImageCardAddedRef.current = options.onImageCardAdded;
+  onImageCardUpdatedRef.current = options.onImageCardUpdated;
 
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const boardIdRef = useRef<string | undefined>(boardId);
@@ -80,6 +110,12 @@ export function useBoardRealtime(
     const bid = boardIdRef.current;
     if (!bid) return;
     connectionRef.current?.invoke("CursorPosition", bid, x, y).catch(() => {});
+  }, []);
+
+  const sendTextCursor = useCallback((itemType: string, itemId: string, field: "title" | "content", position: number) => {
+    const bid = boardIdRef.current;
+    if (!bid) return;
+    connectionRef.current?.invoke("TextCursorPosition", bid, itemType, itemId, field, position).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -118,6 +154,7 @@ export function useBoardRealtime(
       const id = String(userId);
       presenceList = presenceList.filter((u) => u.userId !== id);
       applyPresence();
+      onUserLeftRef.current?.(id);
     };
     const handleUserFocusingItem = (userId: string, itemType: string, itemId: string | null) => {
       onUserFocusingItemRef.current?.(String(userId), itemType ?? "", itemId ?? null);
@@ -125,12 +162,16 @@ export function useBoardRealtime(
     const handleCursorPosition = (userId: string, x: number, y: number) => {
       onCursorPositionRef.current?.(String(userId), x, y);
     };
+    const handleTextCursorPosition = (userId: string, itemType: string, itemId: string, field: string, position: number) => {
+      onTextCursorPositionRef.current?.(String(userId), itemType ?? "", itemId ?? "", (field === "title" ? "title" : "content") as "title" | "content", position);
+    };
 
     connection.on("PresenceList", handlePresenceList);
     connection.on("UserJoined", handleUserJoined);
     connection.on("UserLeft", handleUserLeft);
     connection.on("UserFocusingItem", handleUserFocusingItem);
     connection.on("CursorPosition", handleCursorPosition);
+    connection.on("TextCursorPosition", handleTextCursorPosition);
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let hasRefetchedRecently = false;
@@ -178,6 +219,35 @@ export function useBoardRealtime(
     connection.on("IndexCardDeleted", scheduleRefetch);
     connection.on("ConnectionAdded", scheduleRefetch);
     connection.on("ConnectionDeleted", scheduleRefetch);
+    const handleImageCardDeleted = (msg: { boardId?: string; imageId?: string }) => {
+      const id = msg?.imageId != null ? String(msg.imageId) : null;
+      if (id && onImageCardDeletedRef.current) {
+        onImageCardDeletedRef.current(id);
+      } else {
+        scheduleRefetch();
+      }
+    };
+    const handleImageCardAdded = (msg: { boardId?: string; imageId?: string; payload?: ImageCardUpdatePayload }) => {
+      const payload = msg?.payload;
+      if (payload != null && typeof payload === "object" && onImageCardAddedRef.current) {
+        const normalized = { ...payload, id: String(payload.id ?? msg.imageId ?? "") };
+        onImageCardAddedRef.current(normalized);
+      } else {
+        scheduleRefetch();
+      }
+    };
+    const handleImageCardUpdated = (msg: { boardId?: string; imageId?: string; payload?: ImageCardUpdatePayload }) => {
+      const payload = msg?.payload;
+      if (payload != null && typeof payload === "object" && onImageCardUpdatedRef.current) {
+        const normalized = { ...payload, id: String(payload.id ?? msg.imageId ?? "") };
+        onImageCardUpdatedRef.current(normalized);
+      } else {
+        scheduleRefetch();
+      }
+    };
+    connection.on("ImageCardAdded", handleImageCardAdded);
+    connection.on("ImageCardUpdated", handleImageCardUpdated);
+    connection.on("ImageCardDeleted", handleImageCardDeleted);
     connection.on("DrawingUpdated", scheduleRefetch);
 
     let cancelled = false;
@@ -220,6 +290,7 @@ export function useBoardRealtime(
       connection.off("UserLeft", handleUserLeft);
       connection.off("UserFocusingItem", handleUserFocusingItem);
       connection.off("CursorPosition", handleCursorPosition);
+      connection.off("TextCursorPosition", handleTextCursorPosition);
       connection.off("NoteAdded", scheduleRefetch);
       connection.off("NoteUpdated", handleNoteUpdated);
       connection.off("NoteDeleted", scheduleRefetch);
@@ -228,11 +299,14 @@ export function useBoardRealtime(
       connection.off("IndexCardDeleted", scheduleRefetch);
       connection.off("ConnectionAdded", scheduleRefetch);
       connection.off("ConnectionDeleted", scheduleRefetch);
+      connection.off("ImageCardAdded", handleImageCardAdded);
+      connection.off("ImageCardUpdated", handleImageCardUpdated);
+      connection.off("ImageCardDeleted", handleImageCardDeleted);
       connection.off("DrawingUpdated", scheduleRefetch);
       connection.invoke("LeaveBoard", boardId).catch(() => {});
       connection.stop();
     };
   }, [boardId, isAuthenticated, accessToken]);
 
-  return { sendFocus, sendCursor };
+  return { sendFocus, sendCursor, sendTextCursor };
 }

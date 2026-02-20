@@ -45,6 +45,21 @@ public sealed class BoardHubBroadcaster : IBoardHubBroadcaster
     public Task NotifyConnectionDeletedAsync(Guid boardId, Guid connectionId, CancellationToken cancellationToken = default) =>
         _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ConnectionDeleted", new { boardId, connectionId }, cancellationToken);
 
+    public Task NotifyImageCardAddedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default) =>
+        _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ImageCardAdded", new { boardId, imageId }, cancellationToken);
+
+    public Task NotifyImageCardAddedAsync(Guid boardId, Guid imageId, object payload, CancellationToken cancellationToken = default) =>
+        _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ImageCardAdded", new { boardId, imageId, payload }, cancellationToken);
+
+    public Task NotifyImageCardUpdatedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default) =>
+        _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ImageCardUpdated", new { boardId, imageId }, cancellationToken);
+
+    public Task NotifyImageCardUpdatedAsync(Guid boardId, Guid imageId, object payload, CancellationToken cancellationToken = default) =>
+        _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ImageCardUpdated", new { boardId, imageId, payload }, cancellationToken);
+
+    public Task NotifyImageCardDeletedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default) =>
+        _hubContext.Clients.Group(GroupName(boardId)).SendAsync("ImageCardDeleted", new { boardId, imageId }, cancellationToken);
+
     public Task NotifyDrawingUpdatedAsync(Guid boardId, CancellationToken cancellationToken = default) =>
         _hubContext.Clients.Group(GroupName(boardId)).SendAsync("DrawingUpdated", new { boardId }, cancellationToken);
 }

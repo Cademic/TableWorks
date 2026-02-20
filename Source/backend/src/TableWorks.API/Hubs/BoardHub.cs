@@ -102,6 +102,15 @@ public sealed class BoardHub : Hub
         await Clients.OthersInGroup(groupName).SendAsync("CursorPosition", userId.Value, x, y);
     }
 
+    /// <summary>Broadcast text cursor position within a note/card editor for collaborative editing.</summary>
+    public async Task TextCursorPosition(Guid boardId, string itemType, string itemId, string field, int position)
+    {
+        var userId = GetUserId();
+        if (userId is null) return;
+        var groupName = GroupPrefix + boardId.ToString();
+        await Clients.OthersInGroup(groupName).SendAsync("TextCursorPosition", userId.Value, itemType ?? "", itemId ?? "", field ?? "content", position);
+    }
+
     private Guid? GetUserId()
     {
         var sub = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value

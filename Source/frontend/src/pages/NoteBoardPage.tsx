@@ -34,7 +34,7 @@ import type {
   BoardSummaryDto,
   BoardImageSummaryDto,
 } from "../types";
-import { useBoardRealtime, type BoardItemUpdatePayload } from "../hooks/useBoardRealtime";
+import { useBoardRealtime, type BoardItemUpdatePayload, type BoardPresenceUser } from "../hooks/useBoardRealtime";
 import { useAuth } from "../context/AuthContext";
 import { getColorForUserId } from "../lib/presenceColors";
 
@@ -76,6 +76,8 @@ export function NoteBoardPage() {
   const connectionsRef = useRef(connections);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const imageIdsRef = useRef<Set<string>>(new Set());
+  const deletedImageIdsRef = useRef<Set<string>>(new Set());
   const [pendingImageDrop, setPendingImageDrop] = useState<{ x: number; y: number } | null>(null);
 
   // --- Viewport state (pan & zoom) ---
@@ -86,6 +88,7 @@ export function NoteBoardPage() {
   // --- Board presence: who is focusing which item, remote cursors ---
   const [remoteFocus, setRemoteFocus] = useState<Map<string, { userId: string; color: string }[]>>(new Map());
   const [remoteCursors, setRemoteCursors] = useState<Map<string, { x: number; y: number; color: string }>>(new Map());
+  const [remoteTextCursors, setRemoteTextCursors] = useState<Map<string, { itemType: string; itemId: string; field: "title" | "content"; position: number; color: string }>>(new Map());
   const cursorThrottleRef = useRef<{ last: number }>({ last: 0 });
   const CURSOR_THROTTLE_MS = 60;
 
@@ -179,7 +182,8 @@ export function NoteBoardPage() {
         setConnections(connsRes.value);
       }
       if (imagesRes.status === "fulfilled") {
-        setImageCards(imagesRes.value);
+        const deleted = deletedImageIdsRef.current;
+        setImageCards(imagesRes.value.filter((img) => !deleted.has(img.id)));
       }
 
       // Only show error if all failed
@@ -202,7 +206,9 @@ export function NoteBoardPage() {
 
   const draggingNoteIdRef = useRef<string | null>(null);
   const draggingCardIdRef = useRef<string | null>(null);
+  const draggingImageIdRef = useRef<string | null>(null);
   const RESIZE_ECHO_IGNORE_MS = 400;
+  const lastResizedImageRef = useRef<{ id: string; at: number } | null>(null);
   const lastResizedNoteRef = useRef<{ id: string; at: number } | null>(null);
   const lastResizedCardRef = useRef<{ id: string; at: number } | null>(null);
 
@@ -295,12 +301,110 @@ export function NoteBoardPage() {
     });
   }, []);
 
-  const { sendFocus, sendCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
+  const handleTextCursorPosition = useCallback((userId: string, itemType: string, itemId: string, field: "title" | "content", position: number) => {
+    if (currentUserId != null && userId === currentUserId) return;
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      if (position < 0) {
+        next.delete(userId);
+      } else {
+        next.set(userId, { itemType, itemId, field, position, color: getColorForUserId(userId) });
+      }
+      return next;
+    });
+  }, [currentUserId]);
+
+  const handleUserLeft = useCallback((userId: string) => {
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      next.delete(userId);
+      return next;
+    });
+    setRemoteCursors((prev) => {
+      const next = new Map(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
+
+  const handlePresenceUpdate = useCallback((users: BoardPresenceUser[]) => {
+    setBoardPresence(users);
+    const presentIds = new Set(users.map((u) => u.userId));
+    setRemoteTextCursors((prev) => {
+      const toRemove = [...prev.keys()].filter((uid) => !presentIds.has(uid));
+      if (toRemove.length === 0) return prev;
+      const next = new Map(prev);
+      for (const uid of toRemove) next.delete(uid);
+      return next;
+    });
+    setRemoteCursors((prev) => {
+      const toRemove = [...prev.keys()].filter((uid) => !presentIds.has(uid));
+      if (toRemove.length === 0) return prev;
+      const next = new Map(prev);
+      for (const uid of toRemove) next.delete(uid);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    imageIdsRef.current = new Set(imageCards.map((img) => img.id));
+  }, [imageCards]);
+
+  const handleImageCardAdded = useCallback((payload: { id: string; imageUrl?: string; positionX?: number; positionY?: number; width?: number | null; height?: number | null; rotation?: number | null }) => {
+    if (deletedImageIdsRef.current.has(payload.id)) return;
+    setImageCards((prev) => {
+      if (prev.some((img) => img.id === payload.id)) return prev;
+      const img: BoardImageSummaryDto = {
+        id: payload.id,
+        imageUrl: payload.imageUrl ?? "",
+        positionX: payload.positionX ?? 20,
+        positionY: payload.positionY ?? 20,
+        width: payload.width ?? null,
+        height: payload.height ?? null,
+        rotation: payload.rotation ?? null,
+      };
+      return [...prev, img];
+    });
+  }, []);
+
+  const mergeImageCardPayload = useCallback((payload: { id: string; imageUrl?: string; positionX?: number; positionY?: number; width?: number | null; height?: number | null; rotation?: number | null }) => {
+    const id = String(payload.id);
+    const skipPosition = id === draggingImageIdRef.current;
+    const skipSize =
+      lastResizedImageRef.current?.id === id &&
+      Date.now() - lastResizedImageRef.current.at < RESIZE_ECHO_IGNORE_MS;
+    setImageCards((prev) =>
+      prev.map((img) => {
+        if (img.id !== id) return img;
+        const next = { ...img };
+        if (payload.imageUrl !== undefined) next.imageUrl = payload.imageUrl;
+        if (!skipPosition && payload.positionX !== undefined) next.positionX = payload.positionX;
+        if (!skipPosition && payload.positionY !== undefined) next.positionY = payload.positionY;
+        if (!skipSize && payload.width !== undefined) next.width = payload.width;
+        if (!skipSize && payload.height !== undefined) next.height = payload.height;
+        if (payload.rotation !== undefined) next.rotation = payload.rotation;
+        return next;
+      }),
+    );
+  }, []);
+
+  const handleImageCardDeleted = useCallback((imageId: string) => {
+    deletedImageIdsRef.current.add(imageId);
+    setImageCards((prev) => prev.filter((img) => img.id !== imageId));
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== imageId && c.toItemId !== imageId));
+  }, []);
+
+  const { sendFocus, sendCursor, sendTextCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
     onNoteUpdated: mergeNotePayload,
     onIndexCardUpdated: mergeCardPayload,
-    onPresenceUpdate: setBoardPresence,
+    onPresenceUpdate: handlePresenceUpdate,
     onUserFocusingItem: handleUserFocusingItem,
     onCursorPosition: handleCursorPosition,
+    onTextCursorPosition: handleTextCursorPosition,
+    onUserLeft: handleUserLeft,
+    onImageCardDeleted: handleImageCardDeleted,
+    onImageCardAdded: handleImageCardAdded,
+    onImageCardUpdated: mergeImageCardPayload,
   });
 
   useEffect(() => {
@@ -511,10 +615,8 @@ export function NoteBoardPage() {
   }
 
   function handleStartEdit(id: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:482',message:'handleStartEdit called',data:{noteId:id,editingNoteIdsBefore:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    // #endregion
-    setEditingNoteIds((prev) => new Set(prev).add(id));
+    // Single note in edit mode: clicking another note switches to it (previous saves when isEditing flips)
+    setEditingNoteIds(new Set([id]));
     primaryEditingNoteIdRef.current = id;
     bringToFront(id);
   }
@@ -717,7 +819,7 @@ export function NoteBoardPage() {
   }
 
   function handleCardStartEdit(id: string) {
-    setEditingCardIds((prev) => new Set(prev).add(id));
+    setEditingCardIds(new Set([id]));
     primaryEditingCardIdRef.current = id;
     bringToFront(id);
   }
@@ -791,7 +893,12 @@ export function NoteBoardPage() {
       });
   }
 
+  function handleImageDragStart(id: string) {
+    draggingImageIdRef.current = id;
+  }
   async function handleImageDragStop(id: string, x: number, y: number) {
+    if (draggingImageIdRef.current === id) draggingImageIdRef.current = null;
+    if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
     setImageCards((prev) =>
       prev.map((img) => (img.id === id ? { ...img, positionX: x, positionY: y } : img))
     );
@@ -803,19 +910,35 @@ export function NoteBoardPage() {
     }
   }
 
-  async function handleImageResize(id: string, width: number, height: number) {
+  async function handleImageResize(
+    id: string,
+    width: number,
+    height: number,
+    positionX?: number,
+    positionY?: number,
+  ) {
+    if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
+    lastResizedImageRef.current = { id, at: Date.now() };
     setImageCards((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, width, height } : img))
+      prev.map((img) =>
+        img.id === id
+          ? { ...img, width, height, ...(positionX != null && { positionX }), ...(positionY != null && { positionY }) }
+          : img,
+      ),
     );
     if (!boardId) return;
     try {
-      await patchBoardImageCard(boardId, id, { width, height });
+      const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width, height };
+      if (positionX != null) payload.positionX = positionX;
+      if (positionY != null) payload.positionY = positionY;
+      await patchBoardImageCard(boardId, id, payload);
     } catch {
       // Silently fail
     }
   }
 
   async function handleImageDelete(id: string) {
+    deletedImageIdsRef.current.add(id);
     setImageCards((prev) => prev.filter((img) => img.id !== id));
     setConnections((prev) => prev.filter((c) => c.fromItemId !== id && c.toItemId !== id));
     if (!boardId) return;
@@ -1045,26 +1168,33 @@ export function NoteBoardPage() {
           onDropItem={handleBoardDrop}
           onBoardMouseMove={handleBoardMouseMove}
           onBoardMouseLeave={handleBoardMouseLeave}
+          onBoardClick={() => {
+            setEditingNoteIds(new Set());
+            setEditingCardIds(new Set());
+            primaryEditingNoteIdRef.current = null;
+            primaryEditingCardIdRef.current = null;
+          }}
           zoom={zoom}
           panX={panX}
           panY={panY}
           onViewportChange={handleViewportChange}
         >
           {/* Remote cursors layer (board-space coords, same transform as canvas) */}
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden>
             {Array.from(remoteCursors.entries()).map(([userId, { x, y, color }]) => (
               <div
                 key={userId}
-                className="absolute z-[9999] flex items-center gap-1"
-                style={{ left: x, top: y, transform: "translate(8px, 4px)" }}
+                className="absolute z-[9999] flex items-center gap-1 overflow-visible"
+                style={{ left: x, top: y, transform: "translate(-6px, -2px)" }}
               >
-                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" className="drop-shadow-md">
-                  <path
-                    d="M2 2l6 6 2.5-2.5L5 2.5 2 2z"
-                    fill={color}
-                    stroke="rgba(0,0,0,0.3)"
-                    strokeWidth="1"
-                  />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 32 32"
+                  width="32"
+                  height="32"
+                  className="drop-shadow-lg"
+                >
+                  <path d="M6 2v24l6-6 4 10 4-2-4-10h8L6 2z" fill={color} stroke="rgba(255,255,255,0.9)" strokeWidth="0.5" />
                 </svg>
               </div>
             ))}
@@ -1085,6 +1215,10 @@ export function NoteBoardPage() {
               note={note}
               isEditing={editingNoteIds.has(note.id)}
               focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
+              remoteTextCursors={Array.from(remoteTextCursors.entries())
+                .filter(([, v]) => v.itemType === "note" && v.itemId === note.id)
+                .map(([userId, v]) => ({ userId, field: v.field, position: v.position, color: v.color }))}
+              onTextCursor={(field, position) => sendTextCursor("note", note.id, field, position)}
               zIndex={zIndexMap[note.id] ?? 0}
               onDrag={handleNoteDrag}
               onDragStart={handleNoteDragStart}
@@ -1108,6 +1242,7 @@ export function NoteBoardPage() {
               key={img.id}
               image={img}
               zIndex={zIndexMap[img.id] ?? 0}
+              onDragStart={handleImageDragStart}
               onDragStop={handleImageDragStop}
               onDelete={handleImageDelete}
               onResize={handleImageResize}

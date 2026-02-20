@@ -96,6 +96,7 @@ export function IndexCard({
   zoom = 1,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
+  const lastDragEndRef = useRef<number>(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const colorKey = resolveCardColorKey(card);
   const color = INDEX_CARD_COLORS[colorKey];
@@ -169,28 +170,44 @@ export function IndexCard({
     contentEditor?.setEditable(isEditing);
   }, [titleEditor, contentEditor, isEditing]);
 
-  // Sync title editor from props when NOT editing
+  // Sync title editor from props
   useEffect(() => {
-    if (!isEditing && titleEditor && !titleEditor.isFocused) {
-      const currentHtml = titleEditor.getHTML();
-      if (currentHtml !== (card.title ?? "") && card.title !== undefined) {
-        titleEditor.commands.setContent(card.title || "", { emitUpdate: false });
+    if (!titleEditor) return;
+    const currentHtml = titleEditor.getHTML();
+    const propHtml = card.title ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative live editing)
+      if (!isEditing) {
+        if (!titleEditor.isFocused) {
+          titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [card.title, isEditing, titleEditor]);
 
-  // Sync content editor from props when NOT editing
+  // Sync content editor from props
   useEffect(() => {
-    if (!isEditing && contentEditor && !contentEditor.isFocused) {
-      const currentHtml = contentEditor.getHTML();
-      if (currentHtml !== card.content && card.content !== undefined) {
-        contentEditor.commands.setContent(card.content || "", { emitUpdate: false });
+    if (!contentEditor) return;
+    const currentHtml = contentEditor.getHTML();
+    const propHtml = card.content ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative live editing)
+      if (!isEditing) {
+        if (!contentEditor.isFocused) {
+          contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [card.content, isEditing, contentEditor]);
 
   // Debounced content push while typing so other clients see updates in real time (only when onContentChange provided)
-  const SAVE_DEBOUNCE_MS = 400;
+  const SAVE_DEBOUNCE_MS = 200;
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
@@ -301,23 +318,25 @@ export function IndexCard({
 
   const handleDragStop: DraggableEventHandler = (_e, data) => {
     setPosition({ x: data.x, y: data.y });
+    lastDragEndRef.current = Date.now();
     onDragStop(card.id, data.x, data.y);
   };
 
-  const handleBlur = useCallback(
-    (e: React.FocusEvent) => {
-      const relatedTarget = e.relatedTarget as Node | null;
-      if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
-        return;
-      }
-      if (isEditing && titleEditor && contentEditor) {
-        const titleHtml = titleEditor.getHTML();
-        const contentHtml = contentEditor.getHTML();
-        onSave(card.id, titleHtml, contentHtml);
-      }
-    },
-    [isEditing, titleEditor, contentEditor, card.id, onSave],
-  );
+  // Do not close edit mode on blur (e.g. tab switch). Close only when user clicks another card or board.
+  const handleBlur = useCallback(() => {
+    // No-op: keep edit mode on; parent will remove from editingCardIds on board click or other-card click
+  }, []);
+
+  // When parent removes this card from editing (isEditing -> false), save current content once
+  const wasEditingRef = useRef(false);
+  useEffect(() => {
+    if (wasEditingRef.current && !isEditing && titleEditor && contentEditor) {
+      const titleHtml = titleEditor.getHTML();
+      const contentHtml = contentEditor.getHTML();
+      onSave(card.id, titleHtml, contentHtml);
+    }
+    wasEditingRef.current = isEditing;
+  }, [isEditing, titleEditor, contentEditor, card.id, onSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -528,6 +547,8 @@ export function IndexCard({
             rotate: isEditing ? "0deg" : `${card.rotation ?? 0}deg`,
           }}
           onClick={(e) => {
+            // Ignore click if it follows a drag (drag release fires click, which would open edit)
+            if (Date.now() - lastDragEndRef.current < 300) return;
             if (!isEditing) {
               const target = e.target as HTMLElement;
               const titleEl = target.closest("[data-field='title']") as HTMLElement | null;

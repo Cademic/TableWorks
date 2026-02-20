@@ -18,5 +18,11 @@ public interface IBoardHubBroadcaster
     Task NotifyConnectionAddedAsync(Guid boardId, Guid connectionId, CancellationToken cancellationToken = default);
     Task NotifyConnectionDeletedAsync(Guid boardId, Guid connectionId, CancellationToken cancellationToken = default);
 
+    Task NotifyImageCardAddedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default);
+    Task NotifyImageCardAddedAsync(Guid boardId, Guid imageId, object payload, CancellationToken cancellationToken = default);
+    Task NotifyImageCardUpdatedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default);
+    Task NotifyImageCardUpdatedAsync(Guid boardId, Guid imageId, object payload, CancellationToken cancellationToken = default);
+    Task NotifyImageCardDeletedAsync(Guid boardId, Guid imageId, CancellationToken cancellationToken = default);
+
     Task NotifyDrawingUpdatedAsync(Guid boardId, CancellationToken cancellationToken = default);
 }

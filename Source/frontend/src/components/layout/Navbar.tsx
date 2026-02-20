@@ -83,7 +83,8 @@ export function Navbar({ boardName, connectedUsers = [], onToggleSidebar, showMe
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isBoardRoute = /^\/boards\/[^/]+$/.test(location.pathname) || /^\/chalkboards\/[^/]+$/.test(location.pathname);
-  const showConnectedUsers = isBoardRoute && connectedUsers.length > 0;
+  const isNotebookEditorRoute = /^\/notebooks\/[^/]+$/.test(location.pathname);
+  const showConnectedUsers = (isBoardRoute || isNotebookEditorRoute) && connectedUsers.length > 0;
 
   const breadcrumbs = useMemo(
     () => getBreadcrumbs(location.pathname, boardName ?? null),

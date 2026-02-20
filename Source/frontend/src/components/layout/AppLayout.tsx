@@ -131,10 +131,11 @@ export function AppLayout() {
     [navigate],
   );
 
-  // Clear board presence when leaving a board route
+  // Clear presence when leaving board or notebook editor routes
   useEffect(() => {
     const onBoard = /^\/boards\/[^/]+$/.test(location.pathname) || /^\/chalkboards\/[^/]+$/.test(location.pathname);
-    if (!onBoard) setBoardPresence([]);
+    const onNotebookEditor = /^\/notebooks\/[^/]+$/.test(location.pathname);
+    if (!onBoard && !onNotebookEditor) setBoardPresence([]);
   }, [location.pathname]);
 
   // Fetch pinned boards, projects, and notebooks when authenticated

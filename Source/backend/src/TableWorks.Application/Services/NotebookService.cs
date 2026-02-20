@@ -20,6 +20,7 @@ public sealed class NotebookService : INotebookService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IImageStorageService _imageStorage;
     private readonly IUserStorageService _userStorage;
+    private readonly INotebookHubBroadcaster _notebookHub;
 
     public NotebookService(
         IRepository<Notebook> notebookRepo,
@@ -28,7 +29,8 @@ public sealed class NotebookService : INotebookService
         IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork,
         IImageStorageService imageStorage,
-        IUserStorageService userStorage)
+        IUserStorageService userStorage,
+        INotebookHubBroadcaster notebookHub)
     {
         _notebookRepo = notebookRepo;
         _versionRepo = versionRepo;
@@ -37,6 +39,7 @@ public sealed class NotebookService : INotebookService
         _unitOfWork = unitOfWork;
         _imageStorage = imageStorage;
         _userStorage = userStorage;
+        _notebookHub = notebookHub;
     }
 
     private async Task<string?> GetProjectRoleAsync(Guid userId, Guid projectId, CancellationToken cancellationToken)
@@ -216,6 +219,8 @@ public sealed class NotebookService : INotebookService
 
         _notebookRepo.Update(notebook);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _notebookHub.NotifyNotebookUpdatedAsync(notebookId, new { contentJson = notebook.ContentJson, updatedAt = notebook.UpdatedAt }, cancellationToken);
     }
 
     public async Task DeleteNotebookAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)

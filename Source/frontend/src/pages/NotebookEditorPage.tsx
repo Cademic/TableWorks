@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useOutletContext } from "react-router-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -22,6 +22,9 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { FontSize } from "../lib/tiptap-font-size";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion, uploadNotebookImage } from "../api/notebooks";
+import { useNotebookRealtime, type NotebookPresenceUser } from "../hooks/useNotebookRealtime";
+import { getColorForUserId } from "../lib/presenceColors";
+import { useAuth } from "../context/AuthContext";
 import type { NotebookDetailDto, NotebookVersionDto } from "../types";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { PaperShell } from "../components/notebooks/PaperShell";
@@ -96,10 +99,62 @@ function safeFileName(name: string): string {
   return name.replace(/[^\w\s.-]/g, "").trim() || "notebook";
 }
 
+interface RemoteCaretProps {
+  editor: ReturnType<typeof useEditor>;
+  position: number;
+  color: string;
+  wrapperRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function RemoteCaret({ editor, position, color, wrapperRef }: RemoteCaretProps) {
+  const [style, setStyle] = useState<{ left: number; top: number; height: number } | null>(null);
+  const docSize = editor?.state?.doc?.content?.size ?? 0;
+  useLayoutEffect(() => {
+    if (!editor?.view || !wrapperRef.current) {
+      setStyle(null);
+      return;
+    }
+    const pos = Math.min(Math.max(0, position), docSize);
+    const run = () => {
+      try {
+        const coords = editor.view.coordsAtPos(pos);
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const rect = wrapper.getBoundingClientRect();
+        setStyle({
+          left: coords.left - rect.left,
+          top: coords.top - rect.top,
+          height: coords.bottom - coords.top,
+        });
+      } catch {
+        setStyle(null);
+      }
+    };
+    const id = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(id);
+  }, [editor, position, wrapperRef, docSize]);
+
+  if (!style) return null;
+  return (
+    <div
+      className="absolute z-10 pointer-events-none"
+      style={{
+        left: style.left,
+        top: style.top,
+        width: 2,
+        height: Math.min(120, Math.max(16, style.height)),
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
 export function NotebookEditorPage() {
   const { notebookId } = useParams<{ notebookId: string }>();
   const navigate = useNavigate();
-  const { setBoardName, isSidebarOpen } = useOutletContext<AppLayoutContext>();
+  const { user } = useAuth();
+  const currentUserId = user?.userId ?? null;
+  const { setBoardName, setBoardPresence, isSidebarOpen } = useOutletContext<AppLayoutContext>();
   const [notebook, setNotebook] = useState<NotebookDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -112,8 +167,65 @@ export function NotebookEditorPage() {
   /** Track the latest updatedAt timestamp to prevent race conditions with concurrent saves */
   const latestUpdatedAtRef = useRef<Date | null>(null);
   const saveInProgressRef = useRef<boolean>(false);
+  const lastSaveAtRef = useRef<number>(0);
+  const NOTEBOOK_ECHO_IGNORE_MS = 2500;
+  const [remoteTextCursors, setRemoteTextCursors] = useState<Map<string, { position: number; color: string }>>(new Map());
+  const editorWrapperRef = useRef<HTMLDivElement>(null);
+  const textCursorThrottleRef = useRef<number>(0);
+  const TEXT_CURSOR_THROTTLE_MS = 80;
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const menuImageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleTextCursorPosition = useCallback((userId: string, position: number) => {
+    if (currentUserId != null && userId === currentUserId) return;
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      if (position < 0) next.delete(userId);
+      else next.set(userId, { position, color: getColorForUserId(userId) });
+      return next;
+    });
+  }, [currentUserId]);
+
+  const handleUserLeft = useCallback((userId: string) => {
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
+
+  const handlePresenceUpdate = useCallback((users: NotebookPresenceUser[]) => {
+    setBoardPresence(users);
+    const presentIds = new Set(users.map((u) => u.userId));
+    setRemoteTextCursors((prev) => {
+      const toRemove = [...prev.keys()].filter((uid) => !presentIds.has(uid));
+      if (toRemove.length === 0) return prev;
+      const next = new Map(prev);
+      for (const uid of toRemove) next.delete(uid);
+      return next;
+    });
+  }, []);
+
+  const handleNotebookUpdated = useCallback((payload: { contentJson: string; updatedAt: string }) => {
+    if (Date.now() - lastSaveAtRef.current < NOTEBOOK_ECHO_IGNORE_MS) return;
+    lastSavedJsonRef.current = payload.contentJson;
+    latestUpdatedAtRef.current = payload.updatedAt ? new Date(payload.updatedAt) : null;
+    setNotebook((prev) => (prev ? { ...prev, contentJson: payload.contentJson, updatedAt: payload.updatedAt } : null));
+  }, []);
+
+  const { sendTextCursor } = useNotebookRealtime(notebookId ?? undefined, {
+    onPresenceUpdate: handlePresenceUpdate,
+    onNotebookUpdated: handleNotebookUpdated,
+    onTextCursorPosition: handleTextCursorPosition,
+    onUserLeft: handleUserLeft,
+  });
+
+  const sendTextCursorIfNeeded = useCallback(
+    (pos: number) => {
+      sendTextCursor(pos);
+    },
+    [sendTextCursor],
+  );
 
   useEffect(() => {
     if (!notebookId) return;
@@ -179,6 +291,23 @@ export function NotebookEditorPage() {
     editor.commands.setContent(content, { emitUpdate: false });
   }, [editor, notebook]);
 
+  useEffect(() => {
+    if (!editor || !sendTextCursor) return;
+    const handler = () => {
+      const now = Date.now();
+      if (now - textCursorThrottleRef.current < TEXT_CURSOR_THROTTLE_MS) return;
+      textCursorThrottleRef.current = now;
+      sendTextCursorIfNeeded(editor.state.selection.from);
+    };
+    const focusHandler = () => sendTextCursorIfNeeded(editor.state.selection.from);
+    editor.on("selectionUpdate", handler);
+    editor.on("focus", focusHandler);
+    return () => {
+      editor.off("selectionUpdate", handler);
+      editor.off("focus", focusHandler);
+    };
+  }, [editor, sendTextCursor, sendTextCursorIfNeeded]);
+
   const save = useMemo(
     () =>
       debounce(async () => {
@@ -202,6 +331,7 @@ export function NotebookEditorPage() {
             contentJson: jsonString,
             updatedAt: updatedAtToSend,
           });
+          lastSaveAtRef.current = Date.now();
           lastSavedJsonRef.current = jsonString;
           lastSyncedContentJsonRef.current = jsonString;
           // Refetch to get server's actual updatedAt (avoids clock skew conflicts)
@@ -305,6 +435,7 @@ export function NotebookEditorPage() {
               contentJson: jsonString,
               updatedAt: updatedAtRef?.toISOString(),
             });
+            lastSaveAtRef.current = Date.now();
             lastSavedJsonRef.current = jsonString;
             // Update ref after successful save
             try {
@@ -352,6 +483,7 @@ export function NotebookEditorPage() {
           contentJson: jsonString,
           updatedAt: updatedAtRef?.toISOString(),
         });
+        lastSaveAtRef.current = Date.now();
         lastSavedJsonRef.current = jsonString;
         // Update ref after successful save
         try {
@@ -509,7 +641,18 @@ export function NotebookEditorPage() {
       <div className="flex-1 min-w-0 overflow-hidden">
         <ZoomablePaperShell zoom={zoom} onZoomChange={setZoom} sidebarExpanded={isSidebarOpen}>
           <PaperShell>
-            <EditorContent editor={editor} />
+            <div ref={editorWrapperRef} className="relative overflow-visible">
+              <EditorContent editor={editor} />
+              {Array.from(remoteTextCursors.entries()).map(([userId, { position, color }]) => (
+                <RemoteCaret
+                  key={userId}
+                  editor={editor}
+                  position={position}
+                  color={color}
+                  wrapperRef={editorWrapperRef}
+                />
+              ))}
+            </div>
           </PaperShell>
         </ZoomablePaperShell>
       </div>

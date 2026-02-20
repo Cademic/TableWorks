@@ -14,7 +14,7 @@ import { getColorForUserId } from "../lib/presenceColors";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
-const AUTO_SAVE_DELAY_MS = 1 * 1000; // 1 second after last change
+const AUTO_SAVE_DELAY_MS = 300; // 300ms after last change for faster server sync
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
 
@@ -336,11 +336,14 @@ export function ChalkBoardPage() {
 
   // --- Auto-save drawing (debounced) ---
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaveAtRef = useRef<number>(0);
+  const DRAWING_ECHO_IGNORE_MS = 2500;
 
   const flushSave = useCallback(() => {
     if (!boardId || !canvasRef.current) return;
     const json = canvasRef.current.toJSON();
     if (json) {
+      lastSaveAtRef.current = Date.now();
       saveDrawing(boardId, { canvasJson: json }).catch(() => {
         // Silently fail
       });
@@ -383,8 +386,12 @@ export function ChalkBoardPage() {
         setBoard(boardRes.value);
       }
       if (drawingRes.status === "fulfilled") {
-        const canvasJson = drawingRes.value.canvasJson;
-        setInitialCanvasJson(canvasJson && canvasJson !== "{}" ? canvasJson : null);
+        // Skip overwriting local canvas right after we saved — we triggered DrawingUpdated
+        // and our local state is source of truth; avoids disappear/reappear flicker
+        if (Date.now() - lastSaveAtRef.current >= DRAWING_ECHO_IGNORE_MS) {
+          const canvasJson = drawingRes.value.canvasJson;
+          setInitialCanvasJson(canvasJson && canvasJson !== "{}" ? canvasJson : null);
+        }
       }
       if (notesRes.status === "fulfilled") {
         const items = notesRes.value.items;
@@ -696,7 +703,7 @@ export function ChalkBoardPage() {
   }
 
   function handleStartEdit(id: string) {
-    setEditingNoteIds((prev) => new Set(prev).add(id));
+    setEditingNoteIds(new Set([id]));
     primaryEditingNoteIdRef.current = id;
     bringToFront(id);
   }
@@ -822,22 +829,29 @@ export function ChalkBoardPage() {
             height: "10000px",
             pointerEvents: mode === "select" && !isSpaceHeld && !isPanning ? "auto" : "none",
           }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setEditingNoteIds(new Set());
+              primaryEditingNoteIdRef.current = null;
+            }
+          }}
         >
           {/* Remote cursors (board-space coordinates) */}
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden>
             {Array.from(remoteCursors.entries()).map(([userId, { x, y, color }]) => (
               <div
                 key={userId}
-                className="absolute z-[9999] flex items-center gap-1"
-                style={{ left: x, top: y, transform: "translate(8px, 4px)" }}
+                className="absolute z-[9999] flex items-center gap-1 overflow-visible"
+                style={{ left: x, top: y, transform: "translate(-6px, -2px)" }}
               >
-                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" className="drop-shadow-md">
-                  <path
-                    d="M2 2l6 6 2.5-2.5L5 2.5 2 2z"
-                    fill={color}
-                    stroke="rgba(0,0,0,0.3)"
-                    strokeWidth="1"
-                  />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 32 32"
+                  width="32"
+                  height="32"
+                  className="drop-shadow-lg"
+                >
+                  <path d="M6 2v24l6-6 4 10 4-2-4-10h8L6 2z" fill={color} stroke="rgba(255,255,255,0.9)" strokeWidth="0.5" />
                 </svg>
               </div>
             ))}

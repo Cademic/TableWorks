@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import Draggable, { type DraggableEventHandler } from "react-draggable";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -34,6 +34,10 @@ interface StickyNoteProps {
   isLinking?: boolean;
   /** When other user(s) are focusing this note, show a border in their color(s). Multiple users can edit at once. */
   focusedBy?: { userId: string; color: string }[] | null;
+  /** Remote text cursor positions (userId -> field, position, color) for collaborative editing */
+  remoteTextCursors?: { userId: string; field: "title" | "content"; position: number; color: string }[];
+  /** Callback to broadcast local text cursor position */
+  onTextCursor?: (field: "title" | "content", position: number) => void;
   zoom?: number;
 }
 
@@ -76,6 +80,57 @@ function resolveNoteColorKey(note: NoteSummaryDto): string {
   return keys[Math.abs(hash) % keys.length];
 }
 
+interface RemoteCaretProps {
+  editor: ReturnType<typeof useEditor>;
+  position: number;
+  color: string;
+  wrapperRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function RemoteCaret({ editor, position, color, wrapperRef }: RemoteCaretProps) {
+  const [style, setStyle] = useState<{ left: number; top: number; height: number } | null>(null);
+
+  const docSize = editor?.state?.doc?.content?.size ?? 0;
+  useLayoutEffect(() => {
+    if (!editor?.view || !wrapperRef.current) {
+      setStyle(null);
+      return;
+    }
+    const pos = Math.min(Math.max(0, position), docSize);
+    const run = () => {
+      try {
+        const coords = editor.view.coordsAtPos(pos);
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const rect = wrapper.getBoundingClientRect();
+        setStyle({
+          left: coords.left - rect.left,
+          top: coords.top - rect.top,
+          height: coords.bottom - coords.top,
+        });
+      } catch {
+        setStyle(null);
+      }
+    };
+    const id = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(id);
+  }, [editor, position, wrapperRef, docSize]);
+
+  if (!style) return null;
+  return (
+    <div
+      className="absolute z-10 pointer-events-none"
+      style={{
+        left: style.left,
+        top: style.top,
+        width: 2,
+        height: Math.min(120, Math.max(16, style.height)),
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
 export function StickyNote({
   note,
   isEditing,
@@ -94,10 +149,13 @@ export function StickyNote({
   onBringToFront,
   isLinking,
   focusedBy,
+  remoteTextCursors = [],
+  onTextCursor,
   zoom = 1,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const ignoreBlurUntilRef = useRef<number>(0);
+  const lastDragEndRef = useRef<number>(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const colorKey = resolveNoteColorKey(note);
   const color = NOTE_COLORS[colorKey];
@@ -124,6 +182,15 @@ export function StickyNote({
     TextAlign.configure({ types: ["paragraph"] }),
   ];
 
+  const sendTextCursorIfNeeded = useCallback(
+    (editor: ReturnType<typeof useEditor>, field: "title" | "content") => {
+      if (!onTextCursor || !editor) return;
+      const pos = editor.state.selection.from;
+      onTextCursor(field, pos);
+    },
+    [onTextCursor],
+  );
+
   const titleEditor = useEditor({
     extensions: [
       ...sharedExtensions,
@@ -137,7 +204,10 @@ export function StickyNote({
           "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
       },
     },
-    onFocus: () => setActiveField("title"),
+    onFocus: ({ editor }) => {
+      setActiveField("title");
+      sendTextCursorIfNeeded(editor, "title");
+    },
   });
 
   const contentEditor = useEditor({
@@ -153,11 +223,42 @@ export function StickyNote({
           "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[40px] break-words",
       },
     },
-    onFocus: () => setActiveField("content"),
+    onFocus: ({ editor }) => {
+      setActiveField("content");
+      sendTextCursorIfNeeded(editor, "content");
+    },
   });
 
   const activeEditor =
     activeField === "title" ? titleEditor : contentEditor;
+
+  const titleEditorWrapperRef = useRef<HTMLDivElement>(null);
+  const contentEditorWrapperRef = useRef<HTMLDivElement>(null);
+  const textCursorThrottleRef = useRef<number>(0);
+  const TEXT_CURSOR_THROTTLE_MS = 80;
+
+  // Broadcast text cursor position when selection changes (throttled)
+  useEffect(() => {
+    if (!onTextCursor || !isEditing) return;
+    const editors = [
+      { editor: titleEditor, field: "title" as const },
+      { editor: contentEditor, field: "content" as const },
+    ];
+    const handlers: (() => void)[] = [];
+    for (const { editor, field } of editors) {
+      if (!editor) continue;
+      const handler = () => {
+        const now = Date.now();
+        if (now - textCursorThrottleRef.current < TEXT_CURSOR_THROTTLE_MS) return;
+        textCursorThrottleRef.current = now;
+        const pos = editor.state.selection.from;
+        onTextCursor(field, pos);
+      };
+      editor.on("selectionUpdate", handler);
+      handlers.push(() => editor.off("selectionUpdate", handler));
+    }
+    return () => handlers.forEach((cleanup) => cleanup());
+  }, [onTextCursor, isEditing, titleEditor, contentEditor]);
 
   // Toggle editable when isEditing changes
   useEffect(() => {
@@ -222,7 +323,7 @@ export function StickyNote({
   }, [note.content, isEditing, contentEditor]);
 
   // Debounced content push while typing so other clients see updates in real time (only when onContentChange provided)
-  const SAVE_DEBOUNCE_MS = 400;
+  const SAVE_DEBOUNCE_MS = 200;
   const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
@@ -337,32 +438,25 @@ export function StickyNote({
 
   const handleDragStop: DraggableEventHandler = (_e, data) => {
     setPosition({ x: data.x, y: data.y });
+    lastDragEndRef.current = Date.now();
     onDragStop(note.id, data.x, data.y);
   };
 
-  const handleBlur = useCallback(
-    (e: React.FocusEvent) => {
-      const relatedTarget = e.relatedTarget as Node | null;
-      // #region agent log
-      const now = Date.now();
-      const ignoreUntil = ignoreBlurUntilRef.current;
-      const shouldIgnore = now < ignoreUntil;
-      fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'StickyNote.tsx:306',message:'handleBlur called',data:{noteId:note.id,isEditing,relatedTarget:relatedTarget?.nodeName||null,contains:nodeRef.current?.contains(relatedTarget)||false,shouldIgnore,ignoreUntil,now},timestamp:now,runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      // #endregion
-      if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
-        return;
-      }
-      if (now < ignoreBlurUntilRef.current) {
-        return;
-      }
-      if (isEditing && titleEditor && contentEditor) {
-        const titleHtml = titleEditor.getHTML();
-        const contentHtml = contentEditor.getHTML();
-        onSave(note.id, titleHtml, contentHtml);
-      }
-    },
-    [isEditing, titleEditor, contentEditor, note.id, onSave],
-  );
+  // Do not close edit mode on blur (e.g. tab switch). Close only when user clicks another note or board.
+  const handleBlur = useCallback(() => {
+    // No-op: keep edit mode on; parent will remove from editingNoteIds on board click or other-note click
+  }, []);
+
+  // When parent removes this note from editing (isEditing -> false), save current content once
+  const wasEditingRef = useRef(false);
+  useEffect(() => {
+    if (wasEditingRef.current && !isEditing && titleEditor && contentEditor) {
+      const titleHtml = titleEditor.getHTML();
+      const contentHtml = contentEditor.getHTML();
+      onSave(note.id, titleHtml, contentHtml);
+    }
+    wasEditingRef.current = isEditing;
+  }, [isEditing, titleEditor, contentEditor, note.id, onSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -574,6 +668,8 @@ export function StickyNote({
             rotate: isEditing ? "0deg" : `${note.rotation ?? 0}deg`,
           }}
           onClick={(e) => {
+            // Ignore click if it follows a drag (drag release fires click, which would open edit)
+            if (Date.now() - lastDragEndRef.current < 300) return;
             if (!isEditing) {
               const target = e.target as HTMLElement;
               const titleEl = target.closest("[data-field='title']") as HTMLElement | null;
@@ -663,11 +759,22 @@ export function StickyNote({
 
         {/* Content area */}
         <div className="overflow-hidden">
-          {isEditing ? (
+          {isEditing || (focusedBy && focusedBy.length > 0) ? (
             <div className="px-3 pb-4 space-y-1.5" onBlur={handleBlur} onKeyDown={handleKeyDown}>
               {/* Title rich text editor */}
-              <div className="tiptap-editor-area tiptap-title-area">
+              <div ref={titleEditorWrapperRef} className="tiptap-editor-area tiptap-title-area relative !overflow-visible">
                 <EditorContent editor={titleEditor} />
+                {remoteTextCursors
+                  .filter((r) => r.field === "title")
+                  .map((r) => (
+                    <RemoteCaret
+                      key={r.userId}
+                      editor={titleEditor}
+                      position={r.position}
+                      color={r.color}
+                      wrapperRef={titleEditorWrapperRef}
+                    />
+                  ))}
               </div>
               <div className="flex justify-end -mt-0.5 mb-0.5">
                 <span
@@ -684,10 +791,22 @@ export function StickyNote({
 
               {/* Content rich text editor */}
               <div
-                className="tiptap-editor-area"
+                ref={contentEditorWrapperRef}
+                className="tiptap-editor-area relative !overflow-visible"
                 style={{ minHeight: `${Math.max(60, size.height - 120)}px` }}
               >
                 <EditorContent editor={contentEditor} />
+                {remoteTextCursors
+                  .filter((r) => r.field === "content")
+                  .map((r) => (
+                    <RemoteCaret
+                      key={r.userId}
+                      editor={contentEditor}
+                      position={r.position}
+                      color={r.color}
+                      wrapperRef={contentEditorWrapperRef}
+                    />
+                  ))}
               </div>
 
               <div className="flex justify-end">

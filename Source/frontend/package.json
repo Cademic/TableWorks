@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@microsoft/signalr": "^10.0.0",
     "@tiptap/extension-character-count": "^3.19.0",
     "@tiptap/extension-color": "^3.19.0",
     "@tiptap/extension-font-family": "^3.19.0",

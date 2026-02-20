@@ -5,6 +5,7 @@ import { getPinnedProjects } from "../../api/projects";
 import { getPinnedNotebooks } from "../../api/notebooks";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
+import { useAuth } from "../../context/AuthContext";
 import type { BoardSummaryDto, NotebookSummaryDto, ProjectSummaryDto } from "../../types";
 
 /** Tailwind `lg` breakpoint — below this: sidebar becomes hamburger drawer */
@@ -16,11 +17,19 @@ export interface OpenedBoard {
   boardType: string;
 }
 
+export interface BoardPresenceUser {
+  userId: string;
+  displayName: string;
+}
+
 export interface AppLayoutContext {
   setBoardName: (name: string | null) => void;
   openBoard: (board: OpenedBoard) => void;
   closeBoard: (id: string) => void;
   openedBoards: OpenedBoard[];
+  /** Connected users on the current board (when on a board route). Cleared when leaving board. */
+  connectedUsers: BoardPresenceUser[];
+  setBoardPresence: (users: BoardPresenceUser[]) => void;
   refreshPinnedBoards: () => void;
   refreshPinnedProjects: () => void;
   openNotebook: (id: string) => void;
@@ -32,9 +41,11 @@ export interface AppLayoutContext {
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= SIDEBAR_BREAKPOINT);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < SIDEBAR_BREAKPOINT);
   const [boardName, setBoardName] = useState<string | null>(null);
+  const [connectedUsers, setBoardPresence] = useState<BoardPresenceUser[]>([]);
   const [openedBoards, setOpenedBoards] = useState<OpenedBoard[]>([]);
   const [pinnedBoards, setPinnedBoards] = useState<BoardSummaryDto[]>([]);
   const [pinnedProjects, setPinnedProjects] = useState<ProjectSummaryDto[]>([]);
@@ -120,18 +131,27 @@ export function AppLayout() {
     [navigate],
   );
 
-  // Fetch pinned boards, projects, and notebooks on mount
+  // Clear board presence when leaving a board route
   useEffect(() => {
+    const onBoard = /^\/boards\/[^/]+$/.test(location.pathname) || /^\/chalkboards\/[^/]+$/.test(location.pathname);
+    if (!onBoard) setBoardPresence([]);
+  }, [location.pathname]);
+
+  // Fetch pinned boards, projects, and notebooks when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
     refreshPinnedBoards();
     refreshPinnedProjects();
     refreshPinnedNotebooks();
-  }, [refreshPinnedBoards, refreshPinnedProjects, refreshPinnedNotebooks]);
+  }, [isAuthenticated, refreshPinnedBoards, refreshPinnedProjects, refreshPinnedNotebooks]);
 
   const outletContext: AppLayoutContext = {
     setBoardName,
     openBoard,
     closeBoard,
     openedBoards,
+    connectedUsers,
+    setBoardPresence,
     refreshPinnedBoards,
     refreshPinnedProjects,
     openNotebook,
@@ -181,6 +201,7 @@ export function AppLayout() {
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Navbar
           boardName={boardName}
+          connectedUsers={connectedUsers}
           onToggleSidebar={isMobile ? handleToggleSidebar : undefined}
           showMenuButton={isMobile}
         />

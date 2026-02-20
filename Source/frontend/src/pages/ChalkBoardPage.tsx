@@ -9,6 +9,8 @@ import { getBoardById } from "../api/boards";
 import { getDrawing, saveDrawing } from "../api/drawings";
 import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
 import { useTouchViewport } from "../hooks/useTouchViewport";
+import { useBoardRealtime, type BoardItemUpdatePayload } from "../hooks/useBoardRealtime";
+import { getColorForUserId } from "../lib/presenceColors";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
@@ -22,7 +24,7 @@ function clamp(value: number, min: number, max: number) {
 
 export function ChalkBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const { setBoardName, openBoard } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, openBoard, setBoardPresence } = useOutletContext<AppLayoutContext>();
 
   // --- Board & loading state ---
   const [board, setBoard] = useState<BoardSummaryDto | null>(null);
@@ -35,7 +37,12 @@ export function ChalkBoardPage() {
 
   // --- Notes state ---
   const [notes, setNotes] = useState<NoteSummaryDto[]>([]);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteIds, setEditingNoteIds] = useState<Set<string>>(new Set());
+  const primaryEditingNoteIdRef = useRef<string | null>(null);
+  const [remoteFocus, setRemoteFocus] = useState<Map<string, { userId: string; color: string }[]>>(new Map());
+  const [remoteCursors, setRemoteCursors] = useState<Map<string, { x: number; y: number; color: string }>>(new Map());
+  const cursorThrottleRef = useRef<{ last: number }>({ last: 0 });
+  const CURSOR_THROTTLE_MS = 60;
 
   // --- Z-index stacking ---
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
@@ -415,6 +422,115 @@ export function ChalkBoardPage() {
     fetchData();
   }, [fetchData]);
 
+  const draggingNoteIdRef = useRef<string | null>(null);
+  const RESIZE_ECHO_IGNORE_MS = 400;
+  const lastResizedNoteRef = useRef<{ id: string; at: number } | null>(null);
+  const mergeNotePayload = useCallback((payload: BoardItemUpdatePayload) => {
+    const id = String(payload.id);
+    const skipPosition = id === draggingNoteIdRef.current;
+    const skipSize =
+      lastResizedNoteRef.current?.id === id &&
+      Date.now() - lastResizedNoteRef.current.at < RESIZE_ECHO_IGNORE_MS;
+    setNotes((prev) =>
+      prev.map((n) => {
+        if (n.id !== id) return n;
+        const next = { ...n };
+        if (!skipPosition && payload.positionX !== undefined) next.positionX = payload.positionX;
+        if (!skipPosition && payload.positionY !== undefined) next.positionY = payload.positionY;
+        if (payload.title !== undefined) next.title = payload.title;
+        if (payload.content !== undefined && payload.content !== null) next.content = payload.content;
+        if (!skipSize && payload.width !== undefined) next.width = payload.width;
+        if (!skipSize && payload.height !== undefined) next.height = payload.height;
+        if (payload.color !== undefined) next.color = payload.color;
+        if (payload.rotation !== undefined) next.rotation = payload.rotation;
+        return next;
+      }),
+    );
+  }, []);
+
+  const handleUserFocusingItem = useCallback((userId: string, itemType: string, itemId: string | null) => {
+    setRemoteFocus((prev) => {
+      const next = new Map(prev);
+      const color = getColorForUserId(userId);
+      const entry = { userId, color };
+      for (const [key, list] of next) {
+        const filtered = list.filter((u) => u.userId !== userId);
+        if (filtered.length === 0) next.delete(key);
+        else next.set(key, filtered);
+      }
+      if (itemId && itemType === "note") {
+        const key = `note:${itemId}`;
+        const existing = next.get(key) ?? [];
+        if (!existing.some((u) => u.userId === userId)) next.set(key, [...existing, entry]);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCursorPosition = useCallback((userId: string, x: number, y: number) => {
+    setRemoteCursors((prev) => {
+      const next = new Map(prev);
+      if (x < 0 || y < 0) next.delete(userId);
+      else next.set(userId, { x, y, color: getColorForUserId(userId) });
+      return next;
+    });
+  }, []);
+
+  const { sendFocus, sendCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
+    onNoteUpdated: mergeNotePayload,
+    onPresenceUpdate: setBoardPresence,
+    onUserFocusingItem: handleUserFocusingItem,
+    onCursorPosition: handleCursorPosition,
+  });
+
+  useEffect(() => {
+    const primary = primaryEditingNoteIdRef.current;
+    if (primary) sendFocus("note", primary);
+    else sendFocus("note", null);
+  }, [editingNoteIds, sendFocus]);
+
+  const handleChalkBoardMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const now = Date.now();
+      if (now - cursorThrottleRef.current.last < CURSOR_THROTTLE_MS) return;
+      cursorThrottleRef.current.last = now;
+      const x = RESOLUTION_FACTOR * (e.clientX - rect.left) / zoom - panX;
+      const y = RESOLUTION_FACTOR * (e.clientY - rect.top) / zoom - panY;
+      sendCursor(x, y);
+    },
+    [zoom, panX, panY, sendCursor],
+  );
+  const handleChalkBoardMouseLeave = useCallback(() => {
+    sendCursor(-1, -1);
+  }, [sendCursor]);
+
+  const DRAG_THROTTLE_MS = 120;
+  type DragPending = { x: number; y: number; timer: ReturnType<typeof setTimeout> };
+  const noteDragMapRef = useRef<Map<string, DragPending>>(new Map());
+  const handleNoteDrag = useCallback((id: string, x: number, y: number) => {
+    const map = noteDragMapRef.current;
+    let entry = map.get(id);
+    if (!entry) {
+      entry = {
+        x,
+        y,
+        timer: setTimeout(() => {
+          const e = map.get(id);
+          if (e) {
+            patchNote(id, { positionX: e.x, positionY: e.y }).catch(() => {});
+            map.delete(id);
+          }
+        }, DRAG_THROTTLE_MS),
+      };
+      map.set(id, entry);
+    } else {
+      entry.x = x;
+      entry.y = y;
+    }
+  }, []);
+
   // Load canvas JSON after initial fetch
   useEffect(() => {
     if (initialCanvasJson && canvasRef.current) {
@@ -452,7 +568,8 @@ export function ChalkBoardPage() {
   function handleModeChange(newMode: ChalkMode) {
     setMode(newMode);
     if (newMode === "draw") {
-      setEditingNoteId(null);
+      setEditingNoteIds(new Set());
+      primaryEditingNoteIdRef.current = null;
       canvasRef.current?.setDrawingMode(true);
       if (tool === "eraser") {
         canvasRef.current?.setEraserMode(true);
@@ -504,7 +621,8 @@ export function ChalkBoardPage() {
       });
 
       setNotes((prev) => [...prev, created]);
-      setEditingNoteId(created.id);
+      setEditingNoteIds((prev) => new Set(prev).add(created.id));
+      primaryEditingNoteIdRef.current = created.id;
       setMode("select");
       canvasRef.current?.setDrawingMode(false);
     } catch {
@@ -512,10 +630,22 @@ export function ChalkBoardPage() {
     }
   }
 
+  function handleNoteDragStart(id: string) {
+    draggingNoteIdRef.current = id;
+  }
+  const DRAG_ECHO_IGNORE_MS = 280;
   async function handleDragStop(id: string, x: number, y: number) {
+    const pending = noteDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(id);
+    }
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, positionX: x, positionY: y } : n)),
     );
+    window.setTimeout(() => {
+      if (draggingNoteIdRef.current === id) draggingNoteIdRef.current = null;
+    }, DRAG_ECHO_IGNORE_MS);
     try {
       await patchNote(id, { positionX: x, positionY: y });
     } catch {
@@ -524,7 +654,31 @@ export function ChalkBoardPage() {
   }
 
   async function handleSave(id: string, title: string, content: string) {
-    setEditingNoteId(null);
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingNoteIdRef.current === id) {
+        primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, title: title || null, content } : n,
+      ),
+    );
+    try {
+      await patchNote(id, {
+        patchTitle: true,
+        title: title || null,
+        content: content || undefined,
+      });
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleNoteContentChange(id: string, title: string, content: string) {
     setNotes((prev) =>
       prev.map((n) =>
         n.id === id ? { ...n, title: title || null, content } : n,
@@ -542,11 +696,13 @@ export function ChalkBoardPage() {
   }
 
   function handleStartEdit(id: string) {
-    setEditingNoteId(id);
+    setEditingNoteIds((prev) => new Set(prev).add(id));
+    primaryEditingNoteIdRef.current = id;
     bringToFront(id);
   }
 
   async function handleResize(id: string, width: number, height: number) {
+    lastResizedNoteRef.current = { id, at: Date.now() };
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, width, height } : n)),
     );
@@ -581,9 +737,14 @@ export function ChalkBoardPage() {
 
   async function handleDelete(id: string) {
     setNotes((prev) => prev.filter((n) => n.id !== id));
-    if (editingNoteId === id) {
-      setEditingNoteId(null);
-    }
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingNoteIdRef.current === id) {
+        primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
     try {
       await deleteNote(id);
     } catch {
@@ -634,6 +795,8 @@ export function ChalkBoardPage() {
         ].join(" ")}
         style={{ backgroundColor: CHALKBOARD_BG }}
         onMouseDown={handleViewportMouseDown}
+        onMouseMove={handleChalkBoardMouseMove}
+        onMouseLeave={handleChalkBoardMouseLeave}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -660,16 +823,39 @@ export function ChalkBoardPage() {
             pointerEvents: mode === "select" && !isSpaceHeld && !isPanning ? "auto" : "none",
           }}
         >
+          {/* Remote cursors (board-space coordinates) */}
+          <div className="pointer-events-none absolute inset-0" aria-hidden>
+            {Array.from(remoteCursors.entries()).map(([userId, { x, y, color }]) => (
+              <div
+                key={userId}
+                className="absolute z-[9999] flex items-center gap-1"
+                style={{ left: x, top: y, transform: "translate(8px, 4px)" }}
+              >
+                <svg width="20" height="24" viewBox="0 0 20 24" fill="none" className="drop-shadow-md">
+                  <path
+                    d="M2 2l6 6 2.5-2.5L5 2.5 2 2z"
+                    fill={color}
+                    stroke="rgba(0,0,0,0.3)"
+                    strokeWidth="1"
+                  />
+                </svg>
+              </div>
+            ))}
+          </div>
           {notes.map((note) => (
             <StickyNote
               key={note.id}
               note={note}
-              isEditing={note.id === editingNoteId}
+              isEditing={editingNoteIds.has(note.id)}
+              focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
               zIndex={zIndexMap[note.id] ?? 0}
+              onDrag={handleNoteDrag}
+              onDragStart={handleNoteDragStart}
               onDragStop={handleDragStop}
               onDelete={handleDelete}
               onStartEdit={handleStartEdit}
               onSave={handleSave}
+              onContentChange={handleNoteContentChange}
               onResize={handleResize}
               onColorChange={handleColorChange}
               onRotationChange={handleRotationChange}

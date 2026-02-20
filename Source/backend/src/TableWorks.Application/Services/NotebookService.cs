@@ -54,6 +54,22 @@ public sealed class NotebookService : INotebookService
         return member ?? null;
     }
 
+    private async Task<bool> CanReadNotebookAsync(Guid userId, Notebook notebook, CancellationToken cancellationToken)
+    {
+        if (notebook.UserId == userId) return true;
+        if (notebook.ProjectId is null) return false;
+        var role = await GetProjectRoleAsync(userId, notebook.ProjectId.Value, cancellationToken);
+        return role is not null;
+    }
+
+    private async Task<bool> CanWriteNotebookAsync(Guid userId, Notebook notebook, CancellationToken cancellationToken)
+    {
+        if (notebook.UserId == userId) return true;
+        if (notebook.ProjectId is null) return false;
+        var role = await GetProjectRoleAsync(userId, notebook.ProjectId.Value, cancellationToken);
+        return role is "Owner" or "Editor";
+    }
+
     public async Task<PaginatedResponse<NotebookSummaryDto>> GetNotebooksAsync(Guid userId, NotebookListQuery query, CancellationToken cancellationToken = default)
     {
         var q = _notebookRepo.Query()
@@ -96,10 +112,12 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookDetailDto> GetNotebookByIdAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .Where(n => n.Id == notebookId && n.UserId == userId)
             .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanReadNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         return new NotebookDetailDto
         {
@@ -148,8 +166,11 @@ public sealed class NotebookService : INotebookService
     public async Task UpdateNotebookAsync(Guid userId, Guid notebookId, UpdateNotebookRequest request, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         notebook.Name = request.Name.Trim();
         notebook.UpdatedAt = DateTime.UtcNow;
@@ -161,8 +182,11 @@ public sealed class NotebookService : INotebookService
     public async Task UpdateNotebookContentAsync(Guid userId, Guid notebookId, UpdateNotebookContentRequest request, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         // Optimistic concurrency: only conflict when the server has a *newer* version (modified elsewhere).
         // Allow clock skew by only treating server > client as a conflict, with a small tolerance.
@@ -197,8 +221,11 @@ public sealed class NotebookService : INotebookService
     public async Task DeleteNotebookAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         var urls = TipTapImageUrls.GetImageUrls(notebook.ContentJson ?? "{}");
         foreach (var url in urls)
@@ -215,8 +242,11 @@ public sealed class NotebookService : INotebookService
     public async Task TogglePinAsync(Guid userId, Guid notebookId, bool isPinned, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         notebook.IsPinned = isPinned;
         notebook.PinnedAt = isPinned ? DateTime.UtcNow : null;
@@ -282,8 +312,11 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookVersionDto> CreateVersionAsync(Guid userId, Guid notebookId, CreateNotebookVersionRequest? request, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         var version = new NotebookVersion
         {
@@ -308,11 +341,11 @@ public sealed class NotebookService : INotebookService
     public async Task<IReadOnlyList<NotebookVersionDto>> GetVersionsAsync(Guid userId, Guid notebookId, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .Where(n => n.Id == notebookId && n.UserId == userId)
             .AsNoTracking()
-            .Select(n => n.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (notebook == default)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanReadNotebookAsync(userId, notebook, cancellationToken))
             throw new KeyNotFoundException("Notebook not found.");
 
         var versions = await _versionRepo.Query()
@@ -333,11 +366,11 @@ public sealed class NotebookService : INotebookService
     public async Task<NotebookVersionDto?> GetVersionByIdAsync(Guid userId, Guid notebookId, Guid versionId, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .Where(n => n.Id == notebookId && n.UserId == userId)
             .AsNoTracking()
-            .Select(n => n.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (notebook == default)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
+            ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanReadNotebookAsync(userId, notebook, cancellationToken))
             throw new KeyNotFoundException("Notebook not found.");
 
         var version = await _versionRepo.Query()
@@ -361,8 +394,11 @@ public sealed class NotebookService : INotebookService
     public async Task RestoreVersionAsync(Guid userId, Guid notebookId, Guid versionId, CancellationToken cancellationToken = default)
     {
         var notebook = await _notebookRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == notebookId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == notebookId, cancellationToken)
             ?? throw new KeyNotFoundException("Notebook not found.");
+
+        if (!await CanWriteNotebookAsync(userId, notebook, cancellationToken))
+            throw new KeyNotFoundException("Notebook not found.");
 
         var version = await _versionRepo.Query()
             .Where(v => v.NotebookId == notebookId && v.Id == versionId)

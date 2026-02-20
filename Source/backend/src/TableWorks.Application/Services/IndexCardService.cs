@@ -16,32 +16,50 @@ public sealed class IndexCardService : IIndexCardService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IImageStorageService _imageStorage;
     private readonly IUserStorageService _userStorage;
+    private readonly IBoardAccessService _boardAccess;
+    private readonly IBoardHubBroadcaster _boardHub;
 
     public IndexCardService(
         IRepository<IndexCard> cardRepo,
         IRepository<IndexCardTag> cardTagRepo,
         IUnitOfWork unitOfWork,
         IImageStorageService imageStorage,
-        IUserStorageService userStorage)
+        IUserStorageService userStorage,
+        IBoardAccessService boardAccess,
+        IBoardHubBroadcaster boardHub)
     {
         _cardRepo = cardRepo;
         _cardTagRepo = cardTagRepo;
         _unitOfWork = unitOfWork;
         _imageStorage = imageStorage;
         _userStorage = userStorage;
+        _boardAccess = boardAccess;
+        _boardHub = boardHub;
     }
 
     public async Task<PaginatedResponse<IndexCardSummaryDto>> GetIndexCardsAsync(Guid userId, IndexCardListQuery query, CancellationToken cancellationToken = default)
     {
-        var q = _cardRepo.Query()
-            .Where(c => c.UserId == userId && !c.IsArchived)
-            .Include(c => c.IndexCardTags)
-                .ThenInclude(ct => ct.Tag)
-            .AsQueryable();
+        IQueryable<IndexCard> q;
 
-        // Filters
-        if (query.BoardId.HasValue)
-            q = q.Where(c => c.BoardId == query.BoardId.Value);
+        if (query.BoardId.HasValue && await _boardAccess.HasReadAccessAsync(userId, query.BoardId.Value, cancellationToken))
+        {
+            q = _cardRepo.Query()
+                .Where(c => c.BoardId == query.BoardId.Value && !c.IsArchived)
+                .Include(c => c.IndexCardTags)
+                    .ThenInclude(ct => ct.Tag)
+                .AsQueryable();
+        }
+        else
+        {
+            q = _cardRepo.Query()
+                .Where(c => c.UserId == userId && !c.IsArchived)
+                .Include(c => c.IndexCardTags)
+                    .ThenInclude(ct => ct.Tag)
+                .AsQueryable();
+
+            if (query.BoardId.HasValue)
+                q = q.Where(c => c.BoardId == query.BoardId.Value);
+        }
 
         if (query.FolderId.HasValue)
             q = q.Where(c => c.FolderId == query.FolderId.Value);
@@ -95,6 +113,9 @@ public sealed class IndexCardService : IIndexCardService
 
     public async Task<IndexCardDetailDto> CreateIndexCardAsync(Guid userId, CreateIndexCardRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.BoardId.HasValue && !await _boardAccess.HasWriteAccessAsync(userId, request.BoardId.Value, cancellationToken))
+            throw new UnauthorizedAccessException("You do not have permission to add index cards to this board.");
+
         var now = DateTime.UtcNow;
         var card = new IndexCard
         {
@@ -128,6 +149,9 @@ public sealed class IndexCardService : IIndexCardService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
+        if (card.BoardId.HasValue)
+            await _boardHub.NotifyIndexCardAddedAsync(card.BoardId.Value, card.Id, cancellationToken);
+
         return await GetIndexCardByIdAsync(userId, card.Id, cancellationToken);
     }
 
@@ -137,8 +161,14 @@ public sealed class IndexCardService : IIndexCardService
             .Include(c => c.IndexCardTags)
                 .ThenInclude(ct => ct.Tag)
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == cardId && c.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(c => c.Id == cardId, cancellationToken)
             ?? throw new KeyNotFoundException("Index card not found.");
+
+        if (card.UserId != userId)
+        {
+            if (card.BoardId is null || !await _boardAccess.HasReadAccessAsync(userId, card.BoardId.Value, cancellationToken))
+                throw new KeyNotFoundException("Index card not found.");
+        }
 
         return MapToDetail(card);
     }
@@ -146,8 +176,11 @@ public sealed class IndexCardService : IIndexCardService
     public async Task PatchIndexCardAsync(Guid userId, Guid cardId, PatchIndexCardRequest request, CancellationToken cancellationToken = default)
     {
         var card = await _cardRepo.Query()
-            .FirstOrDefaultAsync(c => c.Id == cardId && c.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(c => c.Id == cardId, cancellationToken)
             ?? throw new KeyNotFoundException("Index card not found.");
+
+        if (!await CanWriteCardAsync(userId, card, cancellationToken))
+            throw new KeyNotFoundException("Index card not found.");
 
         if (request.Content is not null)
         {
@@ -184,13 +217,22 @@ public sealed class IndexCardService : IIndexCardService
         card.LastSavedAt = DateTime.UtcNow;
         _cardRepo.Update(card);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (card.BoardId.HasValue)
+        {
+            var payload = new { id = card.Id, positionX = card.PositionX, positionY = card.PositionY, title = card.Title, content = card.Content, width = card.Width, height = card.Height, color = card.Color, rotation = card.Rotation };
+            await _boardHub.NotifyIndexCardUpdatedAsync(card.BoardId.Value, cardId, payload, cancellationToken);
+        }
     }
 
     public async Task DeleteIndexCardAsync(Guid userId, Guid cardId, CancellationToken cancellationToken = default)
     {
         var card = await _cardRepo.Query()
-            .FirstOrDefaultAsync(c => c.Id == cardId && c.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(c => c.Id == cardId, cancellationToken)
             ?? throw new KeyNotFoundException("Index card not found.");
+
+        if (!await CanWriteCardAsync(userId, card, cancellationToken))
+            throw new KeyNotFoundException("Index card not found.");
 
         var urls = HtmlImageUrls.GetImageUrls(card.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(card.Content ?? "")).ToList();
         foreach (var url in urls)
@@ -200,8 +242,19 @@ public sealed class IndexCardService : IIndexCardService
                 await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
         }
 
+        var boardId = card.BoardId;
         _cardRepo.Delete(card);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (boardId.HasValue)
+            await _boardHub.NotifyIndexCardDeletedAsync(boardId.Value, cardId, cancellationToken);
+    }
+
+    private async Task<bool> CanWriteCardAsync(Guid userId, IndexCard card, CancellationToken cancellationToken)
+    {
+        if (card.BoardId is null)
+            return card.UserId == userId;
+        return await _boardAccess.HasWriteAccessAsync(userId, card.BoardId.Value, cancellationToken);
     }
 
     private static IndexCardSummaryDto MapToSummary(IndexCard card) => new()

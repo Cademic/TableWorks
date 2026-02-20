@@ -11,28 +11,31 @@ public sealed class DrawingService : IDrawingService
     private readonly IRepository<Drawing> _drawingRepo;
     private readonly IRepository<Board> _boardRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IBoardAccessService _boardAccess;
+    private readonly IBoardHubBroadcaster _boardHub;
 
     public DrawingService(
         IRepository<Drawing> drawingRepo,
         IRepository<Board> boardRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IBoardAccessService boardAccess,
+        IBoardHubBroadcaster boardHub)
     {
         _drawingRepo = drawingRepo;
         _boardRepo = boardRepo;
         _unitOfWork = unitOfWork;
+        _boardAccess = boardAccess;
+        _boardHub = boardHub;
     }
 
     public async Task<DrawingDto> GetByBoardIdAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default)
     {
-        // Verify the board belongs to the user
-        var boardExists = await _boardRepo.Query()
-            .AnyAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken);
-
-        if (!boardExists)
+        if (!await _boardAccess.HasReadAccessAsync(userId, boardId, cancellationToken))
             throw new KeyNotFoundException("Board not found.");
 
+        // One logical drawing per board: load by BoardId
         var drawing = await _drawingRepo.Query()
-            .Where(d => d.BoardId == boardId && d.UserId == userId)
+            .Where(d => d.BoardId == boardId)
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -60,24 +63,24 @@ public sealed class DrawingService : IDrawingService
 
     public async Task<DrawingDto> SaveAsync(Guid userId, Guid boardId, SaveDrawingRequest request, CancellationToken cancellationToken = default)
     {
-        // Verify the board belongs to the user
-        var boardExists = await _boardRepo.Query()
-            .AnyAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken);
-
-        if (!boardExists)
+        if (!await _boardAccess.HasWriteAccessAsync(userId, boardId, cancellationToken))
             throw new KeyNotFoundException("Board not found.");
+
+        var board = await _boardRepo.Query()
+            .FirstOrDefaultAsync(b => b.Id == boardId, cancellationToken)
+            ?? throw new KeyNotFoundException("Board not found.");
 
         var now = DateTime.UtcNow;
 
         var drawing = await _drawingRepo.Query()
-            .FirstOrDefaultAsync(d => d.BoardId == boardId && d.UserId == userId, cancellationToken);
+            .FirstOrDefaultAsync(d => d.BoardId == boardId, cancellationToken);
 
         if (drawing is null)
         {
             drawing = new Drawing
             {
                 BoardId = boardId,
-                UserId = userId,
+                UserId = board.UserId,
                 CanvasJson = request.CanvasJson,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -89,22 +92,16 @@ public sealed class DrawingService : IDrawingService
         {
             drawing.CanvasJson = request.CanvasJson;
             drawing.UpdatedAt = now;
-
             _drawingRepo.Update(drawing);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Update the board's UpdatedAt timestamp
-        var board = await _boardRepo.Query()
-            .FirstOrDefaultAsync(b => b.Id == boardId && b.UserId == userId, cancellationToken);
+        board.UpdatedAt = now;
+        _boardRepo.Update(board);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        if (board is not null)
-        {
-            board.UpdatedAt = now;
-            _boardRepo.Update(board);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-        }
+        await _boardHub.NotifyDrawingUpdatedAsync(boardId, cancellationToken);
 
         return new DrawingDto
         {

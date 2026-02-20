@@ -21,14 +21,19 @@ interface StickyNoteProps {
   onDelete: (id: string) => void;
   onStartEdit: (id: string) => void;
   onSave: (id: string, title: string, content: string) => void;
+  /** Optional: called on debounced content/title change while editing (for real-time sync). If not provided, debounced save is skipped. */
+  onContentChange?: (id: string, title: string, content: string) => void;
   onResize: (id: string, width: number, height: number) => void;
   onColorChange: (id: string, color: string) => void;
   onRotationChange: (id: string, rotation: number) => void;
   onPinMouseDown?: (noteId: string) => void;
   onDrag?: (id: string, x: number, y: number) => void;
+  onDragStart?: (id: string) => void;
   onBringToFront?: (id: string) => void;
   /** True when any note on the board is being linked (used for pin hover styling) */
   isLinking?: boolean;
+  /** When other user(s) are focusing this note, show a border in their color(s). Multiple users can edit at once. */
+  focusedBy?: { userId: string; color: string }[] | null;
   zoom?: number;
 }
 
@@ -79,16 +84,20 @@ export function StickyNote({
   onDelete,
   onStartEdit,
   onSave,
+  onContentChange,
   onResize,
   onColorChange,
   onRotationChange,
   onPinMouseDown,
   onDrag,
+  onDragStart,
   onBringToFront,
   isLinking,
+  focusedBy,
   zoom = 1,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
+  const ignoreBlurUntilRef = useRef<number>(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const colorKey = resolveNoteColorKey(note);
   const color = NOTE_COLORS[colorKey];
@@ -152,29 +161,89 @@ export function StickyNote({
 
   // Toggle editable when isEditing changes
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'StickyNote.tsx:163',message:'isEditing changed',data:{noteId:note.id,isEditing,titleEditorExists:!!titleEditor,contentEditorExists:!!contentEditor},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
+    // #endregion
     titleEditor?.setEditable(isEditing);
     contentEditor?.setEditable(isEditing);
+    if (isEditing) {
+      ignoreBlurUntilRef.current = Date.now() + 2000;
+    }
   }, [titleEditor, contentEditor, isEditing]);
-
-  // Sync title editor from props when NOT editing
+  
   useEffect(() => {
-    if (!isEditing && titleEditor && !titleEditor.isFocused) {
-      const currentHtml = titleEditor.getHTML();
-      if (currentHtml !== (note.title ?? "") && note.title !== undefined) {
-        titleEditor.commands.setContent(note.title || "", { emitUpdate: false });
+    if (focusedBy && focusedBy.length > 0) {
+      ignoreBlurUntilRef.current = Date.now() + 2000;
+    }
+  }, [focusedBy]);
+  
+  useEffect(() => {
+    if (isEditing) {
+      ignoreBlurUntilRef.current = Date.now() + 2000;
+    }
+  }, [note.title, note.content, note.positionX, note.positionY, note.width, note.height, note.color, note.rotation, isEditing]);
+
+  // Sync title editor from props
+  useEffect(() => {
+    if (!titleEditor) return;
+    const currentHtml = titleEditor.getHTML();
+    const propHtml = note.title ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative editing)
+      if (!isEditing) {
+        if (!titleEditor.isFocused) {
+          titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        // When editing, sync remote changes even if focused
+        titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [note.title, isEditing, titleEditor]);
 
-  // Sync content editor from props when NOT editing
+  // Sync content editor from props
   useEffect(() => {
-    if (!isEditing && contentEditor && !contentEditor.isFocused) {
-      const currentHtml = contentEditor.getHTML();
-      if (currentHtml !== note.content && note.content !== undefined) {
-        contentEditor.commands.setContent(note.content || "", { emitUpdate: false });
+    if (!contentEditor) return;
+    const currentHtml = contentEditor.getHTML();
+    const propHtml = note.content ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative editing)
+      if (!isEditing) {
+        if (!contentEditor.isFocused) {
+          contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        // When editing, sync remote changes even if focused
+        contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [note.content, isEditing, contentEditor]);
+
+  // Debounced content push while typing so other clients see updates in real time (only when onContentChange provided)
+  const SAVE_DEBOUNCE_MS = 400;
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onContentChangeRef = useRef(onContentChange);
+  onContentChangeRef.current = onContentChange;
+  useEffect(() => {
+    if (!onContentChangeRef.current || !isEditing || !titleEditor || !contentEditor) return;
+    const flush = () => {
+      onContentChangeRef.current?.(note.id, titleEditor.getHTML(), contentEditor.getHTML());
+    };
+    const onUpdate = () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+    };
+    titleEditor.on("update", onUpdate);
+    contentEditor.on("update", onUpdate);
+    return () => {
+      titleEditor.off("update", onUpdate);
+      contentEditor.off("update", onUpdate);
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    };
+  }, [isEditing, note.id, titleEditor, contentEditor]);
 
   // Keep stable refs for parent callbacks so resize handlers never go stale
   const onResizeRef = useRef(onResize);
@@ -274,7 +343,16 @@ export function StickyNote({
   const handleBlur = useCallback(
     (e: React.FocusEvent) => {
       const relatedTarget = e.relatedTarget as Node | null;
+      // #region agent log
+      const now = Date.now();
+      const ignoreUntil = ignoreBlurUntilRef.current;
+      const shouldIgnore = now < ignoreUntil;
+      fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'StickyNote.tsx:306',message:'handleBlur called',data:{noteId:note.id,isEditing,relatedTarget:relatedTarget?.nodeName||null,contains:nodeRef.current?.contains(relatedTarget)||false,shouldIgnore,ignoreUntil,now},timestamp:now,runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
+      // #endregion
       if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
+        return;
+      }
+      if (now < ignoreBlurUntilRef.current) {
         return;
       }
       if (isEditing && titleEditor && contentEditor) {
@@ -453,6 +531,7 @@ export function StickyNote({
     <Draggable
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
       position={position}
+      onStart={() => onDragStart?.(note.id)}
       onStop={handleDragStop}
       onDrag={(_e, data) => onDrag?.(note.id, data.x, data.y)}
       handle=".sticky-handle"
@@ -475,11 +554,20 @@ export function StickyNote({
           className={[
             "relative overflow-visible rounded shadow-lg transition-shadow hover:shadow-xl",
             isEditing ? "cursor-default ring-2 ring-primary/40" : "cursor-pointer",
+            focusedBy?.length ? "ring-[3px]" : "",
             color.bg,
           ]
             .filter(Boolean)
             .join(" ")}
           style={{
+            ...(focusedBy?.length
+              ? {
+                  boxShadow: [
+                    ...focusedBy.map((u, i) => `0 0 0 ${3 + i * 3}px ${u.color}`),
+                    `0 0 12px 2px ${focusedBy[0]!.color}40`,
+                  ].join(", "),
+                }
+              : {}),
             width: "100%",
             minHeight: `${size.height}px`,
             transformOrigin: "center center",

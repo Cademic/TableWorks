@@ -6,6 +6,9 @@ interface CorkBoardProps {
   children: ReactNode;
   boardRef?: React.RefObject<HTMLDivElement | null>;
   onDropItem?: (type: string, x: number, y: number) => void;
+  /** Board-space (canvas) coords when mouse moves over the viewport */
+  onBoardMouseMove?: (x: number, y: number) => void;
+  onBoardMouseLeave?: () => void;
   zoom: number;
   panX: number;
   panY: number;
@@ -20,7 +23,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
+export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -68,6 +71,17 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
 
     onDropItem(itemType, canvasX, canvasY);
   }
+
+  const handleViewportMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect || !onBoardMouseMove) return;
+      const x = (e.clientX - rect.left) / zoom - panX;
+      const y = (e.clientY - rect.top) / zoom - panY;
+      onBoardMouseMove(x, y);
+    },
+    [zoom, panX, panY, onBoardMouseMove],
+  );
 
   // ---- Wheel zoom (Ctrl + scroll only) ----
 
@@ -243,6 +257,8 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onMouseDown={handleMouseDown}
+        onMouseMove={onBoardMouseMove ? handleViewportMouseMove : undefined}
+        onMouseLeave={onBoardMouseLeave}
       >
         {/* Canvas (transformed layer) */}
         <div

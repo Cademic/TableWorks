@@ -3,10 +3,14 @@ import { User, Settings, LogOut, ChevronDown, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getAvatarUrl } from "../../constants/avatars";
+import { getColorForUserId } from "../../lib/presenceColors";
+import type { BoardPresenceUser } from "./AppLayout";
 
 interface NavbarProps {
   /** Item name (notebook, board, project) when viewing a detail page */
   boardName?: string | null;
+  /** Connected users on the current board (when on board route) */
+  connectedUsers?: BoardPresenceUser[];
   /** Called when hamburger is clicked (mobile only) */
   onToggleSidebar?: () => void;
   /** Show hamburger menu button (true when viewport is below sidebar breakpoint) */
@@ -71,12 +75,15 @@ function getBreadcrumbs(pathname: string, itemName: string | null): BreadcrumbSe
   return segments;
 }
 
-export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarProps) {
+export function Navbar({ boardName, connectedUsers = [], onToggleSidebar, showMenuButton }: NavbarProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isBoardRoute = /^\/boards\/[^/]+$/.test(location.pathname) || /^\/chalkboards\/[^/]+$/.test(location.pathname);
+  const showConnectedUsers = isBoardRoute && connectedUsers.length > 0;
 
   const breadcrumbs = useMemo(
     () => getBreadcrumbs(location.pathname, boardName ?? null),
@@ -150,6 +157,29 @@ export function Navbar({ boardName, onToggleSidebar, showMenuButton }: NavbarPro
           })}
         </nav>
       </div>
+
+      {/* Center/Right: Connected users (on board) then User menu */}
+      {showConnectedUsers && (
+        <div
+          className="flex items-center gap-2 overflow-hidden rounded-lg border border-border/50 bg-background/80 px-2 py-1.5"
+          aria-label="Connected users on this board"
+        >
+          {connectedUsers.map((u) => (
+            <div
+              key={u.userId}
+              className="flex items-center gap-1.5 min-w-0 max-w-[120px] sm:max-w-[140px]"
+              title={u.displayName}
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: getColorForUserId(u.userId) }}
+                aria-hidden
+              />
+              <span className="truncate text-xs text-foreground/80">{u.displayName}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Right: User menu dropdown */}
       <div className="relative" ref={dropdownRef}>

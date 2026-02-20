@@ -27,14 +27,19 @@ interface IndexCardProps {
   onDelete: (id: string) => void;
   onStartEdit: (id: string) => void;
   onSave: (id: string, title: string, content: string) => void;
+  /** Optional: called on debounced content/title change while editing (for real-time sync). If not provided, debounced save is skipped. */
+  onContentChange?: (id: string, title: string, content: string) => void;
   onResize: (id: string, width: number, height: number) => void;
   onColorChange: (id: string, color: string) => void;
   onRotationChange: (id: string, rotation: number) => void;
   onPinMouseDown?: (cardId: string) => void;
   onDrag?: (id: string, x: number, y: number) => void;
+  onDragStart?: (id: string) => void;
   onBringToFront?: (id: string) => void;
   /** True when any item on the board is being linked (used for pin hover styling) */
   isLinking?: boolean;
+  /** When other user(s) are focusing this card, show a border in their color(s). Multiple users can edit at once. */
+  focusedBy?: { userId: string; color: string }[] | null;
   zoom?: number;
 }
 
@@ -78,13 +83,16 @@ export function IndexCard({
   onDelete,
   onStartEdit,
   onSave,
+  onContentChange,
   onResize,
   onColorChange,
   onRotationChange,
   onPinMouseDown,
   onDrag,
+  onDragStart,
   onBringToFront,
   isLinking,
+  focusedBy,
   zoom = 1,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -180,6 +188,30 @@ export function IndexCard({
       }
     }
   }, [card.content, isEditing, contentEditor]);
+
+  // Debounced content push while typing so other clients see updates in real time (only when onContentChange provided)
+  const SAVE_DEBOUNCE_MS = 400;
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onContentChangeRef = useRef(onContentChange);
+  onContentChangeRef.current = onContentChange;
+  useEffect(() => {
+    if (!onContentChangeRef.current || !isEditing || !titleEditor || !contentEditor) return;
+    const flush = () => {
+      onContentChangeRef.current?.(card.id, titleEditor.getHTML(), contentEditor.getHTML());
+    };
+    const onUpdate = () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+    };
+    titleEditor.on("update", onUpdate);
+    contentEditor.on("update", onUpdate);
+    return () => {
+      titleEditor.off("update", onUpdate);
+      contentEditor.off("update", onUpdate);
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    };
+  }, [isEditing, card.id, titleEditor, contentEditor]);
 
   // Keep stable refs for parent callbacks so resize handlers never go stale
   const onResizeRef = useRef(onResize);
@@ -454,6 +486,7 @@ export function IndexCard({
     <Draggable
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
       position={position}
+      onStart={() => onDragStart?.(card.id)}
       onStop={handleDragStop}
       onDrag={(_e, data) => onDrag?.(card.id, data.x, data.y)}
       handle=".index-card-handle"
@@ -475,11 +508,20 @@ export function IndexCard({
           className={[
             "index-card relative overflow-visible rounded-md shadow-lg transition-shadow hover:shadow-xl",
             isEditing ? "cursor-default ring-2 ring-primary/40" : "cursor-pointer",
+            focusedBy?.length ? "ring-[3px]" : "",
             color.bg,
           ]
             .filter(Boolean)
             .join(" ")}
           style={{
+            ...(focusedBy?.length
+              ? {
+                  boxShadow: [
+                    ...focusedBy.map((u, i) => `0 0 0 ${3 + i * 3}px ${u.color}`),
+                    `0 0 12px 2px ${focusedBy[0]!.color}40`,
+                  ].join(", "),
+                }
+              : {}),
             width: "100%",
             minHeight: `${size.height}px`,
             transformOrigin: "center center",

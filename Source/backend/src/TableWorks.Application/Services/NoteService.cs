@@ -16,32 +16,50 @@ public sealed class NoteService : INoteService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IImageStorageService _imageStorage;
     private readonly IUserStorageService _userStorage;
+    private readonly IBoardAccessService _boardAccess;
+    private readonly IBoardHubBroadcaster _boardHub;
 
     public NoteService(
         IRepository<Note> noteRepo,
         IRepository<NoteTag> noteTagRepo,
         IUnitOfWork unitOfWork,
         IImageStorageService imageStorage,
-        IUserStorageService userStorage)
+        IUserStorageService userStorage,
+        IBoardAccessService boardAccess,
+        IBoardHubBroadcaster boardHub)
     {
         _noteRepo = noteRepo;
         _noteTagRepo = noteTagRepo;
         _unitOfWork = unitOfWork;
         _imageStorage = imageStorage;
         _userStorage = userStorage;
+        _boardAccess = boardAccess;
+        _boardHub = boardHub;
     }
 
     public async Task<PaginatedResponse<NoteSummaryDto>> GetNotesAsync(Guid userId, NoteListQuery query, CancellationToken cancellationToken = default)
     {
-        var q = _noteRepo.Query()
-            .Where(n => n.UserId == userId && !n.IsArchived)
-            .Include(n => n.NoteTags)
-                .ThenInclude(nt => nt.Tag)
-            .AsQueryable();
+        IQueryable<Note> q;
 
-        // Filters
-        if (query.BoardId.HasValue)
-            q = q.Where(n => n.BoardId == query.BoardId.Value);
+        if (query.BoardId.HasValue && await _boardAccess.HasReadAccessAsync(userId, query.BoardId.Value, cancellationToken))
+        {
+            q = _noteRepo.Query()
+                .Where(n => n.BoardId == query.BoardId.Value && !n.IsArchived)
+                .Include(n => n.NoteTags)
+                    .ThenInclude(nt => nt.Tag)
+                .AsQueryable();
+        }
+        else
+        {
+            q = _noteRepo.Query()
+                .Where(n => n.UserId == userId && !n.IsArchived)
+                .Include(n => n.NoteTags)
+                    .ThenInclude(nt => nt.Tag)
+                .AsQueryable();
+
+            if (query.BoardId.HasValue)
+                q = q.Where(n => n.BoardId == query.BoardId.Value);
+        }
 
         if (query.FolderId.HasValue)
             q = q.Where(n => n.FolderId == query.FolderId.Value);
@@ -95,6 +113,9 @@ public sealed class NoteService : INoteService
 
     public async Task<NoteDetailDto> CreateNoteAsync(Guid userId, CreateNoteRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.BoardId.HasValue && !await _boardAccess.HasWriteAccessAsync(userId, request.BoardId.Value, cancellationToken))
+            throw new UnauthorizedAccessException("You do not have permission to add notes to this board.");
+
         var now = DateTime.UtcNow;
         var note = new Note
         {
@@ -128,6 +149,9 @@ public sealed class NoteService : INoteService
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
+        if (note.BoardId.HasValue)
+            await _boardHub.NotifyNoteAddedAsync(note.BoardId.Value, note.Id, cancellationToken);
+
         return await GetNoteByIdAsync(userId, note.Id, cancellationToken);
     }
 
@@ -137,8 +161,14 @@ public sealed class NoteService : INoteService
             .Include(n => n.NoteTags)
                 .ThenInclude(nt => nt.Tag)
             .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == noteId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
+
+        if (note.UserId != userId)
+        {
+            if (note.BoardId is null || !await _boardAccess.HasReadAccessAsync(userId, note.BoardId.Value, cancellationToken))
+                throw new KeyNotFoundException("Note not found.");
+        }
 
         return MapToDetail(note);
     }
@@ -147,8 +177,12 @@ public sealed class NoteService : INoteService
     {
         var note = await _noteRepo.Query()
             .Include(n => n.NoteTags)
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == noteId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
+
+        if (!await CanWriteNoteAsync(userId, note, cancellationToken))
+            throw new KeyNotFoundException("Note not found.");
+
 
         note.Title = request.Title;
         note.Content = request.Content;
@@ -172,13 +206,22 @@ public sealed class NoteService : INoteService
             await _noteTagRepo.AddAsync(new NoteTag { NoteId = noteId, TagId = tagId }, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (note.BoardId.HasValue)
+        {
+            var payload = new { id = note.Id, positionX = note.PositionX, positionY = note.PositionY, title = note.Title, content = note.Content, width = note.Width, height = note.Height, color = note.Color, rotation = note.Rotation };
+            await _boardHub.NotifyNoteUpdatedAsync(note.BoardId.Value, noteId, payload, cancellationToken);
+        }
     }
 
     public async Task PatchNoteContentAsync(Guid userId, Guid noteId, PatchNoteRequest request, CancellationToken cancellationToken = default)
     {
         var note = await _noteRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == noteId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
+
+        if (!await CanWriteNoteAsync(userId, note, cancellationToken))
+            throw new KeyNotFoundException("Note not found.");
 
         if (request.Content is not null)
         {
@@ -215,13 +258,22 @@ public sealed class NoteService : INoteService
         note.LastSavedAt = DateTime.UtcNow;
         _noteRepo.Update(note);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (note.BoardId.HasValue)
+        {
+            var payload = new { id = note.Id, positionX = note.PositionX, positionY = note.PositionY, title = note.Title, content = note.Content, width = note.Width, height = note.Height, color = note.Color, rotation = note.Rotation };
+            await _boardHub.NotifyNoteUpdatedAsync(note.BoardId.Value, noteId, payload, cancellationToken);
+        }
     }
 
     public async Task DeleteNoteAsync(Guid userId, Guid noteId, CancellationToken cancellationToken = default)
     {
         var note = await _noteRepo.Query()
-            .FirstOrDefaultAsync(n => n.Id == noteId && n.UserId == userId, cancellationToken)
+            .FirstOrDefaultAsync(n => n.Id == noteId, cancellationToken)
             ?? throw new KeyNotFoundException("Note not found.");
+
+        if (!await CanWriteNoteAsync(userId, note, cancellationToken))
+            throw new KeyNotFoundException("Note not found.");
 
         var urls = HtmlImageUrls.GetImageUrls(note.Title ?? "").Concat(HtmlImageUrls.GetImageUrls(note.Content ?? "")).ToList();
         foreach (var url in urls)
@@ -231,16 +283,27 @@ public sealed class NoteService : INoteService
                 await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
         }
 
+        var boardId = note.BoardId;
         _noteRepo.Delete(note);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (boardId.HasValue)
+            await _boardHub.NotifyNoteDeletedAsync(boardId.Value, noteId, cancellationToken);
     }
 
     public async Task BulkActionAsync(Guid userId, BulkNoteRequest request, CancellationToken cancellationToken = default)
     {
-        var notes = await _noteRepo.Query()
+        var candidates = await _noteRepo.Query()
             .Include(n => n.NoteTags)
-            .Where(n => request.NoteIds.Contains(n.Id) && n.UserId == userId)
+            .Where(n => request.NoteIds.Contains(n.Id))
             .ToListAsync(cancellationToken);
+
+        var notes = new List<Note>();
+        foreach (var note in candidates)
+        {
+            if (await CanWriteNoteAsync(userId, note, cancellationToken))
+                notes.Add(note);
+        }
 
         switch (request.Action)
         {
@@ -276,6 +339,13 @@ public sealed class NoteService : INoteService
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<bool> CanWriteNoteAsync(Guid userId, Note note, CancellationToken cancellationToken)
+    {
+        if (note.BoardId is null)
+            return note.UserId == userId;
+        return await _boardAccess.HasWriteAccessAsync(userId, note.BoardId.Value, cancellationToken);
     }
 
     private static NoteSummaryDto MapToSummary(Note note) => new()

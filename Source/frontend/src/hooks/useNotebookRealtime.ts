@@ -142,7 +142,9 @@ export function useNotebookRealtime(
     }, 0);
 
     if (import.meta.env.DEV) {
-      connection.onclose((error) => console.warn("[useNotebookRealtime] Closed:", error?.message));
+      connection.onclose((error) => {
+        if (error?.message) console.warn("[useNotebookRealtime] Closed:", error.message);
+      });
       connection.onreconnected(() => {
         connection.invoke("JoinNotebook", notebookId).catch(() => {});
       });

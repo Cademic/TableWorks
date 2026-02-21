@@ -155,6 +155,37 @@ body {
     radial-gradient(circle at 30% 90%, rgba(140, 100, 50, 0.12) 0%, transparent 30%);
 }
 
+/* Cork board background themes: WhiteBoard and Blackboard */
+.corkboard-surface--whiteboard {
+  background-color: #f9fafb !important;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(0, 0, 0, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(0, 0, 0, 0.02) 0%, transparent 50%) !important;
+  box-shadow: inset 0 0 8px 2px rgba(0, 0, 0, 0.08) !important;
+}
+
+.dark .corkboard-surface--whiteboard {
+  background-color: #e5e7eb !important;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(0, 0, 0, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(0, 0, 0, 0.03) 0%, transparent 50%) !important;
+}
+
+.corkboard-surface--blackboard {
+  background-color: #1f2937 !important;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(255, 255, 255, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(255, 255, 255, 0.01) 0%, transparent 50%) !important;
+  box-shadow: inset 0 0 8px 2px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .corkboard-surface--blackboard {
+  background-color: #111827 !important;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(255, 255, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(255, 255, 255, 0.02) 0%, transparent 50%) !important;
+}
+
 /* Chalk Board Styles */
 .chalkboard-frame {
   padding: 12px;
@@ -187,6 +218,34 @@ body {
 .chalkboard-surface {
   border-radius: 2px;
   box-shadow: inset 0 0 8px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Chalkboard frame – gray metallic (shared by whiteboard/blackboard) */
+.chalkboard-frame--blackboard,
+.chalkboard-frame--whiteboard {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 30px,
+      rgba(0, 0, 0, 0.06) 30px,
+      rgba(0, 0, 0, 0.06) 31px
+    ),
+    linear-gradient(
+      160deg,
+      #8b92a0 0%,
+      #6b7280 15%,
+      #5b6170 30%,
+      #4b5263 50%,
+      #5b6170 70%,
+      #6b7280 85%,
+      #8b92a0 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 4px 16px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 .dark .chalkboard-frame {

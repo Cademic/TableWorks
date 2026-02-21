@@ -43,6 +43,8 @@ interface StickyNoteProps {
   /** Called when user clicks the drag handle while editing (to exit edit mode) */
   onExitEdit?: (id: string) => void;
   zoom?: number;
+  /** When true, visually scale the note when editing (for better readability) */
+  enlargeWhenEditing?: boolean;
 }
 
 const DEFAULT_SIZE = 270;
@@ -159,6 +161,7 @@ export function StickyNote({
   onUnmount,
   onExitEdit,
   zoom = 1,
+  enlargeWhenEditing = false,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const ignoreBlurUntilRef = useRef<number>(0);
@@ -676,7 +679,10 @@ export function StickyNote({
             width: "100%",
             minHeight: `${size.height}px`,
             transformOrigin: "center center",
-            rotate: isEditing ? "0deg" : `${note.rotation ?? 0}deg`,
+            transform: [
+              enlargeWhenEditing && isEditing ? "scale(1.25)" : "scale(1)",
+              `rotate(${isEditing ? 0 : note.rotation ?? 0}deg)`,
+            ].join(" "),
           }}
           onClick={(e) => {
             // Ignore click if it follows a drag (drag release fires click, which would open edit)

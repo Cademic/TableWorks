@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
-import { Plus, StickyNote as StickyNoteIcon, CreditCard, ChevronUp, Image as ImageIcon } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
+import { BoardMenuBar, type BoardBackgroundTheme } from "../components/dashboard/BoardMenuBar";
+import { BoardConnectedUsers } from "../components/dashboard/BoardConnectedUsers";
 import { CorkBoard } from "../components/dashboard/CorkBoard";
 import { StickyNote } from "../components/dashboard/StickyNote";
 import { IndexCard } from "../components/dashboard/IndexCard";
@@ -38,12 +39,18 @@ import { useBoardRealtime, type BoardItemUpdatePayload, type BoardPresenceUser }
 import { useAuth } from "../context/AuthContext";
 import { getColorForUserId } from "../lib/presenceColors";
 import { resolveNoteColorKey, resolveCardColorKey } from "../lib/boardItemColors";
+import {
+  createBoardExportPayload,
+  triggerBoardDownload,
+  buildBoardExportFilename,
+  parseBoardExportFile,
+} from "../lib/boardExport";
 
 let nextTempCardId = 1;
 
 export function NoteBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const { setBoardName, openBoard, setBoardPresence } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, openBoard, setBoardPresence, connectedUsers } = useOutletContext<AppLayoutContext>();
   const { isAuthenticated, user } = useAuth();
   const currentUserId = user?.userId ?? null;
 
@@ -57,7 +64,27 @@ export function NoteBoardPage() {
   const [editingCardIds, setEditingCardIds] = useState<Set<string>>(new Set());
   const primaryEditingNoteIdRef = useRef<string | null>(null);
   const primaryEditingCardIdRef = useRef<string | null>(null);
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const loadFileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Board UI preferences (persist in localStorage) ---
+  const [backgroundTheme, setBackgroundTheme] = useState<BoardBackgroundTheme>(() => {
+    if (!boardId) return "default";
+    try {
+      const saved = localStorage.getItem(`board-theme-${boardId}`);
+      if (saved === "whiteboard" || saved === "blackboard" || saved === "default") return saved;
+    } catch {
+      // ignore
+    }
+    return "default";
+  });
+  const [autoEnlargeNotes, setAutoEnlargeNotes] = useState(() => {
+    if (!boardId) return false;
+    try {
+      return localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // --- Z-index stacking order ---
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
@@ -113,7 +140,6 @@ export function NoteBoardPage() {
   const boardRef = useRef<HTMLDivElement>(null);
   const linkingFromRef = useRef<string | null>(null);
   const connectionsRef = useRef(connections);
-  const addMenuRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const imageIdsRef = useRef<Set<string>>(new Set());
   const deletedImageIdsRef = useRef<Set<string>>(new Set());
@@ -162,6 +188,38 @@ export function NoteBoardPage() {
     };
   }, [boardId, zoom, panX, panY]);
 
+  // Sync backgroundTheme and autoEnlargeNotes from localStorage when boardId changes
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      const theme = localStorage.getItem(`board-theme-${boardId}`);
+      if (theme === "whiteboard" || theme === "blackboard" || theme === "default") {
+        setBackgroundTheme(theme);
+      }
+      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1");
+    } catch {
+      // ignore
+    }
+  }, [boardId]);
+
+  // Persist backgroundTheme and autoEnlargeNotes when changed
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`board-theme-${boardId}`, backgroundTheme);
+    } catch {
+      // ignore
+    }
+  }, [boardId, backgroundTheme]);
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`board-auto-enlarge-${boardId}`, autoEnlargeNotes ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [boardId, autoEnlargeNotes]);
+
   function handleViewportChange(newZoom: number, newPanX: number, newPanY: number) {
     setZoom(newZoom);
     setPanX(newPanX);
@@ -171,18 +229,6 @@ export function NoteBoardPage() {
   // Keep refs in sync so document listeners can read latest value
   linkingFromRef.current = linkingFrom;
   connectionsRef.current = connections;
-
-  // Close add menu when clicking outside
-  useEffect(() => {
-    if (!showAddMenu) return;
-    function onClickOutside(e: MouseEvent) {
-      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
-        setShowAddMenu(false);
-      }
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [showAddMenu]);
 
   const fetchData = useCallback(async () => {
     if (!boardId) return;
@@ -978,7 +1024,6 @@ export function NoteBoardPage() {
 
   async function handleQuickAddNote() {
     if (!boardId) return;
-    setShowAddMenu(false);
     try {
       const positionX = 30 + Math.random() * 400;
       const positionY = 30 + Math.random() * 300;
@@ -1212,7 +1257,6 @@ export function NoteBoardPage() {
 
   async function handleQuickAddCard() {
     if (!boardId) return;
-    setShowAddMenu(false);
     const positionX = 30 + Math.random() * 300;
     const positionY = 30 + Math.random() * 200;
     const tempId = `temp-card-${nextTempCardId++}`;
@@ -1403,7 +1447,6 @@ export function NoteBoardPage() {
 
   async function handleQuickAddImage() {
     if (!boardId) return;
-    setShowAddMenu(false);
     setPendingImageDrop(null);
     imageFileInputRef.current?.click();
   }
@@ -1553,6 +1596,167 @@ export function NoteBoardPage() {
     } catch {
       fetchData();
     }
+  }
+
+  // =============================================
+  // File save/load and menu actions
+  // =============================================
+
+  function handleSaveToFile() {
+    const payload = createBoardExportPayload("NoteBoard", board?.name ?? "Board", {
+      notes,
+      indexCards,
+      imageCards,
+      connections,
+      viewport: { zoom, panX, panY },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    triggerBoardDownload(blob, buildBoardExportFilename(board?.name ?? "board"));
+  }
+
+  function handleLoadFromFile() {
+    loadFileInputRef.current?.click();
+  }
+
+  async function handleLoadFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !boardId) return;
+    try {
+      const text = await file.text();
+      const payload = parseBoardExportFile(text);
+      if (!payload || payload.boardType !== "NoteBoard") {
+        return; // Invalid or wrong board type
+      }
+      setEditingNoteIds(new Set());
+      setEditingCardIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+      primaryEditingCardIdRef.current = null;
+      const idMap = new Map<string, string>();
+
+      // Delete existing items
+      for (const conn of connections) {
+        try {
+          await deleteConnection(conn.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const img of imageCards) {
+        try {
+          await deleteBoardImageCard(boardId, img.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const card of indexCards) {
+        try {
+          await deleteIndexCard(card.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const note of notes) {
+        try {
+          await deleteNote(note.id);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Create notes
+      const newNotes: NoteSummaryDto[] = [];
+      for (const n of payload.notes ?? []) {
+        const created = await createNote({
+          content: n.content,
+          boardId,
+          title: n.title ?? undefined,
+          positionX: n.positionX ?? 20,
+          positionY: n.positionY ?? 20,
+          width: n.width ?? undefined,
+          height: n.height ?? undefined,
+          color: n.color ?? undefined,
+          rotation: n.rotation ?? undefined,
+        });
+        idMap.set(n.id, created.id);
+        newNotes.push(created);
+      }
+
+      // Create index cards
+      const newCards: IndexCardSummaryDto[] = [];
+      for (const c of payload.indexCards ?? []) {
+        const created = await createIndexCard({
+          content: c.content,
+          boardId,
+          title: c.title ?? undefined,
+          positionX: c.positionX ?? 20,
+          positionY: c.positionY ?? 20,
+          width: c.width ?? undefined,
+          height: c.height ?? undefined,
+          color: c.color ?? undefined,
+          rotation: c.rotation ?? undefined,
+        });
+        idMap.set(c.id, created.id);
+        newCards.push(created);
+      }
+
+      // Create image cards
+      const newImages: BoardImageSummaryDto[] = [];
+      for (const img of payload.imageCards ?? []) {
+        const created = await createBoardImageCard(boardId, {
+          imageUrl: img.imageUrl,
+          positionX: img.positionX,
+          positionY: img.positionY,
+          width: img.width ?? undefined,
+          height: img.height ?? undefined,
+          rotation: img.rotation ?? undefined,
+        });
+        idMap.set(img.id, created.id);
+        newImages.push(created);
+      }
+
+      // Create connections (with mapped IDs)
+      for (const conn of payload.connections ?? []) {
+        const fromId = idMap.get(conn.fromItemId);
+        const toId = idMap.get(conn.toItemId);
+        if (fromId && toId) {
+          try {
+            await createConnection({
+              fromItemId: fromId,
+              toItemId: toId,
+              boardId,
+            });
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // Restore viewport
+      if (payload.viewport) {
+        setZoom(payload.viewport.zoom);
+        setPanX(payload.viewport.panX);
+        setPanY(payload.viewport.panY);
+      }
+
+      await fetchData();
+    } catch {
+      // Load failed
+    }
+  }
+
+  function triggerMenuUndo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true })
+    );
+  }
+
+  function triggerMenuRedo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true })
+    );
   }
 
   // =============================================
@@ -1748,9 +1952,44 @@ export function NoteBoardPage() {
   const isEmpty = notes.length === 0 && indexCards.length === 0 && imageCards.length === 0;
 
   return (
-    <div className="relative h-full">
+    <div className="relative flex h-full flex-col">
+      {/* Menu bar - paper style with online users on left */}
+      <div className="notepad-card flex-shrink-0 !overflow-visible border-b border-border/50 z-10">
+        <div className="notepad-spiral-strip" />
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <BoardMenuBar
+          boardType="NoteBoard"
+          zoom={zoom}
+          onZoomChange={(z) => handleViewportChange(z, panX, panY)}
+          onSaveToFile={handleSaveToFile}
+          onLoadFromFile={handleLoadFromFile}
+          onUndo={triggerMenuUndo}
+          onRedo={triggerMenuRedo}
+          canUndo={boardUndoStackRef.current.length > 0}
+          canRedo={boardRedoStackRef.current.length > 0}
+          onInsertStickyNote={handleQuickAddNote}
+          onInsertIndexCard={handleQuickAddCard}
+          onInsertImage={handleQuickAddImage}
+          backgroundTheme={backgroundTheme}
+          onBackgroundThemeChange={setBackgroundTheme}
+          autoEnlargeNotes={autoEnlargeNotes}
+          onAutoEnlargeNotesChange={setAutoEnlargeNotes}
+        />
+          </div>
+          <BoardConnectedUsers users={connectedUsers} />
+        </div>
+      </div>
+      <input
+        ref={loadFileInputRef}
+        type="file"
+        accept=".json,.asidenote-board,application/json"
+        className="hidden"
+        aria-hidden
+        onChange={handleLoadFileSelect}
+      />
       {/* Board content */}
-      <div className="absolute inset-0">
+      <div className="relative flex-1 min-h-0">
         <CorkBoard
           boardRef={boardRef}
           onDropItem={handleBoardDrop}
@@ -1768,6 +2007,7 @@ export function NoteBoardPage() {
           panX={panX}
           panY={panY}
           onViewportChange={handleViewportChange}
+          backgroundTheme={backgroundTheme}
         >
           {/* Remote cursors layer (board-space coords, same transform as canvas) */}
           <div className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden>
@@ -1804,6 +2044,7 @@ export function NoteBoardPage() {
               key={note.id}
               note={note}
               isEditing={editingNoteIds.has(note.id)}
+              enlargeWhenEditing={autoEnlargeNotes}
               focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
               remoteTextCursors={Array.from(remoteTextCursors.entries())
                 .filter(([, v]) => v.itemType === "note" && v.itemId === note.id)
@@ -1850,6 +2091,7 @@ export function NoteBoardPage() {
               key={card.id}
               card={card}
               isEditing={editingCardIds.has(card.id)}
+              enlargeWhenEditing={autoEnlargeNotes}
               focusedBy={remoteFocus.get(`card:${card.id}`) ?? null}
               zIndex={zIndexMap[card.id] ?? 0}
               onDrag={handleCardDrag}
@@ -1889,60 +2131,6 @@ export function NoteBoardPage() {
             onChange={handleImageFileSelect}
           />
         </CorkBoard>
-      </div>
-
-      {/* Floating Add Button with popover menu */}
-      <div ref={addMenuRef} className="absolute bottom-6 right-6 z-20">
-        {/* Popover menu */}
-        <div
-          className={[
-            "absolute bottom-16 right-0 mb-2 overflow-hidden rounded-xl bg-white shadow-xl border border-gray-200 transition-all duration-200 origin-bottom-right dark:bg-gray-800 dark:border-gray-700",
-            showAddMenu
-              ? "scale-100 opacity-100 pointer-events-auto"
-              : "scale-90 opacity-0 pointer-events-none",
-          ].join(" ")}
-        >
-          <div className="py-1">
-            <button
-              type="button"
-              onClick={handleQuickAddImage}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <ImageIcon className="h-4 w-4 text-emerald-500" />
-              <span>Image</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickAddNote}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <StickyNoteIcon className="h-4 w-4 text-yellow-500" />
-              <span>Sticky Note</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickAddCard}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <CreditCard className="h-4 w-4 text-sky-500" />
-              <span>Index Card</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Main button */}
-        <button
-          type="button"
-          onClick={() => setShowAddMenu((prev) => !prev)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20"
-          aria-label="Add new item"
-        >
-          {showAddMenu ? (
-            <ChevronUp className="h-6 w-6" />
-          ) : (
-            <Plus className="h-6 w-6" />
-          )}
-        </button>
       </div>
     </div>
   );

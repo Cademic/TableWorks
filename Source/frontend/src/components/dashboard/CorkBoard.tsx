@@ -2,6 +2,8 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { ZoomControls } from "./ZoomControls";
 import { useTouchViewport } from "../../hooks/useTouchViewport";
 
+export type CorkBoardBackgroundTheme = "whiteboard" | "blackboard" | "default";
+
 interface CorkBoardProps {
   children: ReactNode;
   boardRef?: React.RefObject<HTMLDivElement | null>;
@@ -15,6 +17,8 @@ interface CorkBoardProps {
   panX: number;
   panY: number;
   onViewportChange: (zoom: number, panX: number, panY: number) => void;
+  /** Background theme: whiteboard (light), blackboard (dark), or default (cork) */
+  backgroundTheme?: CorkBoardBackgroundTheme;
 }
 
 const MIN_ZOOM = 0.25;
@@ -25,7 +29,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
+export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange, backgroundTheme = "default" }: CorkBoardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -219,14 +223,6 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
     onViewportChange(newZoom, newPanX, newPanY);
   }
 
-  function handleZoomIn() {
-    zoomToCenter(clamp(zoom * ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
-
-  function handleZoomOut() {
-    zoomToCenter(clamp(zoom / ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
-
   function handleZoomReset() {
     onViewportChange(1, 0, 0);
   }
@@ -252,6 +248,8 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
         ref={viewportRef}
         className={[
           "corkboard-surface relative h-full w-full overflow-hidden transition-shadow duration-150",
+          backgroundTheme === "whiteboard" ? "corkboard-surface--whiteboard" : "",
+          backgroundTheme === "blackboard" ? "corkboard-surface--blackboard" : "",
           isDragOver ? "ring-2 ring-inset ring-primary/40" : "",
           cursorClass,
         ].join(" ")}
@@ -283,8 +281,7 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
       <div className="absolute bottom-4 left-4 z-20">
         <ZoomControls
           zoom={zoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
+          onZoomChange={zoomToCenter}
           onReset={handleZoomReset}
           onCenterView={handleCenterView}
         />

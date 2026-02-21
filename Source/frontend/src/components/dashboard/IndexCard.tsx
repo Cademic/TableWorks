@@ -43,6 +43,8 @@ interface IndexCardProps {
   /** Called when user clicks the drag handle while editing (to exit edit mode) */
   onExitEdit?: (id: string) => void;
   zoom?: number;
+  /** When true, visually scale the card when editing (for better readability) */
+  enlargeWhenEditing?: boolean;
 }
 
 const DEFAULT_WIDTH = 450;
@@ -98,6 +100,7 @@ export function IndexCard({
   focusedBy,
   onExitEdit,
   zoom = 1,
+  enlargeWhenEditing = false,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
   const lastDragEndRef = useRef<number>(0);
@@ -549,7 +552,10 @@ export function IndexCard({
             width: "100%",
             minHeight: `${size.height}px`,
             transformOrigin: "center center",
-            rotate: isEditing ? "0deg" : `${card.rotation ?? 0}deg`,
+            transform: [
+              enlargeWhenEditing && isEditing ? "scale(1.25)" : "scale(1)",
+              `rotate(${isEditing ? 0 : card.rotation ?? 0}deg)`,
+            ].join(" "),
           }}
           onClick={(e) => {
             // Ignore click if it follows a drag (drag release fires click, which would open edit)

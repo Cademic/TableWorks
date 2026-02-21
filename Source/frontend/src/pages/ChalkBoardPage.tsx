@@ -3,6 +3,8 @@ import { useParams, useOutletContext } from "react-router-dom";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import { ChalkCanvas, CHALKBOARD_BG, RESOLUTION_FACTOR, type ChalkCanvasHandle } from "../components/chalkboard/ChalkCanvas";
 import { ChalkToolbar, type ChalkMode, type ChalkTool } from "../components/chalkboard/ChalkToolbar";
+import { BoardMenuBar, type BoardBackgroundTheme } from "../components/dashboard/BoardMenuBar";
+import { BoardConnectedUsers } from "../components/dashboard/BoardConnectedUsers";
 import { StickyNote } from "../components/dashboard/StickyNote";
 import { ZoomControls } from "../components/dashboard/ZoomControls";
 import { getBoardById } from "../api/boards";
@@ -11,12 +13,20 @@ import { getNotes, createNote, patchNote, deleteNote } from "../api/notes";
 import { useTouchViewport } from "../hooks/useTouchViewport";
 import { useBoardRealtime, type BoardItemUpdatePayload } from "../hooks/useBoardRealtime";
 import { getColorForUserId } from "../lib/presenceColors";
+import {
+  createBoardExportPayload,
+  triggerBoardDownload,
+  buildBoardExportFilename,
+  parseBoardExportFile,
+} from "../lib/boardExport";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
 
 const MIN_ZOOM = 0.25;
 const AUTO_SAVE_DELAY_MS = 300; // 300ms after last change for faster server sync
 const MAX_ZOOM = 2.0;
 const ZOOM_STEP = 1.1;
+const CHALK_WHITEBOARD_BG = "#faf9f6";
+const CHALK_BLACKBOARD_BG = "#1a1a1a";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -24,7 +34,7 @@ function clamp(value: number, min: number, max: number) {
 
 export function ChalkBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const { setBoardName, openBoard, setBoardPresence } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, openBoard, setBoardPresence, connectedUsers } = useOutletContext<AppLayoutContext>();
 
   // --- Board & loading state ---
   const [board, setBoard] = useState<BoardSummaryDto | null>(null);
@@ -84,6 +94,27 @@ export function ChalkBoardPage() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const didRightPanRef = useRef(false);
+  const loadFileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- ChalkBoard UI preferences (persist in localStorage) ---
+  const [backgroundTheme, setBackgroundTheme] = useState<BoardBackgroundTheme>(() => {
+    if (!boardId) return "default";
+    try {
+      const saved = localStorage.getItem(`chalkboard-theme-${boardId}`);
+      if (saved === "whiteboard" || saved === "blackboard" || saved === "default") return saved;
+    } catch {
+      // ignore
+    }
+    return "default";
+  });
+  const [autoEnlargeNotes, setAutoEnlargeNotes] = useState(() => {
+    if (!boardId) return false;
+    try {
+      return localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // Restore viewport from localStorage on mount
   useEffect(() => {
@@ -113,6 +144,38 @@ export function ChalkBoardPage() {
       if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
     };
   }, [boardId, zoom, panX, panY]);
+
+  // Sync backgroundTheme and autoEnlargeNotes when boardId changes
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      const theme = localStorage.getItem(`chalkboard-theme-${boardId}`);
+      if (theme === "whiteboard" || theme === "blackboard" || theme === "default") {
+        setBackgroundTheme(theme);
+      }
+      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1");
+    } catch {
+      // ignore
+    }
+  }, [boardId]);
+
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`chalkboard-theme-${boardId}`, backgroundTheme);
+    } catch {
+      // ignore
+    }
+  }, [boardId, backgroundTheme]);
+
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`board-auto-enlarge-${boardId}`, autoEnlargeNotes ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [boardId, autoEnlargeNotes]);
 
   function handleViewportChange(newZoom: number, newPanX: number, newPanY: number) {
     setZoom(newZoom);
@@ -296,12 +359,6 @@ export function ChalkBoardPage() {
     handleViewportChange(newZoom, newPanX, newPanY);
   }
 
-  function handleZoomIn() {
-    zoomToCenter(clamp(zoom * ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
-  function handleZoomOut() {
-    zoomToCenter(clamp(zoom / ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
   function handleZoomReset() {
     handleViewportChange(1, 0, 0);
   }
@@ -735,6 +792,95 @@ export function ChalkBoardPage() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [boardId, fetchData, mode]);
 
+  // --- File save/load and menu actions ---
+  function handleSaveToFile() {
+    const canvasJson = canvasRef.current?.toJSON() ?? "{}";
+    const payload = createBoardExportPayload("ChalkBoard", board?.name ?? "Chalk Board", {
+      notes,
+      drawing: { canvasJson },
+      viewport: { zoom, panX, panY },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    triggerBoardDownload(blob, buildBoardExportFilename(board?.name ?? "chalk-board"));
+  }
+
+  function handleLoadFromFile() {
+    loadFileInputRef.current?.click();
+  }
+
+  async function handleLoadFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !boardId) return;
+    try {
+      const text = await file.text();
+      const payload = parseBoardExportFile(text);
+      if (!payload || payload.boardType !== "ChalkBoard") {
+        return;
+      }
+      setEditingNoteIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+      const idMap = new Map<string, string>();
+
+      // Delete existing notes
+      for (const note of notes) {
+        try {
+          await deleteNote(note.id);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Restore drawing
+      if (payload.drawing?.canvasJson) {
+        if (canvasRef.current) {
+          await canvasRef.current.loadFromJSON(payload.drawing.canvasJson);
+        }
+        await saveDrawing(boardId, { canvasJson: payload.drawing.canvasJson });
+      }
+
+      // Create notes
+      for (const n of payload.notes ?? []) {
+        const created = await createNote({
+          content: n.content,
+          boardId,
+          title: n.title ?? undefined,
+          positionX: n.positionX ?? 20,
+          positionY: n.positionY ?? 20,
+          width: n.width ?? undefined,
+          height: n.height ?? undefined,
+          color: n.color ?? undefined,
+          rotation: n.rotation ?? undefined,
+        });
+        idMap.set(n.id, created.id);
+      }
+
+      if (payload.viewport) {
+        setZoom(payload.viewport.zoom);
+        setPanX(payload.viewport.panX);
+        setPanY(payload.viewport.panY);
+      }
+
+      await fetchData();
+    } catch {
+      // Load failed
+    }
+  }
+
+  function triggerMenuUndo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true })
+    );
+  }
+
+  function triggerMenuRedo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true })
+    );
+  }
+
   // --- Mode & tool handlers ---
   function handleModeChange(newMode: ChalkMode) {
     setMode(newMode);
@@ -1004,18 +1150,71 @@ export function ChalkBoardPage() {
   }
 
   const cursorClass = isPanning ? "cursor-grabbing" : isSpaceHeld ? "cursor-grab" : "";
+  const chalkBg =
+    backgroundTheme === "whiteboard"
+      ? CHALK_WHITEBOARD_BG
+      : backgroundTheme === "blackboard"
+        ? CHALK_BLACKBOARD_BG
+        : CHALKBOARD_BG;
 
   return (
-    <div className="relative h-full w-full chalkboard-frame">
-      {/* Viewport (clips and captures pan/zoom events) */}
+    <div className="relative flex h-full w-full flex-col">
+      {/* Menu bar - above the chalkboard frame */}
+      <div className="notepad-card flex-shrink-0 !overflow-visible border-b-0 rounded-b-none z-10">
+        <div className="notepad-spiral-strip" />
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <BoardMenuBar
+              boardType="ChalkBoard"
+              zoom={zoom}
+              onZoomChange={(z) => handleViewportChange(z, panX, panY)}
+              onSaveToFile={handleSaveToFile}
+              onLoadFromFile={handleLoadFromFile}
+              onUndo={triggerMenuUndo}
+              onRedo={triggerMenuRedo}
+              canUndo={
+                mode === "draw" ? true : noteUndoStackRef.current.length > 0
+              }
+              canRedo={
+                mode === "draw" ? true : noteRedoStackRef.current.length > 0
+              }
+              onInsertStickyNote={handleAddStickyNote}
+              backgroundTheme={backgroundTheme}
+              onBackgroundThemeChange={setBackgroundTheme}
+              autoEnlargeNotes={autoEnlargeNotes}
+              onAutoEnlargeNotesChange={setAutoEnlargeNotes}
+            />
+          </div>
+          <BoardConnectedUsers users={connectedUsers} />
+        </div>
+      </div>
+      {/* Chalkboard frame - border color matches background theme */}
       <div
-        ref={viewportRef}
         className={[
-          "chalkboard-surface relative h-full w-full overflow-hidden",
+          "chalkboard-frame relative flex-1 min-h-0 flex flex-col overflow-hidden rounded-t-none",
+          backgroundTheme === "whiteboard" && "chalkboard-frame--whiteboard",
+          backgroundTheme === "blackboard" && "chalkboard-frame--blackboard",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+      <input
+        ref={loadFileInputRef}
+        type="file"
+        accept=".json,.asidenote-board,application/json"
+        className="hidden"
+        aria-hidden
+        onChange={handleLoadFileSelect}
+      />
+        {/* Viewport (clips and captures pan/zoom events) */}
+        <div
+          ref={viewportRef}
+          className={[
+            "chalkboard-surface relative flex-1 min-h-0 w-full overflow-hidden",
           isDragOver ? "ring-2 ring-inset ring-white/20" : "",
           cursorClass,
         ].join(" ")}
-        style={{ backgroundColor: CHALKBOARD_BG }}
+        style={{ backgroundColor: chalkBg }}
         onMouseDown={handleViewportMouseDown}
         onMouseMove={handleChalkBoardMouseMove}
         onMouseLeave={handleChalkBoardMouseLeave}
@@ -1033,6 +1232,7 @@ export function ChalkBoardPage() {
           panX={panX}
           panY={panY}
           onChange={handleCanvasChange}
+          backgroundColor={chalkBg}
         />
 
         {/* Layer 2: Sticky notes (uses CSS transform for zoom/pan, matches Fabric viewport) */}
@@ -1076,6 +1276,7 @@ export function ChalkBoardPage() {
               key={note.id}
               note={note}
               isEditing={editingNoteIds.has(note.id)}
+              enlargeWhenEditing={autoEnlargeNotes}
               focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
               zIndex={zIndexMap[note.id] ?? 0}
               onDrag={handleNoteDrag}
@@ -1095,34 +1296,33 @@ export function ChalkBoardPage() {
             />
           ))}
         </div>
-      </div>
-
-      {/* Zoom controls (bottom-left, outside canvas transform) */}
-      <div className="absolute bottom-4 left-4 z-20">
-        <ZoomControls
-          zoom={zoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          onReset={handleZoomReset}
-          onCenterView={handleCenterView}
-        />
-      </div>
-
-      {/* Chalk toolbar (bottom-center) */}
-      <ChalkToolbar
-        mode={mode}
-        tool={tool}
-        brushColor={brushColor}
-        brushSize={brushSize}
-        onModeChange={handleModeChange}
-        onToolChange={handleToolChange}
-        onBrushColorChange={handleBrushColorChange}
-        onBrushSizeChange={handleBrushSizeChange}
-        onUndo={() => canvasRef.current?.undo()}
-        onRedo={() => canvasRef.current?.redo()}
-        onClear={() => canvasRef.current?.clear()}
+        </div>
+        {/* Zoom controls and toolbar - pointer-events-none so canvas receives clicks; only the controls themselves are interactive */}
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          <div className="absolute bottom-4 left-4 pointer-events-auto">
+            <ZoomControls
+              zoom={zoom}
+              onZoomChange={zoomToCenter}
+              onReset={handleZoomReset}
+              onCenterView={handleCenterView}
+            />
+          </div>
+          <ChalkToolbar
+              mode={mode}
+              tool={tool}
+              brushColor={brushColor}
+              brushSize={brushSize}
+              onModeChange={handleModeChange}
+              onToolChange={handleToolChange}
+              onBrushColorChange={handleBrushColorChange}
+              onBrushSizeChange={handleBrushSizeChange}
+              onUndo={() => canvasRef.current?.undo()}
+              onRedo={() => canvasRef.current?.redo()}
+              onClear={() => canvasRef.current?.clear()}
         onAddStickyNote={handleAddStickyNote}
       />
+        </div>
+      </div>
     </div>
   );
 }

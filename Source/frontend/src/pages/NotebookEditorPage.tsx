@@ -644,7 +644,7 @@ export function NotebookEditorPage() {
           <PaperShell>
             <div ref={editorWrapperRef} className="relative overflow-visible">
               <EditorContent editor={editor} />
-              {Array.from(remoteTextCursors.entries()).map(([userId, { position, color }]) => (
+              {editor && Array.from(remoteTextCursors.entries()).map(([userId, { position, color }]) => (
                 <RemoteCaret
                   key={userId}
                   editor={editor}

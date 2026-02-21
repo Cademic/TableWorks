@@ -75,13 +75,14 @@ export const NOTE_COLORS: Record<string, { bg: string; pin: string }> = {
 };
 
 function resolveNoteColorKey(note: NoteSummaryDto): string {
-  if (note.color && NOTE_COLORS[note.color]) return note.color;
+  const colors = NOTE_COLORS ?? {};
+  if (note.color && colors[note.color]) return note.color;
   let hash = 0;
   for (let i = 0; i < note.id.length; i++) {
     hash = note.id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const keys = Object.keys(NOTE_COLORS);
-  return keys[Math.abs(hash) % keys.length];
+  const keys = Object.keys(colors);
+  return keys[Math.abs(hash) % keys.length] ?? "yellow";
 }
 
 interface RemoteCaretProps {
@@ -268,9 +269,6 @@ export function StickyNote({
 
   // Toggle editable when isEditing changes
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'StickyNote.tsx:163',message:'isEditing changed',data:{noteId:note.id,isEditing,titleEditorExists:!!titleEditor,contentEditorExists:!!contentEditor},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    // #endregion
     titleEditor?.setEditable(isEditing);
     contentEditor?.setEditable(isEditing);
     if (isEditing) {

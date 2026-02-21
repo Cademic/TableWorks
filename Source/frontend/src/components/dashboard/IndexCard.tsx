@@ -68,13 +68,14 @@ const CURSOR_MAP: Record<ResizeDir, string> = {
 };
 
 function resolveCardColorKey(card: IndexCardSummaryDto): string {
-  if (card.color && INDEX_CARD_COLORS[card.color]) return card.color;
+  const colors = INDEX_CARD_COLORS ?? {};
+  if (card.color && colors[card.color]) return card.color;
   let hash = 0;
   for (let i = 0; i < card.id.length; i++) {
     hash = card.id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const keys = Object.keys(INDEX_CARD_COLORS);
-  return keys[Math.abs(hash) % keys.length];
+  const keys = Object.keys(colors);
+  return keys[Math.abs(hash) % keys.length] ?? "white";
 }
 
 export function IndexCard({

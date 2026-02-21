@@ -37,6 +37,7 @@ import type {
 import { useBoardRealtime, type BoardItemUpdatePayload, type BoardPresenceUser } from "../hooks/useBoardRealtime";
 import { useAuth } from "../context/AuthContext";
 import { getColorForUserId } from "../lib/presenceColors";
+import { resolveNoteColorKey, resolveCardColorKey } from "../lib/boardItemColors";
 
 let nextTempCardId = 1;
 
@@ -117,6 +118,7 @@ export function NoteBoardPage() {
   const imageIdsRef = useRef<Set<string>>(new Set());
   const deletedImageIdsRef = useRef<Set<string>>(new Set());
   const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+  const deletedCardIdsRef = useRef<Set<string>>(new Set());
   const [pendingImageDrop, setPendingImageDrop] = useState<{ x: number; y: number } | null>(null);
 
   // --- Viewport state (pan & zoom) ---
@@ -183,9 +185,6 @@ export function NoteBoardPage() {
   }, [showAddMenu]);
 
   const fetchData = useCallback(async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:143',message:'fetchData called',data:{boardId,editingNoteIdsBefore:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-    // #endregion
     if (!boardId) return;
     try {
       setError(null);
@@ -201,12 +200,7 @@ export function NoteBoardPage() {
         setBoard(boardRes.value);
       }
       if (notesRes.status === "fulfilled") {
-        // #region agent log
-        const newNoteIds = notesRes.value.items.map(n => n.id);
-        const editingIdsBefore = Array.from(editingNoteIds);
-        const notesStillExist = editingIdsBefore.filter(id => newNoteIds.includes(id));
-        fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:161',message:'fetchData setting notes',data:{noteCount:notesRes.value.items.length,editingNoteIds:editingIdsBefore,newNoteIds,notesStillExist,willLoseEditing:editingIdsBefore.filter(id => !newNoteIds.includes(id))},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
+        const newNoteIds = notesRes.value.items.map((n) => n.id);
         const serverIds = new Set(newNoteIds);
         const removedIds: string[] = [];
         for (const n of notesRef.current) {
@@ -224,11 +218,6 @@ export function NoteBoardPage() {
           });
         }
         setNotes(notesRes.value.items);
-        // #region agent log
-        setTimeout(() => {
-          fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:166',message:'AFTER setNotes',data:{editingNoteIds:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        }, 0);
-        // #endregion
       }
       if (cardsRes.status === "fulfilled") {
         setIndexCards(cardsRes.value.items);
@@ -268,9 +257,6 @@ export function NoteBoardPage() {
   const lastResizedCardRef = useRef<{ id: string; at: number } | null>(null);
 
   const mergeNotePayload = useCallback((payload: BoardItemUpdatePayload) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:195',message:'mergeNotePayload called',data:{noteId:String(payload.id),editingNoteIds:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     const id = String(payload.id);
     const skipPosition = id === draggingNoteIdRef.current;
     const skipSize =
@@ -317,9 +303,6 @@ export function NoteBoardPage() {
 
   const handleUserFocusingItem = useCallback(
     (userId: string, itemType: string, itemId: string | null) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:240',message:'handleUserFocusingItem called',data:{userId,currentUserId,itemType,itemId,editingNoteIds:Array.from(editingNoteIds),matches:currentUserId!=null&&userId===currentUserId},timestamp:Date.now(),runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       if (currentUserId != null && userId === currentUserId) return;
       setRemoteFocus((prev) => {
         const next = new Map(prev);
@@ -449,6 +432,43 @@ export function NoteBoardPage() {
     setConnections((prev) => prev.filter((c) => c.fromItemId !== imageId && c.toItemId !== imageId));
   }, []);
 
+  const handleNoteDeleted = useCallback((noteId: string) => {
+    deletedNoteIdsRef.current.add(noteId);
+    setTimeout(() => deletedNoteIdsRef.current.delete(noteId), 2000);
+    const pending = noteDragMapRef.current.get(noteId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(noteId);
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    setEditingNoteIds((prev) => {
+      if (!prev.has(noteId)) return prev;
+      const next = new Set(prev);
+      next.delete(noteId);
+      if (primaryEditingNoteIdRef.current === noteId) primaryEditingNoteIdRef.current = null;
+      return next;
+    });
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== noteId && c.toItemId !== noteId));
+  }, []);
+  const handleIndexCardDeleted = useCallback((cardId: string) => {
+    deletedCardIdsRef.current.add(cardId);
+    setTimeout(() => deletedCardIdsRef.current.delete(cardId), 2000);
+    const pending = cardDragMapRef.current.get(cardId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      cardDragMapRef.current.delete(cardId);
+    }
+    setIndexCards((prev) => prev.filter((c) => c.id !== cardId));
+    setEditingCardIds((prev) => {
+      if (!prev.has(cardId)) return prev;
+      const next = new Set(prev);
+      next.delete(cardId);
+      if (primaryEditingCardIdRef.current === cardId) primaryEditingCardIdRef.current = null;
+      return next;
+    });
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== cardId && c.toItemId !== cardId));
+  }, []);
+
   const { sendFocus, sendCursor, sendTextCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
     enabled: !!board?.projectId,
     onNoteUpdated: mergeNotePayload,
@@ -458,15 +478,14 @@ export function NoteBoardPage() {
     onCursorPosition: handleCursorPosition,
     onTextCursorPosition: handleTextCursorPosition,
     onUserLeft: handleUserLeft,
+    onNoteDeleted: handleNoteDeleted,
+    onIndexCardDeleted: handleIndexCardDeleted,
     onImageCardDeleted: handleImageCardDeleted,
     onImageCardAdded: handleImageCardAdded,
     onImageCardUpdated: mergeImageCardPayload,
   });
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:286',message:'focus useEffect running',data:{editingNoteIds:Array.from(editingNoteIds),editingCardIds:Array.from(editingCardIds),primaryNote:primaryEditingNoteIdRef.current,primaryCard:primaryEditingCardIdRef.current},timestamp:Date.now(),runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     const primaryNote = primaryEditingNoteIdRef.current;
     const primaryCard = primaryEditingCardIdRef.current;
     if (primaryNote) sendFocus("note", primaryNote);
@@ -522,10 +541,10 @@ export function NoteBoardPage() {
         y,
         timer: setTimeout(() => {
           const e = map.get(id);
-          if (e) {
+          if (e && !deletedCardIdsRef.current.has(id) && indexCardsRef.current.some((c) => c.id === id)) {
             patchIndexCard(id, { positionX: e.x, positionY: e.y }).catch(() => {});
-            map.delete(id);
           }
+          map.delete(id);
         }, DRAG_THROTTLE_MS),
       };
       map.set(id, entry);
@@ -626,6 +645,7 @@ export function NoteBoardPage() {
           );
           patchNote(entry.noteId, { width: w, height: h }).catch(() => {});
         } else if (entry.type === "note-delete") {
+          const displayColorKey = resolveNoteColorKey(entry.note);
           createNote({
             content: entry.note.content,
             boardId: boardId ?? undefined,
@@ -634,12 +654,13 @@ export function NoteBoardPage() {
             positionY: entry.note.positionY ?? 20,
             width: entry.note.width ?? undefined,
             height: entry.note.height ?? undefined,
-            color: entry.note.color ?? undefined,
+            color: displayColorKey,
             rotation: entry.note.rotation ?? undefined,
           })
             .then((created) => {
               boardRedoStackRef.current.push({ type: "note-delete", noteId: created.id });
-              setNotes((prev) => (prev.some((n) => n.id === created.id) ? prev : [...prev, created]));
+              const restored = { ...created, color: displayColorKey, rotation: entry.note.rotation ?? created.rotation };
+              setNotes((prev) => (prev.some((n) => n.id === created.id) ? prev : [...prev, restored]));
             })
             .catch(() => {});
         } else if (entry.type === "connection-create") {
@@ -764,6 +785,7 @@ export function NoteBoardPage() {
           );
           patchIndexCard(entry.cardId, { width: w, height: h }).catch(() => {});
         } else if (entry.type === "card-delete") {
+          const displayColorKey = resolveCardColorKey(entry.card);
           createIndexCard({
             content: entry.card.content,
             boardId: boardId ?? undefined,
@@ -772,12 +794,13 @@ export function NoteBoardPage() {
             positionY: entry.card.positionY ?? 20,
             width: entry.card.width ?? undefined,
             height: entry.card.height ?? undefined,
-            color: entry.card.color ?? undefined,
+            color: displayColorKey,
             rotation: entry.card.rotation ?? undefined,
           })
             .then((created) => {
               boardRedoStackRef.current.push({ type: "card-delete", cardId: created.id });
-              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created]));
+              const restored = { ...created, color: displayColorKey, rotation: entry.card.rotation ?? created.rotation };
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, restored]));
             })
             .catch(() => {});
         } else if (entry.type === "card-create") {
@@ -925,6 +948,7 @@ export function NoteBoardPage() {
           );
           deleteIndexCard(entry.cardId).catch(() => fetchData());
         } else if (entry.type === "card-create") {
+          const displayColorKey = resolveCardColorKey(entry.card);
           createIndexCard({
             content: entry.card.content,
             boardId: boardId ?? undefined,
@@ -933,12 +957,13 @@ export function NoteBoardPage() {
             positionY: entry.card.positionY ?? 20,
             width: entry.card.width ?? undefined,
             height: entry.card.height ?? undefined,
-            color: entry.card.color ?? undefined,
+            color: displayColorKey,
             rotation: entry.card.rotation ?? undefined,
           })
-            .then((created) =>
-              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created])),
-            )
+            .then((created) => {
+              const restored = { ...created, color: displayColorKey, rotation: entry.card.rotation ?? created.rotation };
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, restored]));
+            })
             .catch(() => {});
         }
       }
@@ -985,8 +1010,10 @@ export function NoteBoardPage() {
       clearTimeout(pending.timer);
       noteDragMapRef.current.delete(id);
     }
-    if (deletedNoteIdsRef.current.has(id)) return;
-    if (!notesRef.current.some((n) => n.id === id)) return;
+    const inDeletedRef = deletedNoteIdsRef.current.has(id);
+    const inNotesRef = notesRef.current.some((n) => n.id === id);
+    if (inDeletedRef) return;
+    if (!inNotesRef) return;
     const prevNote = notesRef.current.find((n) => n.id === id);
     if (prevNote && (prevNote.positionX !== x || prevNote.positionY !== y)) {
       boardRedoStackRef.current = [];
@@ -1006,25 +1033,22 @@ export function NoteBoardPage() {
     }, DRAG_ECHO_IGNORE_MS);
 
     try {
-      if (deletedNoteIdsRef.current.has(id) || !notesRef.current.some((n) => n.id === id)) return;
-      await patchNote(id, { positionX: x, positionY: y });
+      // Defer to next macrotask so handleDelete (from click-after-mouseup) can run first
+      window.setTimeout(() => {
+        const inDeletedRef2 = deletedNoteIdsRef.current.has(id);
+        const inNotesRef2 = notesRef.current.some((n) => n.id === id);
+        if (inDeletedRef2 || !inNotesRef2) return;
+        patchNote(id, { positionX: x, positionY: y }).catch(() => {});
+      }, 0);
     } catch {
       // Silently fail
     }
   }
 
   async function handleSave(id: string, title: string, content: string) {
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:460',message:'handleSave called',data:{noteId:id,editingNoteIdsBefore:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    // #endregion
     setEditingNoteIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
-      // #region agent log
-      if (prev.has(id)) {
-        fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:465',message:'REMOVING note from editingNoteIds (save)',data:{noteId:id,before:Array.from(prev),after:Array.from(next)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      }
-      // #endregion
       if (primaryEditingNoteIdRef.current === id) {
         primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
       }
@@ -1157,9 +1181,6 @@ export function NoteBoardPage() {
       clearTimeout(pending.timer);
       noteDragMapRef.current.delete(id);
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:550',message:'handleDelete called',data:{noteId:id,editingNoteIdsBefore:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    // #endregion
     const deletedNote = notesRef.current.find((n) => n.id === id);
     if (deletedNote) {
       boardRedoStackRef.current = [];
@@ -1169,11 +1190,6 @@ export function NoteBoardPage() {
     setEditingNoteIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
-      // #region agent log
-      if (prev.has(id)) {
-        fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:559',message:'REMOVING note from editingNoteIds (delete)',data:{noteId:id,before:Array.from(prev),after:Array.from(next)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      }
-      // #endregion
       if (primaryEditingNoteIdRef.current === id) {
         primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
       }
@@ -1222,12 +1238,6 @@ export function NoteBoardPage() {
     setIndexCards((prev) => [...prev, optimisticCard]);
     setEditingCardIds((prev) => new Set(prev).add(tempId));
     primaryEditingCardIdRef.current = tempId;
-    // #region agent log
-    const editingBefore = Array.from(editingNoteIds);
-    if (editingBefore.length > 0) {
-      fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:603',message:'CLEARING ALL editingNoteIds (create card)',data:{editingNoteIdsBefore:editingBefore,tempCardId:tempId},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    }
-    // #endregion
     setEditingNoteIds(new Set());
     primaryEditingNoteIdRef.current = null;
 
@@ -1265,6 +1275,8 @@ export function NoteBoardPage() {
       clearTimeout(pending.timer);
       cardDragMapRef.current.delete(id);
     }
+    if (deletedCardIdsRef.current.has(id)) return;
+    if (!indexCardsRef.current.some((c) => c.id === id)) return;
     const prevCard = indexCardsRef.current.find((c) => c.id === id);
     if (prevCard && (prevCard.positionX !== x || prevCard.positionY !== y)) {
       boardRedoStackRef.current = [];
@@ -1283,6 +1295,7 @@ export function NoteBoardPage() {
     }, DRAG_ECHO_IGNORE_MS);
 
     try {
+      if (deletedCardIdsRef.current.has(id) || !indexCardsRef.current.some((c) => c.id === id)) return;
       await patchIndexCard(id, { positionX: x, positionY: y });
     } catch {
       // Silently fail
@@ -1415,7 +1428,7 @@ export function NoteBoardPage() {
       .then((created) => {
         boardRedoStackRef.current = [];
         boardUndoStackRef.current.push({ type: "image-add", image: created });
-        setImageCards((prev) => [...prev, created]);
+        setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created]));
       })
       .catch(() => {
         // Silently fail
@@ -1510,6 +1523,13 @@ export function NoteBoardPage() {
   }
 
   async function handleCardDelete(id: string) {
+    deletedCardIdsRef.current.add(id);
+    setTimeout(() => deletedCardIdsRef.current.delete(id), 2000);
+    const pending = cardDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      cardDragMapRef.current.delete(id);
+    }
     const deletedCard = indexCardsRef.current.find((c) => c.id === id);
     if (deletedCard) {
       boardRedoStackRef.current = [];
@@ -1585,12 +1605,6 @@ export function NoteBoardPage() {
       setIndexCards((prev) => [...prev, optimisticCard]);
       setEditingCardIds((prev) => new Set(prev).add(tempId));
       primaryEditingCardIdRef.current = tempId;
-      // #region agent log
-      const editingBefore = Array.from(editingNoteIds);
-      if (editingBefore.length > 0) {
-        fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:890',message:'CLEARING ALL editingNoteIds (drop card)',data:{editingNoteIdsBefore:editingBefore,tempCardId:tempId},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      }
-      // #endregion
       setEditingNoteIds(new Set());
       primaryEditingNoteIdRef.current = null;
 

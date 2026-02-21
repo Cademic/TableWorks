@@ -77,21 +77,6 @@ public sealed class ExceptionHandlingMiddleware
         {
             _logger.LogError(exception, "Unhandled exception occurred.");
 
-            // Development-only: append to local debug log (skip on Render/Linux to avoid wrong path)
-            if (_env.IsDevelopment())
-            {
-                try
-                {
-                    var logPath = Path.Combine(Directory.GetCurrentDirectory(), ".cursor", "debug.log");
-                    var dir = Path.GetDirectoryName(logPath);
-                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                    var inner = exception.InnerException;
-                    var line = JsonSerializer.Serialize(new { timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), location = "ExceptionHandlingMiddleware.cs", message = "500 returned", data = new { exType = exception.GetType().FullName, exMessage = exception.Message, innerType = inner?.GetType().FullName, innerMessage = inner?.Message }, hypothesisId = "H5" }) + Environment.NewLine;
-                    await File.AppendAllTextAsync(logPath, line);
-                }
-                catch { }
-            }
-
             context.Response.ContentType = "application/json";
 
             // Missing table (e.g. Notebooks/NotebookPages) = schema out of date; return 503 so deployers know to run migrations

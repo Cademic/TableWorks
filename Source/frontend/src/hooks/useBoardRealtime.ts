@@ -51,6 +51,10 @@ export interface UseBoardRealtimeOptions {
   onCursorPosition?: (userId: string, x: number, y: number) => void;
   onTextCursorPosition?: (userId: string, itemType: string, itemId: string, field: "title" | "content", position: number) => void;
   onUserLeft?: (userId: string) => void;
+  /** Called when a note is deleted; merge by removing from state immediately to avoid PATCH-after-delete race. */
+  onNoteDeleted?: (noteId: string) => void;
+  /** Called when an index card is deleted; merge by removing from state immediately to avoid PATCH-after-delete race. */
+  onIndexCardDeleted?: (cardId: string) => void;
   /** Called when an image is deleted; merge by removing from state instead of refetch to avoid stale data. */
   onImageCardDeleted?: (imageId: string) => void;
   /** Called when an image is added with full payload; merge immediately (no refetch). */
@@ -85,6 +89,8 @@ export function useBoardRealtime(
   const onCursorPositionRef = useRef(options.onCursorPosition);
   const onTextCursorPositionRef = useRef(options.onTextCursorPosition);
   const onUserLeftRef = useRef(options.onUserLeft);
+  const onNoteDeletedRef = useRef(options.onNoteDeleted);
+  const onIndexCardDeletedRef = useRef(options.onIndexCardDeleted);
   const onImageCardDeletedRef = useRef(options.onImageCardDeleted);
   const onImageCardAddedRef = useRef(options.onImageCardAdded);
   const onImageCardUpdatedRef = useRef(options.onImageCardUpdated);
@@ -95,6 +101,8 @@ export function useBoardRealtime(
   onCursorPositionRef.current = options.onCursorPosition;
   onTextCursorPositionRef.current = options.onTextCursorPosition;
   onUserLeftRef.current = options.onUserLeft;
+  onNoteDeletedRef.current = options.onNoteDeleted;
+  onIndexCardDeletedRef.current = options.onIndexCardDeleted;
   onImageCardDeletedRef.current = options.onImageCardDeleted;
   onImageCardAddedRef.current = options.onImageCardAdded;
   onImageCardUpdatedRef.current = options.onImageCardUpdated;
@@ -217,10 +225,26 @@ export function useBoardRealtime(
 
     connection.on("NoteAdded", scheduleRefetch);
     connection.on("NoteUpdated", handleNoteUpdated);
-    connection.on("NoteDeleted", scheduleRefetch);
+    const handleNoteDeleted = (msg: { boardId?: string; noteId?: string }) => {
+      const id = msg?.noteId != null ? String(msg.noteId) : null;
+      if (id && onNoteDeletedRef.current) {
+        onNoteDeletedRef.current(id);
+      } else {
+        scheduleRefetch();
+      }
+    };
+    connection.on("NoteDeleted", handleNoteDeleted);
     connection.on("IndexCardAdded", scheduleRefetch);
     connection.on("IndexCardUpdated", handleIndexCardUpdated);
-    connection.on("IndexCardDeleted", scheduleRefetch);
+    const handleIndexCardDeleted = (msg: { boardId?: string; cardId?: string }) => {
+      const id = msg?.cardId != null ? String(msg.cardId) : null;
+      if (id && onIndexCardDeletedRef.current) {
+        onIndexCardDeletedRef.current(id);
+      } else {
+        scheduleRefetch();
+      }
+    };
+    connection.on("IndexCardDeleted", handleIndexCardDeleted);
     connection.on("ConnectionAdded", scheduleRefetch);
     connection.on("ConnectionDeleted", scheduleRefetch);
     const handleImageCardDeleted = (msg: { boardId?: string; imageId?: string }) => {
@@ -297,10 +321,10 @@ export function useBoardRealtime(
       connection.off("TextCursorPosition", handleTextCursorPosition);
       connection.off("NoteAdded", scheduleRefetch);
       connection.off("NoteUpdated", handleNoteUpdated);
-      connection.off("NoteDeleted", scheduleRefetch);
+      connection.off("NoteDeleted", handleNoteDeleted);
       connection.off("IndexCardAdded", scheduleRefetch);
       connection.off("IndexCardUpdated", handleIndexCardUpdated);
-      connection.off("IndexCardDeleted", scheduleRefetch);
+      connection.off("IndexCardDeleted", handleIndexCardDeleted);
       connection.off("ConnectionAdded", scheduleRefetch);
       connection.off("ConnectionDeleted", scheduleRefetch);
       connection.off("ImageCardAdded", handleImageCardAdded);

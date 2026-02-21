@@ -510,8 +510,6 @@ export function IndexCardToolbar({
     [editor],
   );
 
-  if (!editor) return null;
-
   const activeState = useEditorState({
     editor,
     selector: (ctx) => {
@@ -539,6 +537,8 @@ export function IndexCardToolbar({
       };
     },
   });
+
+  if (!editor) return null;
 
   const state = activeState ?? {
     isBold: false, isItalic: false, isUnderline: false, isStrike: false,

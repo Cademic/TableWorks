@@ -21,6 +21,7 @@ import Superscript from "@tiptap/extension-superscript";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { FontSize } from "../lib/tiptap-font-size";
+import { handleTabKey } from "../lib/tiptap-tab-indent";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport, createNotebookVersion, getNotebookVersions, restoreNotebookVersion, uploadNotebookImage } from "../api/notebooks";
 import { useNotebookRealtime, type NotebookPresenceUser } from "../hooks/useNotebookRealtime";
 import { getColorForUserId } from "../lib/presenceColors";
@@ -31,6 +32,37 @@ import { PaperShell } from "../components/notebooks/PaperShell";
 import { ZoomablePaperShell } from "../components/notebooks/ZoomablePaperShell";
 import { NotebookToolbar } from "../components/notebooks/NotebookToolbar";
 import { NotebookMenuBar } from "../components/notebooks/NotebookMenuBar";
+import { ContextMenu } from "../components/ui/ContextMenu";
+import type { Editor } from "@tiptap/react";
+import {
+  Scissors,
+  Copy,
+  ClipboardPaste,
+  Type,
+  Trash2,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Eraser,
+  Link as LinkIcon,
+  Link2Off,
+  Rows3,
+  Columns3,
+  Table as TableIcon,
+  List,
+  ListOrdered,
+  ListTodo,
+  Quote,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
+  AlignLeft,
+  Plus,
+} from "lucide-react";
 
 const SAVE_DEBOUNCE_MS = 1000; // Debounce saves to prevent race conditions when typing fast (1 second)
 const DEFAULT_DOC = { type: "doc", content: [] } as const;
@@ -175,6 +207,7 @@ export function NotebookEditorPage() {
   const TEXT_CURSOR_THROTTLE_MS = 80;
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const menuImageInputRef = useRef<HTMLInputElement>(null);
+  const [editorContextMenu, setEditorContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const handleTextCursorPosition = useCallback((userId: string, position: number) => {
     if (currentUserId != null && userId === currentUserId) return;
@@ -279,6 +312,7 @@ export function NotebookEditorPage() {
         class:
           "prose prose-zinc dark:prose-invert max-w-none focus:outline-none min-h-[400px] text-[12px]",
       },
+      handleKeyDown: handleTabKey,
     },
     immediatelyRender: false,
   });
@@ -540,6 +574,117 @@ export function NotebookEditorPage() {
     [editor],
   );
 
+  function buildEditorContextMenuItems(ed: Editor): import("../components/ui/ContextMenu").ContextMenuItem[] {
+    const { from, to, empty, $from } = ed.state.selection;
+    const hasSelection = !empty && from !== to;
+    const chain = () => ed.chain().focus();
+    const items: import("../components/ui/ContextMenu").ContextMenuItem[] = [];
+
+    if (hasSelection) {
+      items.push(
+        { label: "Cut", icon: Scissors, shortcut: "Ctrl+X", onClick: () => document.execCommand("cut") },
+        { label: "Copy", icon: Copy, shortcut: "Ctrl+C", onClick: () => document.execCommand("copy") },
+      );
+    }
+    items.push(
+      { label: "Paste", icon: ClipboardPaste, shortcut: "Ctrl+V", onClick: () => document.execCommand("paste") },
+      {
+        label: "Paste without formatting",
+        icon: Type,
+        shortcut: "Ctrl+Shift+V",
+        onClick: async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            chain().insertContent(text).run();
+          } catch {
+            document.execCommand("paste");
+          }
+        },
+      },
+    );
+    if (hasSelection) {
+      items.push(
+        { label: "Delete", icon: Trash2, onClick: () => chain().deleteSelection().run(), divider: true },
+      );
+    }
+
+    const inTable = ed.isActive("table");
+    const inImage = ed.isActive("image");
+    const linkAttrs = ed.getAttributes("link");
+    const hasLink = !!linkAttrs?.href;
+
+    if (hasSelection && !inTable && !inImage) {
+      items.push(
+        { label: "Insert link", icon: LinkIcon, shortcut: "Ctrl+K", onClick: () => chain().setLink({ href: "" }).run(), divider: true },
+      );
+    }
+    if (inTable) {
+      items.push(
+        { label: "Add row", icon: Rows3, onClick: () => chain().addRowAfter().run() },
+        { label: "Add column", icon: Columns3, onClick: () => chain().addColumnAfter().run() },
+        { label: "Delete row", icon: Trash2, onClick: () => chain().deleteRow().run() },
+        { label: "Delete column", icon: Columns3, onClick: () => chain().deleteColumn().run() },
+        { label: "Delete table", icon: TableIcon, onClick: () => chain().deleteTable().run(), divider: true },
+      );
+    }
+    if (inImage) {
+      items.push(
+        { label: "Copy image", icon: Copy, shortcut: "Ctrl+C", onClick: () => document.execCommand("copy") },
+        { label: "Delete image", icon: Trash2, onClick: () => chain().deleteSelection().run(), divider: true },
+      );
+    }
+    if (hasLink) {
+      const href = linkAttrs.href ?? "";
+      items.push(
+        { label: "Copy link", icon: LinkIcon, onClick: () => navigator.clipboard.writeText(href) },
+        { label: "Remove link", icon: Link2Off, onClick: () => chain().unsetLink().run(), divider: true },
+      );
+    }
+
+    if (hasSelection && !inTable && !inImage) {
+      items.push(
+        { label: "Bold", icon: Bold, shortcut: "Ctrl+B", onClick: () => chain().toggleBold().run() },
+        { label: "Italic", icon: Italic, shortcut: "Ctrl+I", onClick: () => chain().toggleItalic().run() },
+        { label: "Underline", icon: UnderlineIcon, shortcut: "Ctrl+U", onClick: () => chain().toggleUnderline().run() },
+        { label: "Strikethrough", icon: Strikethrough, onClick: () => chain().toggleStrike().run() },
+        { label: "Clear formatting", icon: Eraser, shortcut: "Ctrl+\\", onClick: () => chain().clearNodes().unsetAllMarks().run(), divider: true },
+      );
+    }
+
+    if (!inTable && !inImage) {
+      const before = $from.before();
+      const after = $from.after();
+      items.push(
+        { label: "Paragraph", icon: AlignLeft, onClick: () => chain().setParagraph().run() },
+        { label: "Heading 1", icon: Heading1, onClick: () => chain().toggleHeading({ level: 1 }).run() },
+        { label: "Heading 2", icon: Heading2, onClick: () => chain().toggleHeading({ level: 2 }).run() },
+        { label: "Heading 3", icon: Heading3, onClick: () => chain().toggleHeading({ level: 3 }).run() },
+        { label: "Heading 4", icon: Heading4, onClick: () => chain().toggleHeading({ level: 4 }).run() },
+        { label: "Heading 5", icon: Heading5, onClick: () => chain().toggleHeading({ level: 5 }).run() },
+        { label: "Heading 6", icon: Heading6, onClick: () => chain().toggleHeading({ level: 6 }).run() },
+        { label: "Blockquote", icon: Quote, onClick: () => chain().toggleBlockquote().run() },
+        { label: "Bullet list", icon: List, onClick: () => chain().toggleBulletList().run() },
+        { label: "Ordered list", icon: ListOrdered, onClick: () => chain().toggleOrderedList().run() },
+        { label: "Checklist", icon: ListTodo, onClick: () => chain().toggleTaskList().run() },
+        { label: "Insert paragraph above", icon: Plus, onClick: () => chain().insertContentAt(before, { type: "paragraph", content: [] }).run() },
+        { label: "Insert paragraph below", icon: Plus, onClick: () => chain().insertContentAt(after, { type: "paragraph", content: [] }).run() },
+        { label: "Delete block", icon: Trash2, onClick: () => chain().deleteSelection().run() },
+      );
+    }
+    return items;
+  }
+
+  function handleEditorContextMenu(e: React.MouseEvent) {
+    if (!editor) return;
+    // When selection is collapsed (cursor in a word), allow native spell-check menu (ignore, add to dictionary)
+    if (editor.state.selection.empty) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    setEditorContextMenu({ x: e.clientX, y: e.clientY });
+  }
+
   if (!notebookId) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-12">
@@ -609,7 +754,7 @@ export function NotebookEditorPage() {
         <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2">
           {editor && (
-            <div className="hidden sm:block w-full">
+            <div className="w-full">
               <NotebookToolbar
                 editor={editor}
                 zoom={zoom}
@@ -642,7 +787,11 @@ export function NotebookEditorPage() {
       <div className="flex-1 min-w-0 overflow-hidden">
         <ZoomablePaperShell zoom={zoom} onZoomChange={setZoom} sidebarExpanded={isSidebarOpen}>
           <PaperShell>
-            <div ref={editorWrapperRef} className="relative overflow-visible">
+            <div
+              ref={editorWrapperRef}
+              className="relative overflow-visible"
+              onContextMenu={handleEditorContextMenu}
+            >
               <EditorContent editor={editor} />
               {editor && Array.from(remoteTextCursors.entries()).map(([userId, { position, color }]) => (
                 <RemoteCaret
@@ -654,6 +803,15 @@ export function NotebookEditorPage() {
                 />
               ))}
             </div>
+
+            {editorContextMenu && editor && (
+              <ContextMenu
+                x={editorContextMenu.x}
+                y={editorContextMenu.y}
+                items={buildEditorContextMenuItems(editor)}
+                onClose={() => setEditorContextMenu(null)}
+              />
+            )}
           </PaperShell>
         </ZoomablePaperShell>
       </div>

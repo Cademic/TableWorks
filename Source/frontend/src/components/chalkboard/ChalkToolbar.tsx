@@ -63,7 +63,7 @@ export function ChalkToolbar({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [position, setPosition] = useState<{ centerX: number; centerY: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number; centerX: number; centerY: number } | null>(null);

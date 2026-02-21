@@ -35,6 +35,8 @@ interface ImageCardProps {
   onPinMouseDown?: (id: string) => void;
   /** True when another item is being linked (pin shows linking hover state) */
   isLinking?: boolean;
+  /** Called when user right-clicks the image (for context menu). Call e.preventDefault() and e.stopPropagation() before showing menu. */
+  onContextMenu?: (e: React.MouseEvent) => void;
   zoom?: number;
 }
 
@@ -48,6 +50,7 @@ export function ImageCard({
   onBringToFront,
   onPinMouseDown,
   isLinking = false,
+  onContextMenu,
   zoom = 1,
 }: ImageCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -237,6 +240,11 @@ export function ImageCard({
           rotate: `${image.rotation ?? 0}deg`,
         }}
         onMouseDown={() => onBringToFront?.(image.id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
       >
         {/* Pin – interactive for red-string linking */}
         <div

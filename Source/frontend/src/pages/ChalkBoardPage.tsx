@@ -20,6 +20,8 @@ import {
   parseBoardExportFile,
 } from "../lib/boardExport";
 import type { BoardSummaryDto, NoteSummaryDto } from "../types";
+import { ContextMenu } from "../components/ui/ContextMenu";
+import { Pencil, Copy, Trash2, Layers, StickyNote as StickyNoteIcon } from "lucide-react";
 
 const MIN_ZOOM = 0.25;
 const AUTO_SAVE_DELAY_MS = 300; // 300ms after last change for faster server sync
@@ -94,6 +96,8 @@ export function ChalkBoardPage() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const didRightPanRef = useRef(false);
+  const [boardContextMenu, setBoardContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [itemContextMenu, setItemContextMenu] = useState<{ x: number; y: number; note: NoteSummaryDto } | null>(null);
   const loadFileInputRef = useRef<HTMLInputElement>(null);
 
   // --- ChalkBoard UI preferences (persist in localStorage) ---
@@ -214,6 +218,7 @@ export function ChalkBoardPage() {
 
   // --- Pan (right-click, middle-click, space+left drag) ---
   function handleViewportMouseDown(e: React.MouseEvent) {
+    if (e.button === 2 && (e.target as Element).closest("[data-board-item]")) return;
     if (e.button === 2 || e.button === 1 || (e.button === 0 && isSpaceHeld)) {
       e.preventDefault();
       setIsPanning(true);
@@ -262,7 +267,7 @@ export function ChalkBoardPage() {
     }
   }, [isPanning, isTouchPanning, mode, tool]);
 
-  // Suppress context menu after right-click pan
+  // Suppress context menu after right-click pan; show board menu on empty-area right-click
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -271,7 +276,11 @@ export function ChalkBoardPage() {
       if (didRightPanRef.current) {
         e.preventDefault();
         didRightPanRef.current = false;
+        return;
       }
+      if ((e.target as Element).closest("[data-board-item]")) return;
+      e.preventDefault();
+      setBoardContextMenu({ x: e.clientX, y: e.clientY });
     }
 
     viewport.addEventListener("contextmenu", onContextMenu);
@@ -1137,6 +1146,41 @@ export function ChalkBoardPage() {
     }
   }
 
+  const DUPLICATE_OFFSET = 20;
+
+  async function handleDuplicateNote(note: NoteSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createNote({
+        boardId,
+        title: note.title ?? undefined,
+        content: note.content ?? "",
+        positionX: (note.positionX ?? 0) + DUPLICATE_OFFSET,
+        positionY: (note.positionY ?? 0) + DUPLICATE_OFFSET,
+        width: note.width ?? undefined,
+        height: note.height ?? undefined,
+        color: note.color ?? undefined,
+        rotation: note.rotation ?? undefined,
+      });
+      setNotes((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  function buildItemContextMenuItems(): import("../components/ui/ContextMenu").ContextMenuItem[] {
+    if (!itemContextMenu) return [];
+    const { note } = itemContextMenu;
+    return [
+      { label: "Edit", icon: Pencil, onClick: () => handleStartEdit(note.id) },
+      { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateNote(note) },
+      { label: "Bring to front", icon: Layers, onClick: () => bringToFront(note.id) },
+      { label: "Delete", icon: Trash2, onClick: () => handleDelete(note.id), divider: true },
+    ];
+  }
+
   // --- Render ---
   if (isLoading) {
     return (
@@ -1309,6 +1353,7 @@ export function ChalkBoardPage() {
               onBringToFront={bringToFront}
               onUnmount={handleNoteUnmount}
               onExitEdit={handleExitEditNote}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, note })}
               zoom={zoom / RESOLUTION_FACTOR}
             />
           ))}
@@ -1339,6 +1384,37 @@ export function ChalkBoardPage() {
         onAddStickyNote={handleAddStickyNote}
       />
         </div>
+
+        {boardContextMenu && (
+          <ContextMenu
+            x={boardContextMenu.x}
+            y={boardContextMenu.y}
+            items={[
+              { label: "Add Sticky Note", icon: StickyNoteIcon, onClick: handleAddStickyNote },
+              {
+                label: "Undo",
+                onClick: triggerMenuUndo,
+                disabled: mode === "draw" ? false : noteUndoStackRef.current.length === 0,
+                divider: true,
+              },
+              {
+                label: "Redo",
+                onClick: triggerMenuRedo,
+                disabled: mode === "draw" ? false : noteRedoStackRef.current.length === 0,
+              },
+            ]}
+            onClose={() => setBoardContextMenu(null)}
+          />
+        )}
+
+        {itemContextMenu && (
+          <ContextMenu
+            x={itemContextMenu.x}
+            y={itemContextMenu.y}
+            items={buildItemContextMenuItems()}
+            onClose={() => setItemContextMenu(null)}
+          />
+        )}
       </div>
     </div>
   );

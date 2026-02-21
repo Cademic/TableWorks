@@ -13,7 +13,9 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
+import Link from "@tiptap/extension-link";
 import { X, GripVertical } from "lucide-react";
+import { handleTabKey } from "../../lib/tiptap-tab-indent";
 import type { IndexCardSummaryDto } from "../../types";
 import { FontSize } from "../../lib/tiptap-font-size";
 import { INDEX_CARD_COLORS } from "./indexCardColors";
@@ -42,6 +44,8 @@ interface IndexCardProps {
   focusedBy?: { userId: string; color: string }[] | null;
   /** Called when user clicks the drag handle while editing (to exit edit mode) */
   onExitEdit?: (id: string) => void;
+  /** Called when user right-clicks the card (for context menu). Call e.preventDefault() and e.stopPropagation() before showing menu. */
+  onContextMenu?: (e: React.MouseEvent) => void;
   zoom?: number;
   /** When true, visually scale the card when editing (for better readability) */
   enlargeWhenEditing?: boolean;
@@ -99,6 +103,7 @@ export function IndexCard({
   isLinking,
   focusedBy,
   onExitEdit,
+  onContextMenu,
   zoom = 1,
   enlargeWhenEditing = false,
 }: IndexCardProps) {
@@ -122,12 +127,13 @@ export function IndexCard({
 
   // --- TipTap editors ---
   const sharedExtensions = [
-    StarterKit.configure({ heading: false }),
+    StarterKit.configure({ heading: false, link: false }),
     TextStyle,
     Color,
     FontFamily,
     FontSize,
     TextAlign.configure({ types: ["paragraph"] }),
+    Link.configure({ openOnClick: false }),
   ];
 
   const titleEditor = useEditor({
@@ -142,6 +148,7 @@ export function IndexCard({
         class:
           "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: () => setActiveField("title"),
   });
@@ -164,6 +171,7 @@ export function IndexCard({
         class:
           "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[60px] break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: () => setActiveField("content"),
   });
@@ -531,6 +539,17 @@ export function IndexCard({
           zIndex,
         }}
         onMouseDown={() => onBringToFront?.(card.id)}
+        onContextMenu={(e) => {
+          const target = e.target as Element;
+          const inEditable = target.closest('[contenteditable="true"]');
+          const sel = window.getSelection();
+          if (inEditable && sel?.isCollapsed) {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
       >
         <div
           className={[

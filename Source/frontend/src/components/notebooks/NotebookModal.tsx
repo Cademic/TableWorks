@@ -20,6 +20,7 @@ import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import { X, Download, ChevronDown, Upload, Printer } from "lucide-react";
 import { FontSize } from "../../lib/tiptap-font-size";
+import { handleTabKey } from "../../lib/tiptap-tab-indent";
 import { getNotebookById, updateNotebookContent, downloadNotebookExport } from "../../api/notebooks";
 import type { NotebookDetailDto } from "../../types";
 import { PaperShell } from "./PaperShell";
@@ -153,6 +154,7 @@ export function NotebookModal({ notebookId, onClose }: NotebookModalProps) {
         class:
           "prose prose-zinc dark:prose-invert max-w-none focus:outline-none min-h-[400px]",
       },
+      handleKeyDown: handleTabKey,
     },
     immediatelyRender: false,
   });

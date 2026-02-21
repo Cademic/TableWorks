@@ -338,6 +338,12 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Preserve empty lines (empty paragraphs) in read mode */
+.note-rich-content p:empty,
+.note-rich-content p:has(> br:only-child) {
+  min-height: 1.4em;
+}
+
 .note-rich-content u {
   text-decoration: underline;
 }
@@ -352,6 +358,43 @@ body {
 
 .note-rich-content em {
   font-style: italic;
+}
+
+/* Highlight mark (background color) in read mode */
+.note-rich-content mark {
+  padding: 0 0.1em;
+  border-radius: 0.2em;
+}
+
+/* Hyperlinks — blue with underline in all rich text */
+.ProseMirror a,
+.note-rich-content a,
+.tiptap a,
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover,
+.note-rich-content a:hover,
+.tiptap a:hover,
+.prose a:hover {
+  color: #1d4ed8;
+}
+
+.dark .ProseMirror a,
+.dark .note-rich-content a,
+.dark .tiptap a,
+.dark .prose a {
+  color: #60a5fa;
+}
+
+.dark .ProseMirror a:hover,
+.dark .note-rich-content a:hover,
+.dark .tiptap a:hover,
+.dark .prose a:hover {
+  color: #93c5fd;
 }
 
 /* ========================================

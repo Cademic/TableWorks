@@ -19,6 +19,8 @@ interface CorkBoardProps {
   onViewportChange: (zoom: number, panX: number, panY: number) => void;
   /** Background theme: whiteboard (light), blackboard (dark), or default (cork) */
   backgroundTheme?: CorkBoardBackgroundTheme;
+  /** Called when user right-clicks on empty canvas (not on a board item). Use to show board-level context menu. */
+  onBoardContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const MIN_ZOOM = 0.25;
@@ -29,7 +31,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange, backgroundTheme = "default" }: CorkBoardProps) {
+export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange, backgroundTheme = "default", onBoardContextMenu }: CorkBoardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -126,6 +128,8 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
   const didRightPanRef = useRef(false);
 
   function handleMouseDown(e: React.MouseEvent) {
+    // Don't start pan when right-clicking on a board item (let item show context menu)
+    if (e.button === 2 && (e.target as Element).closest("[data-board-item]")) return;
     // Right mouse button (2), middle mouse button (1), or space+left click (0)
     if (e.button === 2 || e.button === 1 || (e.button === 0 && isSpaceHeld)) {
       e.preventDefault();
@@ -164,7 +168,7 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
     };
   }, [isPanning, zoom, onViewportChange]);
 
-  // Suppress context menu after right-click panning
+  // Suppress context menu after right-click panning; show board menu on empty-area right-click
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -173,12 +177,16 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
       if (didRightPanRef.current) {
         e.preventDefault();
         didRightPanRef.current = false;
+        return;
       }
+      if ((e.target as Element).closest("[data-board-item]")) return;
+      e.preventDefault();
+      onBoardContextMenu?.(e as unknown as React.MouseEvent);
     }
 
     viewport.addEventListener("contextmenu", onContextMenu);
     return () => viewport.removeEventListener("contextmenu", onContextMenu);
-  }, []);
+  }, [onBoardContextMenu]);
 
   // Track space bar for space-to-pan
   useEffect(() => {

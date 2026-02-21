@@ -29,6 +29,8 @@ import {
   ListOrdered,
   Image as ImageIcon,
   ChevronDown,
+  Menu,
+  ChevronRight,
 } from "lucide-react";
 
 const FONT_FAMILIES = [
@@ -99,6 +101,20 @@ interface NotebookToolbarProps {
   pdfExporting?: boolean;
 }
 
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
+    setMatches(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [query]);
+  return matches;
+}
+
 function ToolbarButton({
   isActive,
   onClick,
@@ -141,9 +157,6 @@ function parseFontSize(raw: string | undefined | null): number {
   return Number.isNaN(n) ? 12 : n;
 }
 
-function ToolbarDivider() {
-  return <div className="mx-1 h-6 w-px bg-gray-200 dark:bg-gray-600" />;
-}
 
 function normalizeHex(hex: string): string {
   const m = hex.replace(/^#/, "").trim();
@@ -905,246 +918,320 @@ export function NotebookToolbar({
   const selectClassName =
     "h-8 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200";
 
+  const isCompact = !useMediaQuery("(min-width: 768px)");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(isCompact ? null : "all");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) setOpenSection(isCompact ? null : "all");
+  }, [menuOpen, isCompact]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const toggleSection = (id: string) => {
+    setOpenSection((prev) => (prev === id ? null : id));
+  };
+
+  const DropdownSection = ({
+    id,
+    label,
+    children,
+  }: {
+    id: string;
+    label: string;
+    children: React.ReactNode;
+  }) =>
+    isCompact ? (
+      <div className="border-b border-gray-200 last:border-b-0 dark:border-gray-600">
+        <button
+          type="button"
+          onClick={() => toggleSection(id)}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          {label}
+          <ChevronRight
+            className={`h-4 w-4 shrink-0 transition-transform ${openSection === id ? "rotate-90" : ""}`}
+          />
+        </button>
+        {openSection === id && (
+          <div className="border-t border-gray-100 bg-gray-50/50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
+            {children}
+          </div>
+        )}
+      </div>
+    ) : (
+      <div className="space-y-1.5">
+        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
+        <div className="flex flex-wrap items-center gap-1">{children}</div>
+      </div>
+    );
+
   return (
-    <div className="space-y-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-      {/* Row 1: Actions */}
-      <div className="flex flex-wrap items-center gap-1">
-        <ToolbarButton
-          disabled={!state.canUndo}
-          onClick={() => editor.chain().focus().undo().run()}
-          title="Undo"
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setMenuOpen(!menuOpen)}
+        title="Formatting menu"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      {menuOpen && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 min-w-[280px] max-w-[min(95vw,640px)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-600 dark:bg-gray-800"
+          onMouseDown={(e) => e.stopPropagation()}
         >
-          <Undo2 className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          disabled={!state.canRedo}
-          onClick={() => editor.chain().focus().redo().run()}
-          title="Redo"
-        >
-          <Redo2 className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => window.print()}
-          title="Print"
-        >
-          <Printer className="h-4 w-4" />
-        </ToolbarButton>
-        {onDownloadPdf && (
-          <ToolbarButton
-            onClick={onDownloadPdf}
-            disabled={pdfExporting}
-            title="Download as PDF"
+          <div
+            className={`max-h-[min(85vh,600px)] overflow-y-auto ${isCompact ? "py-1" : "space-y-4 p-4 md:grid md:grid-cols-2 md:gap-x-6"}`}
           >
-            <FileDown className="h-4 w-4" />
-          </ToolbarButton>
-        )}
-        <ToolbarDivider />
-        <div className="flex items-center gap-1">
-          <select
-            value={Math.round(zoom * 100)}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) onZoomChange(parseInt(v, 10) / 100);
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            title="Zoom"
-            className={selectClassName}
-          >
-            {ZOOM_PRESETS.map((p) => (
-              <option key={p} value={p}>{p}%</option>
-            ))}
-            {!ZOOM_PRESETS.includes(Math.round(zoom * 100)) && (
-              <option value={Math.round(zoom * 100)}>{Math.round(zoom * 100)}%</option>
+            {/* Edit */}
+            <DropdownSection id="edit" label="Edit">
+              <ToolbarButton
+                disabled={!state.canUndo}
+                onClick={() => editor.chain().focus().undo().run()}
+                title="Undo"
+              >
+                <Undo2 className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                disabled={!state.canRedo}
+                onClick={() => editor.chain().focus().redo().run()}
+                title="Redo"
+              >
+                <Redo2 className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton onClick={() => window.print()} title="Print">
+                <Printer className="h-4 w-4" />
+              </ToolbarButton>
+              {onDownloadPdf && (
+                <ToolbarButton
+                  onClick={onDownloadPdf}
+                  disabled={pdfExporting}
+                  title="Download as PDF"
+                >
+                  <FileDown className="h-4 w-4" />
+                </ToolbarButton>
+              )}
+              <div className="inline-flex items-center">
+                <select
+                  value={Math.round(zoom * 100)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v) onZoomChange(parseInt(v, 10) / 100);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  title="Zoom"
+                  className={selectClassName}
+                >
+                  {ZOOM_PRESETS.map((p) => (
+                    <option key={p} value={p}>{p}%</option>
+                  ))}
+                  {!ZOOM_PRESETS.includes(Math.round(zoom * 100)) && (
+                    <option value={Math.round(zoom * 100)}>{Math.round(zoom * 100)}%</option>
+                  )}
+                </select>
+              </div>
+            </DropdownSection>
+
+            {/* Style & Font */}
+            <DropdownSection id="style" label="Style & Font">
+              <select
+                value={selectStyleValue}
+                onChange={(e) => setStyle(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                title="Text style"
+                className={`${selectClassName} min-w-[120px]`}
+              >
+                {STYLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <select
+                value={state.fontFamily ?? FONT_FAMILIES[0].value}
+                onChange={(e) => setFontFamily(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                title="Font"
+                className={`${selectClassName} min-w-[100px]`}
+              >
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+              <FontSizeWithButtons editor={editor} />
+              <select
+                value={state.lineHeight ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v) editor.chain().focus().setLineHeight(v).run();
+                  else editor.chain().focus().unsetLineHeight().run();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title="Line spacing"
+                className={selectClassName}
+              >
+                <option value="">Default</option>
+                {LINE_SPACING_PRESETS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </DropdownSection>
+
+            {/* Formatting */}
+            <DropdownSection id="format" label="Formatting">
+              <ToolbarButton
+                isActive={state.isBold}
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                title="Bold"
+              >
+                <Bold className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.isItalic}
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                title="Italic"
+              >
+                <Italic className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.isUnderline}
+                onClick={() => editor.chain().focus().toggleUnderline().run()}
+                title="Underline"
+              >
+                <Underline className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.isStrike}
+                onClick={() => editor.chain().focus().toggleStrike().run()}
+                title="Strikethrough"
+              >
+                <Strikethrough className="h-4 w-4" />
+              </ToolbarButton>
+              <TextColorDropdown editor={editor} currentColor={currentColor} isAutomatic={!state.color} />
+              <HighlightButton editor={editor} isHighlightActive={state.isHighlight} highlightColor={state.highlightColor} />
+              <LinkButton editor={editor} isLinkActive={state.isLink} />
+              <ToolbarButton
+                onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+                title="Clear formatting"
+              >
+                <Eraser className="h-4 w-4" />
+              </ToolbarButton>
+            </DropdownSection>
+
+            {/* Alignment */}
+            <DropdownSection id="align" label="Alignment">
+              <ToolbarButton
+                isActive={state.textAlignLeft}
+                onClick={() => editor.chain().focus().setTextAlign("left").run()}
+                title="Align left"
+              >
+                <AlignLeft className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.textAlignCenter}
+                onClick={() => editor.chain().focus().setTextAlign("center").run()}
+                title="Align center"
+              >
+                <AlignCenter className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.textAlignRight}
+                onClick={() => editor.chain().focus().setTextAlign("right").run()}
+                title="Align right"
+              >
+                <AlignRight className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.textAlignJustify}
+                onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+                title="Justify"
+              >
+                <AlignJustify className="h-4 w-4" />
+              </ToolbarButton>
+            </DropdownSection>
+
+            {/* Insert & Lists */}
+            <DropdownSection id="insert" label="Insert & Lists">
+              <ImageButton editor={editor} notebookId={notebookId} />
+              <ToolbarButton
+                isActive={state.bulletList}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                title="Bullet list"
+              >
+                <List className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.orderedList}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                title="Numbered list"
+              >
+                <ListOrdered className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                isActive={state.taskList}
+                onClick={() => editor.chain().focus().toggleTaskList().run()}
+                title="Checklist"
+              >
+                <ListChecks className="h-4 w-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => editor.chain().focus().setHorizontalRule().run()}
+                title="Horizontal rule"
+              >
+                <Minus className="h-4 w-4" />
+              </ToolbarButton>
+              <TableOptionsButton editor={editor} />
+            </DropdownSection>
+
+            {/* Table Tools */}
+            {isInsideTable && (
+              <DropdownSection id="table" label="Table">
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().addRowAfter().run()}
+                  title="Add row"
+                >
+                  <span className="text-xs font-bold">+R</span>
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().deleteRow().run()}
+                  title="Delete row"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().addColumnAfter().run()}
+                  title="Add column"
+                >
+                  <span className="text-xs font-bold">+C</span>
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().deleteColumn().run()}
+                  title="Delete column"
+                >
+                  <span className="flex items-center gap-0.5 text-xs font-bold">
+                    <Trash2 className="h-3 w-3" />C
+                  </span>
+                </ToolbarButton>
+                <ToolbarButton
+                  onClick={() => editor.chain().focus().deleteTable().run()}
+                  title="Delete table"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </ToolbarButton>
+              </DropdownSection>
             )}
-          </select>
+          </div>
         </div>
-      </div>
-
-      {/* Row 2: Formatting */}
-      <div className="flex flex-wrap items-center gap-1">
-        <select
-          value={selectStyleValue}
-          onChange={(e) => setStyle(e.target.value)}
-          onMouseDown={(e) => e.stopPropagation()}
-          title="Text style"
-          className={`${selectClassName} min-w-[120px]`}
-        >
-          {STYLE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={state.fontFamily ?? FONT_FAMILIES[0].value}
-          onChange={(e) => setFontFamily(e.target.value)}
-          onMouseDown={(e) => e.stopPropagation()}
-          title="Font"
-          className={`${selectClassName} min-w-[100px]`}
-        >
-          {FONT_FAMILIES.map((f) => (
-            <option key={f.value} value={f.value}>{f.label}</option>
-          ))}
-        </select>
-        <FontSizeWithButtons editor={editor} />
-        <ToolbarDivider />
-        <ToolbarButton
-          isActive={state.isBold}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          title="Bold"
-        >
-          <Bold className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.isItalic}
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          title="Italic"
-        >
-          <Italic className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.isUnderline}
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-          title="Underline"
-        >
-          <Underline className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.isStrike}
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-          title="Strikethrough"
-        >
-          <Strikethrough className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarDivider />
-        <TextColorDropdown editor={editor} currentColor={currentColor} isAutomatic={!state.color} />
-        <HighlightButton editor={editor} isHighlightActive={state.isHighlight} highlightColor={state.highlightColor} />
-        <LinkButton editor={editor} isLinkActive={state.isLink} />
-        <ImageButton editor={editor} notebookId={notebookId} />
-        <ToolbarDivider />
-        <ToolbarButton
-          isActive={state.textAlignLeft}
-          onClick={() => editor.chain().focus().setTextAlign("left").run()}
-          title="Align left"
-        >
-          <AlignLeft className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.textAlignCenter}
-          onClick={() => editor.chain().focus().setTextAlign("center").run()}
-          title="Align center"
-        >
-          <AlignCenter className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.textAlignRight}
-          onClick={() => editor.chain().focus().setTextAlign("right").run()}
-          title="Align right"
-        >
-          <AlignRight className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.textAlignJustify}
-          onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-          title="Justify"
-        >
-          <AlignJustify className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarDivider />
-        <select
-          value={state.lineHeight ?? ""}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v) {
-              editor.chain().focus().setLineHeight(v).run();
-            } else {
-              editor.chain().focus().unsetLineHeight().run();
-            }
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          title="Line spacing"
-          className={selectClassName}
-        >
-          <option value="">Default</option>
-          {LINE_SPACING_PRESETS.map((p) => (
-            <option key={p.value} value={p.value}>{p.label}</option>
-          ))}
-        </select>
-        <ToolbarDivider />
-        <ToolbarButton
-          isActive={state.bulletList}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          title="Bullet list"
-        >
-          <List className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.orderedList}
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          title="Numbered list"
-        >
-          <ListOrdered className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          isActive={state.taskList}
-          onClick={() => editor.chain().focus().toggleTaskList().run()}
-          title="Checklist"
-        >
-          <ListChecks className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          title="Horizontal rule"
-        >
-          <Minus className="h-4 w-4" />
-        </ToolbarButton>
-        <TableOptionsButton editor={editor} />
-        <ToolbarDivider />
-        <ToolbarButton
-          onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-          title="Clear formatting"
-        >
-          <Eraser className="h-4 w-4" />
-        </ToolbarButton>
-
-        {isInsideTable && (
-          <>
-            <ToolbarDivider />
-            <ToolbarButton
-              onClick={() => editor.chain().focus().addRowAfter().run()}
-              title="Add row"
-            >
-              <span className="text-xs font-bold">+R</span>
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteRow().run()}
-              title="Delete row"
-            >
-              <Trash2 className="h-4 w-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().addColumnAfter().run()}
-              title="Add column"
-            >
-              <span className="text-xs font-bold">+C</span>
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteColumn().run()}
-              title="Delete column"
-            >
-              <span className="flex items-center gap-0.5 text-xs font-bold">
-                <Trash2 className="h-3 w-3" />C
-              </span>
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().deleteTable().run()}
-              title="Delete table"
-            >
-              <Trash2 className="h-4 w-4 text-red-500" />
-            </ToolbarButton>
-          </>
-        )}
-      </div>
+      )}
     </div>
   );
 }

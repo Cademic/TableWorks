@@ -8,7 +8,9 @@ import Color from "@tiptap/extension-color";
 import FontFamily from "@tiptap/extension-font-family";
 import CharacterCount from "@tiptap/extension-character-count";
 import TextAlign from "@tiptap/extension-text-align";
+import Link from "@tiptap/extension-link";
 import { X, GripVertical } from "lucide-react";
+import { handleTabKey } from "../../lib/tiptap-tab-indent";
 import type { NoteSummaryDto } from "../../types";
 import { FontSize } from "../../lib/tiptap-font-size";
 import { NoteToolbar } from "./NoteToolbar";
@@ -42,6 +44,8 @@ interface StickyNoteProps {
   onUnmount?: (id: string) => void;
   /** Called when user clicks the drag handle while editing (to exit edit mode) */
   onExitEdit?: (id: string) => void;
+  /** Called when user right-clicks the note (for context menu). Call e.preventDefault() and e.stopPropagation() before showing menu. */
+  onContextMenu?: (e: React.MouseEvent) => void;
   zoom?: number;
   /** When true, visually scale the note when editing (for better readability) */
   enlargeWhenEditing?: boolean;
@@ -160,6 +164,7 @@ export function StickyNote({
   onTextCursor,
   onUnmount,
   onExitEdit,
+  onContextMenu,
   zoom = 1,
   enlargeWhenEditing = false,
 }: StickyNoteProps) {
@@ -184,12 +189,13 @@ export function StickyNote({
 
   // --- TipTap editors ---
   const sharedExtensions = [
-    StarterKit.configure({ heading: false }),
+    StarterKit.configure({ heading: false, link: false }),
     TextStyle,
     Color,
     FontFamily,
     FontSize,
     TextAlign.configure({ types: ["paragraph"] }),
+    Link.configure({ openOnClick: false }),
   ];
 
   const sendTextCursorIfNeeded = useCallback(
@@ -213,6 +219,7 @@ export function StickyNote({
         class:
           "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: ({ editor }) => {
       setActiveField("title");
@@ -232,6 +239,7 @@ export function StickyNote({
         class:
           "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[40px] break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: ({ editor }) => {
       setActiveField("content");
@@ -658,6 +666,17 @@ export function StickyNote({
           zIndex,
         }}
         onMouseDown={() => onBringToFront?.(note.id)}
+        onContextMenu={(e) => {
+          const target = e.target as Element;
+          const inEditable = target.closest('[contenteditable="true"]');
+          const sel = window.getSelection();
+          if (inEditable && sel?.isCollapsed) {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
       >
         <div
           className={[

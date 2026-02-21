@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   StickyNote,
   CreditCard,
@@ -78,20 +79,42 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
     : null;
   const showMenuActions = Boolean(onRename ?? onMoveToProject ?? onTogglePin);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<"ellipsis" | { x: number; y: number }>("ellipsis");
   const [showProjectList, setShowProjectList] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on outside click
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setMenuAnchor("ellipsis");
+    setShowProjectList(false);
+  };
+
   useEffect(() => {
     if (!menuOpen) return;
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inMenu = menuRef.current?.contains(target) ?? false;
+      const inPortal = portalMenuRef.current?.contains(target) ?? false;
+      if (!inMenu && !inPortal) {
         setMenuOpen(false);
+        setMenuAnchor("ellipsis");
+        setShowProjectList(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setMenuAnchor("ellipsis");
         setShowProjectList(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [menuOpen]);
 
   return (
@@ -99,6 +122,12 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
       role="button"
       tabIndex={0}
       onClick={() => navigate(getBoardRoute(board))}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenuAnchor({ x: e.clientX, y: e.clientY });
+        setMenuOpen(true);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -144,12 +173,14 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
           tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
+            setMenuAnchor("ellipsis");
             setMenuOpen((v) => !v);
             setShowProjectList(false);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.stopPropagation();
+              setMenuAnchor("ellipsis");
               setMenuOpen((v) => !v);
             }
           }}
@@ -160,7 +191,7 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
         </div>
 
         {/* Dropdown menu */}
-        {menuOpen && (
+        {menuOpen && menuAnchor === "ellipsis" && (
           <div className="absolute right-0 top-7 z-20 w-48 rounded-lg border border-border bg-background py-1 shadow-lg">
             {onRename && (
               <button
@@ -168,7 +199,7 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setMenuOpen(false);
+                  closeMenu();
                   onRename(board.id, board.name);
                 }}
               >
@@ -215,8 +246,7 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setMenuOpen(false);
-                          setShowProjectList(false);
+                          closeMenu();
                           onMoveToProject(board.id, project.id);
                         }}
                       >
@@ -243,7 +273,7 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
               onClick={(e) => {
                 e.stopPropagation();
-                setMenuOpen(false);
+                closeMenu();
                 onTogglePin(board.id, !board.isPinned);
               }}
             >
@@ -269,7 +299,7 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
               onClick={(e) => {
                 e.stopPropagation();
-                setMenuOpen(false);
+                closeMenu();
                 onDelete(board.id);
               }}
             >
@@ -278,6 +308,123 @@ export function BoardCard({ board, onDelete, onRename, onMoveToProject, onToggle
             </button>
           </div>
         )}
+        {menuOpen && menuAnchor !== "ellipsis" &&
+          createPortal(
+            <div
+              ref={portalMenuRef}
+              className="fixed z-[100] w-48 rounded-lg border border-border bg-background py-1 shadow-lg"
+              style={{ left: menuAnchor.x, top: menuAnchor.y }}
+            >
+              {onRename && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    onRename(board.id, board.name);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Rename
+                </button>
+              )}
+              {onMoveToProject && (
+                <div
+                  className="relative"
+                  onMouseEnter={() => setShowProjectList(true)}
+                  onMouseLeave={() => setShowProjectList(false)}
+                >
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowProjectList((v) => !v);
+                    }}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Move to Project
+                    <ChevronRight className="ml-auto h-3 w-3 text-foreground/30" />
+                  </button>
+                  {showProjectList && (
+                    <div className="absolute left-full top-0 z-30 pl-1">
+                      <div className="w-44 rounded-lg border border-border bg-background py-1 shadow-lg">
+                        {activeProjects.length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-foreground/40">
+                            No active projects
+                          </div>
+                        ) : (
+                          activeProjects.map((project) => (
+                            <button
+                              key={project.id}
+                              type="button"
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium transition-colors hover:bg-foreground/5 ${
+                                board.projectId === project.id
+                                  ? "text-primary"
+                                  : "text-foreground/70"
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                closeMenu();
+                                onMoveToProject(board.id, project.id);
+                              }}
+                            >
+                              <div
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: project.color || "#8b5cf6" }}
+                              />
+                              <span className="truncate">{project.name}</span>
+                              {board.projectId === project.id && (
+                                <span className="ml-auto text-[10px] text-foreground/40">Current</span>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {onTogglePin && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    onTogglePin(board.id, !board.isPinned);
+                  }}
+                >
+                  {board.isPinned ? (
+                    <>
+                      <PinOff className="h-3.5 w-3.5" />
+                      Unpin from Sidebar
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="h-3.5 w-3.5" />
+                      Pin to Sidebar
+                    </>
+                  )}
+                </button>
+              )}
+              {showMenuActions && <div className="my-1 border-t border-border/50" />}
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeMenu();
+                  onDelete(board.id);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* Icon */}

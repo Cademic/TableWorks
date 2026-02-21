@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { getPinnedBoards } from "../../api/boards";
-import { getPinnedProjects } from "../../api/projects";
-import { getPinnedNotebooks } from "../../api/notebooks";
+import { getPinnedBoards, toggleBoardPin } from "../../api/boards";
+import { getPinnedProjects, toggleProjectPin } from "../../api/projects";
+import { getPinnedNotebooks, toggleNotebookPin } from "../../api/notebooks";
 import { Navbar } from "./Navbar";
 import { Sidebar } from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
@@ -131,6 +131,33 @@ export function AppLayout() {
     [navigate],
   );
 
+  const handleUnpinBoard = useCallback(async (id: string) => {
+    try {
+      await toggleBoardPin(id, false);
+      await refreshPinnedBoards();
+    } catch {
+      // Fail silently
+    }
+  }, [refreshPinnedBoards]);
+
+  const handleUnpinProject = useCallback(async (id: string) => {
+    try {
+      await toggleProjectPin(id, false);
+      await refreshPinnedProjects();
+    } catch {
+      // Fail silently
+    }
+  }, [refreshPinnedProjects]);
+
+  const handleUnpinNotebook = useCallback(async (id: string) => {
+    try {
+      await toggleNotebookPin(id, false);
+      await refreshPinnedNotebooks();
+    } catch {
+      // Fail silently
+    }
+  }, [refreshPinnedNotebooks]);
+
   // Clear presence when leaving board or notebook editor routes
   useEffect(() => {
     const onBoard = /^\/boards\/[^/]+$/.test(location.pathname) || /^\/chalkboards\/[^/]+$/.test(location.pathname);
@@ -174,6 +201,9 @@ export function AppLayout() {
           pinnedProjects={pinnedProjects}
           pinnedNotebooks={pinnedNotebooks}
           onOpenNotebook={openNotebook}
+          onUnpinBoard={handleUnpinBoard}
+          onUnpinProject={handleUnpinProject}
+          onUnpinNotebook={handleUnpinNotebook}
         />
       )}
       {isMobile && isSidebarOpen && (
@@ -195,6 +225,9 @@ export function AppLayout() {
               pinnedProjects={pinnedProjects}
               pinnedNotebooks={pinnedNotebooks}
               onOpenNotebook={openNotebook}
+              onUnpinBoard={handleUnpinBoard}
+              onUnpinProject={handleUnpinProject}
+              onUnpinNotebook={handleUnpinNotebook}
             />
           </div>
         </>

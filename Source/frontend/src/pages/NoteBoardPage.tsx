@@ -45,6 +45,8 @@ import {
   buildBoardExportFilename,
   parseBoardExportFile,
 } from "../lib/boardExport";
+import { ContextMenu } from "../components/ui/ContextMenu";
+import { Pencil, Copy, Trash2, Layers, StickyNote as StickyNoteIcon, CreditCard, Image as ImageIcon } from "lucide-react";
 
 let nextTempCardId = 1;
 
@@ -151,6 +153,15 @@ export function NoteBoardPage() {
   const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
+
+  // --- Context menu state ---
+  const [boardContextMenu, setBoardContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [itemContextMenu, setItemContextMenu] = useState<
+    | { x: number; y: number; type: "note"; note: NoteSummaryDto }
+    | { x: number; y: number; type: "card"; card: IndexCardSummaryDto }
+    | { x: number; y: number; type: "image"; image: BoardImageSummaryDto }
+    | null
+  >(null);
 
   // --- Board presence: who is focusing which item, remote cursors ---
   const [remoteFocus, setRemoteFocus] = useState<Map<string, { userId: string; color: string }[]>>(new Map());
@@ -1621,6 +1632,99 @@ export function NoteBoardPage() {
     }
   }
 
+  const DUPLICATE_OFFSET = 20;
+
+  async function handleDuplicateNote(note: NoteSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createNote({
+        boardId,
+        title: note.title ?? undefined,
+        content: note.content ?? "",
+        positionX: (note.positionX ?? 0) + DUPLICATE_OFFSET,
+        positionY: (note.positionY ?? 0) + DUPLICATE_OFFSET,
+        width: note.width ?? undefined,
+        height: note.height ?? undefined,
+        color: note.color ?? undefined,
+        rotation: note.rotation ?? undefined,
+      });
+      setNotes((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleDuplicateCard(card: IndexCardSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createIndexCard({
+        boardId,
+        title: card.title ?? undefined,
+        content: card.content ?? "",
+        positionX: (card.positionX ?? 0) + DUPLICATE_OFFSET,
+        positionY: (card.positionY ?? 0) + DUPLICATE_OFFSET,
+        width: card.width ?? undefined,
+        height: card.height ?? undefined,
+        color: card.color ?? undefined,
+        rotation: card.rotation ?? undefined,
+      });
+      setIndexCards((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleDuplicateImage(image: BoardImageSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createBoardImageCard(boardId, {
+        imageUrl: image.imageUrl,
+        positionX: image.positionX + DUPLICATE_OFFSET,
+        positionY: image.positionY + DUPLICATE_OFFSET,
+        width: image.width ?? undefined,
+        height: image.height ?? undefined,
+        rotation: image.rotation ?? undefined,
+      });
+      setImageCards((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  function buildItemContextMenuItems(): import("../components/ui/ContextMenu").ContextMenuItem[] {
+    if (!itemContextMenu) return [];
+    if (itemContextMenu.type === "note") {
+      const { note } = itemContextMenu;
+      return [
+        { label: "Edit", icon: Pencil, onClick: () => handleStartEdit(note.id) },
+        { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateNote(note) },
+        { label: "Bring to front", icon: Layers, onClick: () => bringToFront(note.id) },
+        { label: "Delete", icon: Trash2, onClick: () => handleDelete(note.id), divider: true },
+      ];
+    }
+    if (itemContextMenu.type === "card") {
+      const { card } = itemContextMenu;
+      return [
+        { label: "Edit", icon: Pencil, onClick: () => handleCardStartEdit(card.id) },
+        { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateCard(card) },
+        { label: "Bring to front", icon: Layers, onClick: () => bringToFront(card.id) },
+        { label: "Delete", icon: Trash2, onClick: () => handleCardDelete(card.id), divider: true },
+      ];
+    }
+    const { image } = itemContextMenu;
+    return [
+      { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateImage(image) },
+      { label: "Bring to front", icon: Layers, onClick: () => bringToFront(image.id) },
+      { label: "Delete", icon: Trash2, onClick: () => handleImageDelete(image.id), divider: true },
+    ];
+  }
+
   // =============================================
   // File save/load and menu actions
   // =============================================
@@ -2031,6 +2135,7 @@ export function NoteBoardPage() {
           panY={panY}
           onViewportChange={handleViewportChange}
           backgroundTheme={backgroundTheme}
+          onBoardContextMenu={(e) => setBoardContextMenu({ x: e.clientX, y: e.clientY })}
         >
           {/* Remote cursors layer (board-space coords, same transform as canvas) */}
           <div className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden>
@@ -2088,6 +2193,7 @@ export function NoteBoardPage() {
               onBringToFront={bringToFront}
               onUnmount={handleNoteUnmount}
               onExitEdit={handleExitEditNote}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "note", note })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -2104,6 +2210,7 @@ export function NoteBoardPage() {
               onResize={handleImageResize}
               onBringToFront={bringToFront}
               onPinMouseDown={handlePinMouseDown}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "image", image: img })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -2130,6 +2237,7 @@ export function NoteBoardPage() {
               onPinMouseDown={handlePinMouseDown}
               onBringToFront={bringToFront}
               onExitEdit={handleExitEditCard}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "card", card })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -2154,6 +2262,30 @@ export function NoteBoardPage() {
             onChange={handleImageFileSelect}
           />
         </CorkBoard>
+
+        {boardContextMenu && (
+          <ContextMenu
+            x={boardContextMenu.x}
+            y={boardContextMenu.y}
+            items={[
+              { label: "Add Sticky Note", icon: StickyNoteIcon, onClick: handleQuickAddNote },
+              { label: "Add Index Card", icon: CreditCard, onClick: handleQuickAddCard },
+              { label: "Add Image", icon: ImageIcon, onClick: handleQuickAddImage },
+              { label: "Undo", onClick: triggerMenuUndo, disabled: boardUndoStackRef.current.length === 0, divider: true },
+              { label: "Redo", onClick: triggerMenuRedo, disabled: boardRedoStackRef.current.length === 0 },
+            ]}
+            onClose={() => setBoardContextMenu(null)}
+          />
+        )}
+
+        {itemContextMenu && (
+          <ContextMenu
+            x={itemContextMenu.x}
+            y={itemContextMenu.y}
+            items={buildItemContextMenuItems()}
+            onClose={() => setItemContextMenu(null)}
+          />
+        )}
       </div>
     </div>
   );

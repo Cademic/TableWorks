@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   FolderOpen,
   Users,
@@ -85,24 +86,51 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
   const isOwner = project.userRole === "Owner";
   const colors = COLOR_MAP[project.color] ?? COLOR_MAP.violet;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<"ellipsis" | { x: number; y: number }>("ellipsis");
   const menuRef = useRef<HTMLDivElement>(null);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inMenu = menuRef.current?.contains(target) ?? false;
+      const inPortal = portalMenuRef.current?.contains(target) ?? false;
+      if (!inMenu && !inPortal) {
         setMenuOpen(false);
+        setMenuAnchor("ellipsis");
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setMenuAnchor("ellipsis");
       }
     }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [menuOpen]);
+
+  const closeMenu = () => {
+    setMenuOpen(false);
+    setMenuAnchor("ellipsis");
+  };
 
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => navigate(`/projects/${project.id}`)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenuAnchor({ x: e.clientX, y: e.clientY });
+        setMenuOpen(true);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -136,11 +164,13 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
           tabIndex={0}
           onClick={(e) => {
             e.stopPropagation();
+            setMenuAnchor("ellipsis");
             setMenuOpen((v) => !v);
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.stopPropagation();
+              setMenuAnchor("ellipsis");
               setMenuOpen((v) => !v);
             }
           }}
@@ -150,7 +180,7 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
           <MoreVertical className="h-4 w-4" />
         </div>
 
-        {menuOpen && (
+        {menuOpen && menuAnchor === "ellipsis" && (
           <div className="absolute right-0 top-7 z-20 w-48 rounded-lg border border-border bg-background py-1 shadow-lg">
             {onRename && (
               <button
@@ -158,7 +188,7 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setMenuOpen(false);
+                  closeMenu();
                   onRename(project.id, project.name);
                 }}
               >
@@ -172,7 +202,7 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setMenuOpen(false);
+                  closeMenu();
                   onTogglePin(project.id, !project.isPinned);
                 }}
               >
@@ -197,7 +227,7 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMenuOpen(false);
+                    closeMenu();
                     onLeave(project.id);
                   }}
                 >
@@ -214,7 +244,7 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMenuOpen(false);
+                    closeMenu();
                     onDelete(project.id);
                   }}
                 >
@@ -225,6 +255,87 @@ export function ProjectCard({ project, onDelete, onRename, onTogglePin, onLeave 
             )}
           </div>
         )}
+        {menuOpen && menuAnchor !== "ellipsis" &&
+          createPortal(
+            <div
+              ref={portalMenuRef}
+              className="fixed z-[100] w-48 rounded-lg border border-border bg-background py-1 shadow-lg"
+              style={{ left: menuAnchor.x, top: menuAnchor.y }}
+            >
+              {onRename && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    onRename(project.id, project.name);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Rename
+                </button>
+              )}
+              {onTogglePin && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-foreground/70 transition-colors hover:bg-foreground/5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeMenu();
+                    onTogglePin(project.id, !project.isPinned);
+                  }}
+                >
+                  {project.isPinned ? (
+                    <>
+                      <PinOff className="h-3.5 w-3.5" />
+                      Unpin from Sidebar
+                    </>
+                  ) : (
+                    <>
+                      <Pin className="h-3.5 w-3.5" />
+                      Pin to Sidebar
+                    </>
+                  )}
+                </button>
+              )}
+              {!isOwner && onLeave && (
+                <>
+                  <div className="my-1 border-t border-border/50" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeMenu();
+                      onLeave(project.id);
+                    }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Leave Project
+                  </button>
+                </>
+              )}
+              {isOwner && onDelete && (
+                <>
+                  <div className="my-1 border-t border-border/50" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeMenu();
+                      onDelete(project.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>,
+            document.body,
+          )}
       </div>
 
       {/* Icon & Role badge */}

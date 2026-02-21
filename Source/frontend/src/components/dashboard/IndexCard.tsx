@@ -523,6 +523,7 @@ export function IndexCard({
       <div
         ref={nodeRef}
         data-board-item="card"
+        data-card-id={card.id}
         className="absolute overflow-visible"
         style={{
           width: `${size.width}px`,

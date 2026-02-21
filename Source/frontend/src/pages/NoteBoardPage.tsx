@@ -78,11 +78,11 @@ export function NoteBoardPage() {
     return "default";
   });
   const [autoEnlargeNotes, setAutoEnlargeNotes] = useState(() => {
-    if (!boardId) return false;
+    if (!boardId) return true;
     try {
-      return localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1";
+      return localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -196,7 +196,7 @@ export function NoteBoardPage() {
       if (theme === "whiteboard" || theme === "blackboard" || theme === "default") {
         setBackgroundTheme(theme);
       }
-      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1");
+      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0");
     } catch {
       // ignore
     }
@@ -229,6 +229,29 @@ export function NoteBoardPage() {
   // Keep refs in sync so document listeners can read latest value
   linkingFromRef.current = linkingFrom;
   connectionsRef.current = connections;
+
+  // Close edit mode when clicking anywhere except the editing note/card
+  useEffect(() => {
+    function handleDocumentMouseDown(e: MouseEvent) {
+      const primaryNote = primaryEditingNoteIdRef.current;
+      const primaryCard = primaryEditingCardIdRef.current;
+      if (!primaryNote && !primaryCard) return;
+
+      const target = e.target as Element;
+      const noteEl = target.closest("[data-board-item='note'][data-note-id]");
+      const cardEl = target.closest("[data-board-item='card'][data-card-id]");
+
+      if (primaryNote && noteEl?.getAttribute("data-note-id") === primaryNote) return;
+      if (primaryCard && cardEl?.getAttribute("data-card-id") === primaryCard) return;
+
+      setEditingNoteIds(new Set());
+      setEditingCardIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+      primaryEditingCardIdRef.current = null;
+    }
+    document.addEventListener("mousedown", handleDocumentMouseDown, true);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown, true);
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!boardId) return;
@@ -2050,7 +2073,7 @@ export function NoteBoardPage() {
                 .filter(([, v]) => v.itemType === "note" && v.itemId === note.id)
                 .map(([userId, v]) => ({ userId, field: v.field, position: v.position, color: v.color }))}
               onTextCursor={(field, position) => sendTextCursor("note", note.id, field, position)}
-              zIndex={zIndexMap[note.id] ?? 0}
+              zIndex={(zIndexMap[note.id] ?? 0) + (editingNoteIds.has(note.id) ? 10000 : 0)}
               onDrag={handleNoteDrag}
               onDragStart={handleNoteDragStart}
               onDragStop={handleDragStop}
@@ -2093,7 +2116,7 @@ export function NoteBoardPage() {
               isEditing={editingCardIds.has(card.id)}
               enlargeWhenEditing={autoEnlargeNotes}
               focusedBy={remoteFocus.get(`card:${card.id}`) ?? null}
-              zIndex={zIndexMap[card.id] ?? 0}
+              zIndex={(zIndexMap[card.id] ?? 0) + (editingCardIds.has(card.id) ? 10000 : 0)}
               onDrag={handleCardDrag}
               onDragStart={handleCardDragStart}
               onDragStop={handleCardDragStop}

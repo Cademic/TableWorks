@@ -650,6 +650,7 @@ export function StickyNote({
       <div
         ref={nodeRef}
         data-board-item="note"
+        data-note-id={note.id}
         className="absolute overflow-visible"
         style={{
           width: `${size.width}px`,

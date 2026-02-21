@@ -108,11 +108,11 @@ export function ChalkBoardPage() {
     return "default";
   });
   const [autoEnlargeNotes, setAutoEnlargeNotes] = useState(() => {
-    if (!boardId) return false;
+    if (!boardId) return true;
     try {
-      return localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1";
+      return localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -153,7 +153,7 @@ export function ChalkBoardPage() {
       if (theme === "whiteboard" || theme === "blackboard" || theme === "default") {
         setBackgroundTheme(theme);
       }
-      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) === "1");
+      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0");
     } catch {
       // ignore
     }
@@ -276,6 +276,23 @@ export function ChalkBoardPage() {
 
     viewport.addEventListener("contextmenu", onContextMenu);
     return () => viewport.removeEventListener("contextmenu", onContextMenu);
+  }, []);
+
+  // Close edit mode when clicking anywhere except the editing note
+  useEffect(() => {
+    function handleDocumentMouseDown(e: MouseEvent) {
+      const primaryNote = primaryEditingNoteIdRef.current;
+      if (!primaryNote) return;
+
+      const target = e.target as Element;
+      const noteEl = target.closest("[data-board-item='note'][data-note-id]");
+      if (noteEl?.getAttribute("data-note-id") === primaryNote) return;
+
+      setEditingNoteIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+    }
+    document.addEventListener("mousedown", handleDocumentMouseDown, true);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown, true);
   }, []);
 
   // --- Touch pan and pinch zoom ---
@@ -1278,7 +1295,7 @@ export function ChalkBoardPage() {
               isEditing={editingNoteIds.has(note.id)}
               enlargeWhenEditing={autoEnlargeNotes}
               focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
-              zIndex={zIndexMap[note.id] ?? 0}
+              zIndex={(zIndexMap[note.id] ?? 0) + (editingNoteIds.has(note.id) ? 10000 : 0)}
               onDrag={handleNoteDrag}
               onDragStart={handleNoteDragStart}
               onDragStop={handleDragStop}

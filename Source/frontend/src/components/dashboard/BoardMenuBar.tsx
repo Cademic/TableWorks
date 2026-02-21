@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Save, Upload, ChevronRight, StickyNote as StickyNoteIcon, CreditCard, Image as ImageIcon } from "lucide-react";
+import { Save, Upload, ChevronRight, StickyNote as StickyNoteIcon, CreditCard, Image as ImageIcon, Check } from "lucide-react";
 
 const ZOOM_PRESETS = [50, 75, 100, 125, 150, 200];
 
@@ -326,10 +326,12 @@ export function BoardMenuBar({
               }}
             >
               <span
-                className={`mr-2 inline-block h-4 w-4 rounded border border-current ${
-                  autoEnlargeNotes ? "bg-primary" : "bg-transparent"
+                className={`mr-2 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border border-current ${
+                  autoEnlargeNotes ? "bg-primary text-primary-foreground" : "bg-transparent"
                 }`}
-              />
+              >
+                {autoEnlargeNotes ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}
+              </span>
               Auto-enlarge notes on click
             </button>
           </div>

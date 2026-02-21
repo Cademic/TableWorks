@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   StickyNote,
@@ -65,11 +66,50 @@ const BOARD_TOOLS = [
   },
 ];
 
+const AUTO_ENLARGE_STORAGE_KEY = "board-auto-enlarge-note-on-click";
+
 const BOARD_TYPE_ICON: Record<string, typeof ClipboardList> = {
   NoteBoard: ClipboardList,
   ChalkBoard: PenTool,
   Calendar: Calendar,
 };
+export function useAutoEnlargeNoteSetting() {
+  const [value, setValue] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(AUTO_ENLARGE_STORAGE_KEY);
+      return stored !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    function onChange() {
+      try {
+        const stored = localStorage.getItem(AUTO_ENLARGE_STORAGE_KEY);
+        setValue(stored !== "false");
+      } catch {
+        setValue(true);
+      }
+    }
+    window.addEventListener("board-auto-enlarge-change", onChange);
+    return () => window.removeEventListener("board-auto-enlarge-change", onChange);
+  }, []);
+
+  const toggle = useCallback(() => {
+    const next = !value;
+    setValue(next);
+    try {
+      localStorage.setItem(AUTO_ENLARGE_STORAGE_KEY, String(next));
+      window.dispatchEvent(new Event("board-auto-enlarge-change"));
+    } catch {
+      setValue(true);
+    }
+  }, [value]);
+
+  return [value, toggle] as const;
+}
+
 
 function getBoardPath(board: OpenedBoard): string {
   if (board.boardType === "ChalkBoard") return `/chalkboards/${board.id}`;

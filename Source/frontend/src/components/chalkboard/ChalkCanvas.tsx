@@ -22,6 +22,8 @@ interface ChalkCanvasProps {
   panX?: number;
   panY?: number;
   onChange?: () => void;
+  /** Override background color (e.g. for WhiteBoard/Blackboard theme) */
+  backgroundColor?: string;
 }
 
 export const CHALKBOARD_BG = "#2d4a3e";
@@ -62,7 +64,7 @@ function scaleFabricJSON(obj: Record<string, unknown>, factor: number): void {
 
 export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
   function ChalkCanvas(
-    { isActive, brushColor = "#ffffff", brushSize = 3, zoom = 1, panX = 0, panY = 0, onChange },
+    { isActive, brushColor = "#ffffff", brushSize = 3, zoom = 1, panX = 0, panY = 0, onChange, backgroundColor = CHALKBOARD_BG },
     ref,
   ) {
     const canvasElRef = useRef<HTMLCanvasElement>(null);
@@ -87,7 +89,7 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       const ch = containerRef.current?.clientHeight ?? 600;
       const canvas = new Canvas(canvasElRef.current, {
         isDrawingMode: true,
-        backgroundColor: CHALKBOARD_BG,
+        backgroundColor: backgroundColor,
         width: cw * RESOLUTION_FACTOR,
         height: ch * RESOLUTION_FACTOR,
         selection: false,
@@ -156,6 +158,14 @@ export const ChalkCanvas = forwardRef<ChalkCanvasHandle, ChalkCanvasProps>(
       resizeObserver.observe(container);
       return () => resizeObserver.disconnect();
     }, []);
+
+    // Update background color when prop changes
+    useEffect(() => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      canvas.backgroundColor = backgroundColor;
+      canvas.renderAll();
+    }, [backgroundColor]);
 
     // Sync fabric viewport transform with zoom/pan props
     useEffect(() => {

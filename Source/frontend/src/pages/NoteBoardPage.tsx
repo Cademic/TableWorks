@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useOutletContext } from "react-router-dom";
-import { Plus, StickyNote as StickyNoteIcon, CreditCard, ChevronUp, Image as ImageIcon } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
+import { BoardMenuBar, type BoardBackgroundTheme } from "../components/dashboard/BoardMenuBar";
+import { BoardConnectedUsers } from "../components/dashboard/BoardConnectedUsers";
 import { CorkBoard } from "../components/dashboard/CorkBoard";
 import { StickyNote } from "../components/dashboard/StickyNote";
 import { IndexCard } from "../components/dashboard/IndexCard";
@@ -34,12 +35,26 @@ import type {
   BoardSummaryDto,
   BoardImageSummaryDto,
 } from "../types";
+import { useBoardRealtime, type BoardItemUpdatePayload, type BoardPresenceUser } from "../hooks/useBoardRealtime";
+import { useAuth } from "../context/AuthContext";
+import { getColorForUserId } from "../lib/presenceColors";
+import { resolveNoteColorKey, resolveCardColorKey } from "../lib/boardItemColors";
+import {
+  createBoardExportPayload,
+  triggerBoardDownload,
+  buildBoardExportFilename,
+  parseBoardExportFile,
+} from "../lib/boardExport";
+import { ContextMenu } from "../components/ui/ContextMenu";
+import { Pencil, Copy, Trash2, Layers, StickyNote as StickyNoteIcon, CreditCard, Image as ImageIcon } from "lucide-react";
 
 let nextTempCardId = 1;
 
 export function NoteBoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  const { setBoardName, openBoard } = useOutletContext<AppLayoutContext>();
+  const { setBoardName, openBoard, setBoardPresence, connectedUsers } = useOutletContext<AppLayoutContext>();
+  const { isAuthenticated, user } = useAuth();
+  const currentUserId = user?.userId ?? null;
 
   const [board, setBoard] = useState<BoardSummaryDto | null>(null);
   const [notes, setNotes] = useState<NoteSummaryDto[]>([]);
@@ -47,13 +62,73 @@ export function NoteBoardPage() {
   const [imageCards, setImageCards] = useState<BoardImageSummaryDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [editingCardId, setEditingCardId] = useState<string | null>(null);
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [editingNoteIds, setEditingNoteIds] = useState<Set<string>>(new Set());
+  const [editingCardIds, setEditingCardIds] = useState<Set<string>>(new Set());
+  const primaryEditingNoteIdRef = useRef<string | null>(null);
+  const primaryEditingCardIdRef = useRef<string | null>(null);
+  const loadFileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Board UI preferences (persist in localStorage) ---
+  const [backgroundTheme, setBackgroundTheme] = useState<BoardBackgroundTheme>(() => {
+    if (!boardId) return "default";
+    try {
+      const saved = localStorage.getItem(`board-theme-${boardId}`);
+      if (saved === "whiteboard" || saved === "blackboard" || saved === "default") return saved;
+    } catch {
+      // ignore
+    }
+    return "default";
+  });
+  const [autoEnlargeNotes, setAutoEnlargeNotes] = useState(() => {
+    if (!boardId) return true;
+    try {
+      return localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0";
+    } catch {
+      return true;
+    }
+  });
 
   // --- Z-index stacking order ---
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
   const zCounterRef = useRef(1);
+
+  // --- Board undo/redo stacks (notes, connections, images, index cards) ---
+  type BoardUndoEntry =
+    | { type: "note-position"; noteId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "note-size"; noteId: string; prevWidth: number | null; prevHeight: number | null }
+    | { type: "note-delete"; note: NoteSummaryDto }
+    | { type: "connection-create"; connection: BoardConnectionDto }
+    | { type: "connection-delete"; connection: BoardConnectionDto }
+    | { type: "image-add"; image: BoardImageSummaryDto }
+    | { type: "image-delete"; image: BoardImageSummaryDto }
+    | { type: "image-position"; cardId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "image-size"; cardId: string; prevWidth: number | null; prevHeight: number | null; prevPositionX?: number; prevPositionY?: number }
+    | { type: "card-position"; cardId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "card-size"; cardId: string; prevWidth: number | null; prevHeight: number | null }
+    | { type: "card-delete"; card: IndexCardSummaryDto }
+    | { type: "card-create"; card: IndexCardSummaryDto };
+  type BoardRedoEntry =
+    | { type: "note-position"; noteId: string; positionX: number; positionY: number }
+    | { type: "note-size"; noteId: string; width: number; height: number }
+    | { type: "note-delete"; noteId: string }
+    | { type: "connection-create"; connectionId: string }
+    | { type: "connection-delete"; fromItemId: string; toItemId: string }
+    | { type: "image-add"; imageId: string }
+    | { type: "image-delete"; image: BoardImageSummaryDto }
+    | { type: "image-position"; cardId: string; positionX: number; positionY: number }
+    | { type: "image-size"; cardId: string; width: number; height: number; positionX?: number; positionY?: number }
+    | { type: "card-position"; cardId: string; positionX: number; positionY: number }
+    | { type: "card-size"; cardId: string; width: number; height: number }
+    | { type: "card-delete"; cardId: string }
+    | { type: "card-create"; card: IndexCardSummaryDto };
+  const boardUndoStackRef = useRef<BoardUndoEntry[]>([]);
+  const boardRedoStackRef = useRef<BoardRedoEntry[]>([]);
+  const notesRef = useRef(notes);
+  const indexCardsRef = useRef(indexCards);
+  const imageCardsRef = useRef(imageCards);
+  notesRef.current = notes;
+  indexCardsRef.current = indexCards;
+  imageCardsRef.current = imageCards;
 
   function bringToFront(id: string) {
     const next = zCounterRef.current++;
@@ -67,14 +142,33 @@ export function NoteBoardPage() {
   const boardRef = useRef<HTMLDivElement>(null);
   const linkingFromRef = useRef<string | null>(null);
   const connectionsRef = useRef(connections);
-  const addMenuRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const imageIdsRef = useRef<Set<string>>(new Set());
+  const deletedImageIdsRef = useRef<Set<string>>(new Set());
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+  const deletedCardIdsRef = useRef<Set<string>>(new Set());
   const [pendingImageDrop, setPendingImageDrop] = useState<{ x: number; y: number } | null>(null);
 
   // --- Viewport state (pan & zoom) ---
   const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
+
+  // --- Context menu state ---
+  const [boardContextMenu, setBoardContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [itemContextMenu, setItemContextMenu] = useState<
+    | { x: number; y: number; type: "note"; note: NoteSummaryDto }
+    | { x: number; y: number; type: "card"; card: IndexCardSummaryDto }
+    | { x: number; y: number; type: "image"; image: BoardImageSummaryDto }
+    | null
+  >(null);
+
+  // --- Board presence: who is focusing which item, remote cursors ---
+  const [remoteFocus, setRemoteFocus] = useState<Map<string, { userId: string; color: string }[]>>(new Map());
+  const [remoteCursors, setRemoteCursors] = useState<Map<string, { x: number; y: number; color: string }>>(new Map());
+  const [remoteTextCursors, setRemoteTextCursors] = useState<Map<string, { itemType: string; itemId: string; field: "title" | "content"; position: number; color: string }>>(new Map());
+  const cursorThrottleRef = useRef<{ last: number }>({ last: 0 });
+  const CURSOR_THROTTLE_MS = 60;
 
   // Restore viewport from localStorage on mount
   useEffect(() => {
@@ -105,6 +199,38 @@ export function NoteBoardPage() {
     };
   }, [boardId, zoom, panX, panY]);
 
+  // Sync backgroundTheme and autoEnlargeNotes from localStorage when boardId changes
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      const theme = localStorage.getItem(`board-theme-${boardId}`);
+      if (theme === "whiteboard" || theme === "blackboard" || theme === "default") {
+        setBackgroundTheme(theme);
+      }
+      setAutoEnlargeNotes(localStorage.getItem(`board-auto-enlarge-${boardId}`) !== "0");
+    } catch {
+      // ignore
+    }
+  }, [boardId]);
+
+  // Persist backgroundTheme and autoEnlargeNotes when changed
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`board-theme-${boardId}`, backgroundTheme);
+    } catch {
+      // ignore
+    }
+  }, [boardId, backgroundTheme]);
+  useEffect(() => {
+    if (!boardId) return;
+    try {
+      localStorage.setItem(`board-auto-enlarge-${boardId}`, autoEnlargeNotes ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [boardId, autoEnlargeNotes]);
+
   function handleViewportChange(newZoom: number, newPanX: number, newPanY: number) {
     setZoom(newZoom);
     setPanX(newPanX);
@@ -115,17 +241,28 @@ export function NoteBoardPage() {
   linkingFromRef.current = linkingFrom;
   connectionsRef.current = connections;
 
-  // Close add menu when clicking outside
+  // Close edit mode when clicking anywhere except the editing note/card
   useEffect(() => {
-    if (!showAddMenu) return;
-    function onClickOutside(e: MouseEvent) {
-      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
-        setShowAddMenu(false);
-      }
+    function handleDocumentMouseDown(e: MouseEvent) {
+      const primaryNote = primaryEditingNoteIdRef.current;
+      const primaryCard = primaryEditingCardIdRef.current;
+      if (!primaryNote && !primaryCard) return;
+
+      const target = e.target as Element;
+      const noteEl = target.closest("[data-board-item='note'][data-note-id]");
+      const cardEl = target.closest("[data-board-item='card'][data-card-id]");
+
+      if (primaryNote && noteEl?.getAttribute("data-note-id") === primaryNote) return;
+      if (primaryCard && cardEl?.getAttribute("data-card-id") === primaryCard) return;
+
+      setEditingNoteIds(new Set());
+      setEditingCardIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+      primaryEditingCardIdRef.current = null;
     }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [showAddMenu]);
+    document.addEventListener("mousedown", handleDocumentMouseDown, true);
+    return () => document.removeEventListener("mousedown", handleDocumentMouseDown, true);
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!boardId) return;
@@ -143,6 +280,23 @@ export function NoteBoardPage() {
         setBoard(boardRes.value);
       }
       if (notesRes.status === "fulfilled") {
+        const newNoteIds = notesRes.value.items.map((n) => n.id);
+        const serverIds = new Set(newNoteIds);
+        const removedIds: string[] = [];
+        for (const n of notesRef.current) {
+          if (!serverIds.has(n.id)) {
+            removedIds.push(n.id);
+            deletedNoteIdsRef.current.add(n.id);
+            setTimeout(() => deletedNoteIdsRef.current.delete(n.id), 2000);
+          }
+        }
+        if (removedIds.length > 0) {
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            for (const id of removedIds) next.delete(id);
+            return next.size === prev.size ? prev : next;
+          });
+        }
         setNotes(notesRes.value.items);
       }
       if (cardsRes.status === "fulfilled") {
@@ -152,7 +306,8 @@ export function NoteBoardPage() {
         setConnections(connsRes.value);
       }
       if (imagesRes.status === "fulfilled") {
-        setImageCards(imagesRes.value);
+        const deleted = deletedImageIdsRef.current;
+        setImageCards(imagesRes.value.filter((img) => !deleted.has(img.id)));
       }
 
       // Only show error if all failed
@@ -170,8 +325,314 @@ export function NoteBoardPage() {
   }, [boardId]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (isAuthenticated) fetchData();
+  }, [fetchData, isAuthenticated]);
+
+  const draggingNoteIdRef = useRef<string | null>(null);
+  const draggingCardIdRef = useRef<string | null>(null);
+  const draggingImageIdRef = useRef<string | null>(null);
+  const RESIZE_ECHO_IGNORE_MS = 400;
+  const lastResizedImageRef = useRef<{ id: string; at: number } | null>(null);
+  const lastResizedNoteRef = useRef<{ id: string; at: number } | null>(null);
+  const lastResizedCardRef = useRef<{ id: string; at: number } | null>(null);
+
+  const mergeNotePayload = useCallback((payload: BoardItemUpdatePayload) => {
+    const id = String(payload.id);
+    const skipPosition = id === draggingNoteIdRef.current;
+    const skipSize =
+      lastResizedNoteRef.current?.id === id &&
+      Date.now() - lastResizedNoteRef.current.at < RESIZE_ECHO_IGNORE_MS;
+    setNotes((prev) =>
+      prev.map((n) => {
+        if (n.id !== id) return n;
+        const next = { ...n };
+        if (!skipPosition && payload.positionX !== undefined) next.positionX = payload.positionX;
+        if (!skipPosition && payload.positionY !== undefined) next.positionY = payload.positionY;
+        if (payload.title !== undefined) next.title = payload.title;
+        if (payload.content !== undefined && payload.content !== null) next.content = payload.content;
+        if (!skipSize && payload.width !== undefined) next.width = payload.width;
+        if (!skipSize && payload.height !== undefined) next.height = payload.height;
+        if (payload.color !== undefined) next.color = payload.color;
+        if (payload.rotation !== undefined) next.rotation = payload.rotation;
+        return next;
+      }),
+    );
+  }, []);
+  const mergeCardPayload = useCallback((payload: BoardItemUpdatePayload) => {
+    const id = String(payload.id);
+    const skipPosition = id === draggingCardIdRef.current;
+    const skipSize =
+      lastResizedCardRef.current?.id === id &&
+      Date.now() - lastResizedCardRef.current.at < RESIZE_ECHO_IGNORE_MS;
+    setIndexCards((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const next = { ...c };
+        if (!skipPosition && payload.positionX !== undefined) next.positionX = payload.positionX;
+        if (!skipPosition && payload.positionY !== undefined) next.positionY = payload.positionY;
+        if (payload.title !== undefined) next.title = payload.title;
+        if (payload.content !== undefined && payload.content !== null) next.content = payload.content;
+        if (!skipSize && payload.width !== undefined) next.width = payload.width;
+        if (!skipSize && payload.height !== undefined) next.height = payload.height;
+        if (payload.color !== undefined) next.color = payload.color;
+        if (payload.rotation !== undefined) next.rotation = payload.rotation;
+        return next;
+      }),
+    );
+  }, []);
+
+  const handleUserFocusingItem = useCallback(
+    (userId: string, itemType: string, itemId: string | null) => {
+      if (currentUserId != null && userId === currentUserId) return;
+      setRemoteFocus((prev) => {
+        const next = new Map(prev);
+        const color = getColorForUserId(userId);
+        const entry = { userId, color };
+        for (const [key, list] of next) {
+          const filtered = list.filter((u) => u.userId !== userId);
+          if (filtered.length === 0) next.delete(key);
+          else next.set(key, filtered);
+        }
+        if (itemId) {
+          const key = `${itemType}:${itemId}`;
+          const existing = next.get(key) ?? [];
+          if (!existing.some((u) => u.userId === userId)) next.set(key, [...existing, entry]);
+        }
+        return next;
+      });
+    },
+    [currentUserId],
+  );
+  const handleCursorPosition = useCallback((userId: string, x: number, y: number) => {
+    if (x < 0 || y < 0) {
+      setRemoteCursors((prev) => {
+        const next = new Map(prev);
+        next.delete(userId);
+        return next;
+      });
+      return;
+    }
+    setRemoteCursors((prev) => {
+      const next = new Map(prev);
+      next.set(userId, { x, y, color: getColorForUserId(userId) });
+      return next;
+    });
+  }, []);
+
+  const handleTextCursorPosition = useCallback((userId: string, itemType: string, itemId: string, field: "title" | "content", position: number) => {
+    if (currentUserId != null && userId === currentUserId) return;
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      if (position < 0) {
+        next.delete(userId);
+      } else {
+        next.set(userId, { itemType, itemId, field, position, color: getColorForUserId(userId) });
+      }
+      return next;
+    });
+  }, [currentUserId]);
+
+  const handleUserLeft = useCallback((userId: string) => {
+    setRemoteTextCursors((prev) => {
+      const next = new Map(prev);
+      next.delete(userId);
+      return next;
+    });
+    setRemoteCursors((prev) => {
+      const next = new Map(prev);
+      next.delete(userId);
+      return next;
+    });
+  }, []);
+
+  const handlePresenceUpdate = useCallback((users: BoardPresenceUser[]) => {
+    setBoardPresence(users);
+    const presentIds = new Set(users.map((u) => u.userId));
+    setRemoteTextCursors((prev) => {
+      const toRemove = [...prev.keys()].filter((uid) => !presentIds.has(uid));
+      if (toRemove.length === 0) return prev;
+      const next = new Map(prev);
+      for (const uid of toRemove) next.delete(uid);
+      return next;
+    });
+    setRemoteCursors((prev) => {
+      const toRemove = [...prev.keys()].filter((uid) => !presentIds.has(uid));
+      if (toRemove.length === 0) return prev;
+      const next = new Map(prev);
+      for (const uid of toRemove) next.delete(uid);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    imageIdsRef.current = new Set(imageCards.map((img) => img.id));
+  }, [imageCards]);
+
+  const handleImageCardAdded = useCallback((payload: { id: string; imageUrl?: string; positionX?: number; positionY?: number; width?: number | null; height?: number | null; rotation?: number | null }) => {
+    if (deletedImageIdsRef.current.has(payload.id)) return;
+    setImageCards((prev) => {
+      if (prev.some((img) => img.id === payload.id)) return prev;
+      const img: BoardImageSummaryDto = {
+        id: payload.id,
+        imageUrl: payload.imageUrl ?? "",
+        positionX: payload.positionX ?? 20,
+        positionY: payload.positionY ?? 20,
+        width: payload.width ?? null,
+        height: payload.height ?? null,
+        rotation: payload.rotation ?? null,
+      };
+      return [...prev, img];
+    });
+  }, []);
+
+  const mergeImageCardPayload = useCallback((payload: { id: string; imageUrl?: string; positionX?: number; positionY?: number; width?: number | null; height?: number | null; rotation?: number | null }) => {
+    const id = String(payload.id);
+    const skipPosition = id === draggingImageIdRef.current;
+    const skipSize =
+      lastResizedImageRef.current?.id === id &&
+      Date.now() - lastResizedImageRef.current.at < RESIZE_ECHO_IGNORE_MS;
+    setImageCards((prev) =>
+      prev.map((img) => {
+        if (img.id !== id) return img;
+        const next = { ...img };
+        if (payload.imageUrl !== undefined) next.imageUrl = payload.imageUrl;
+        if (!skipPosition && payload.positionX !== undefined) next.positionX = payload.positionX;
+        if (!skipPosition && payload.positionY !== undefined) next.positionY = payload.positionY;
+        if (!skipSize && payload.width !== undefined) next.width = payload.width;
+        if (!skipSize && payload.height !== undefined) next.height = payload.height;
+        if (payload.rotation !== undefined) next.rotation = payload.rotation;
+        return next;
+      }),
+    );
+  }, []);
+
+  const handleImageCardDeleted = useCallback((imageId: string) => {
+    deletedImageIdsRef.current.add(imageId);
+    setImageCards((prev) => prev.filter((img) => img.id !== imageId));
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== imageId && c.toItemId !== imageId));
+  }, []);
+
+  const handleNoteDeleted = useCallback((noteId: string) => {
+    deletedNoteIdsRef.current.add(noteId);
+    setTimeout(() => deletedNoteIdsRef.current.delete(noteId), 2000);
+    const pending = noteDragMapRef.current.get(noteId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(noteId);
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    setEditingNoteIds((prev) => {
+      if (!prev.has(noteId)) return prev;
+      const next = new Set(prev);
+      next.delete(noteId);
+      if (primaryEditingNoteIdRef.current === noteId) primaryEditingNoteIdRef.current = null;
+      return next;
+    });
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== noteId && c.toItemId !== noteId));
+  }, []);
+  const handleIndexCardDeleted = useCallback((cardId: string) => {
+    deletedCardIdsRef.current.add(cardId);
+    setTimeout(() => deletedCardIdsRef.current.delete(cardId), 2000);
+    const pending = cardDragMapRef.current.get(cardId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      cardDragMapRef.current.delete(cardId);
+    }
+    setIndexCards((prev) => prev.filter((c) => c.id !== cardId));
+    setEditingCardIds((prev) => {
+      if (!prev.has(cardId)) return prev;
+      const next = new Set(prev);
+      next.delete(cardId);
+      if (primaryEditingCardIdRef.current === cardId) primaryEditingCardIdRef.current = null;
+      return next;
+    });
+    setConnections((prev) => prev.filter((c) => c.fromItemId !== cardId && c.toItemId !== cardId));
+  }, []);
+
+  const { sendFocus, sendCursor, sendTextCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
+    enabled: !!board?.projectId,
+    onNoteUpdated: mergeNotePayload,
+    onIndexCardUpdated: mergeCardPayload,
+    onPresenceUpdate: handlePresenceUpdate,
+    onUserFocusingItem: handleUserFocusingItem,
+    onCursorPosition: handleCursorPosition,
+    onTextCursorPosition: handleTextCursorPosition,
+    onUserLeft: handleUserLeft,
+    onNoteDeleted: handleNoteDeleted,
+    onIndexCardDeleted: handleIndexCardDeleted,
+    onImageCardDeleted: handleImageCardDeleted,
+    onImageCardAdded: handleImageCardAdded,
+    onImageCardUpdated: mergeImageCardPayload,
+  });
+
+  useEffect(() => {
+    const primaryNote = primaryEditingNoteIdRef.current;
+    const primaryCard = primaryEditingCardIdRef.current;
+    if (primaryNote) sendFocus("note", primaryNote);
+    else if (primaryCard) sendFocus("card", primaryCard);
+    else sendFocus("note", null);
+  }, [editingNoteIds, editingCardIds, sendFocus]);
+
+  const handleBoardMouseMove = useCallback(
+    (x: number, y: number) => {
+      const now = Date.now();
+      if (now - cursorThrottleRef.current.last < CURSOR_THROTTLE_MS) return;
+      cursorThrottleRef.current.last = now;
+      sendCursor(x, y);
+    },
+    [sendCursor],
+  );
+  const handleBoardMouseLeave = useCallback(() => {
+    sendCursor(-1, -1);
+  }, [sendCursor]);
+
+  const DRAG_THROTTLE_MS = 120;
+  type DragPending = { x: number; y: number; timer: ReturnType<typeof setTimeout> };
+  const noteDragMapRef = useRef<Map<string, DragPending>>(new Map());
+  const cardDragMapRef = useRef<Map<string, DragPending>>(new Map());
+
+  const handleNoteDrag = useCallback((id: string, x: number, y: number) => {
+    const map = noteDragMapRef.current;
+    let entry = map.get(id);
+    if (!entry) {
+      entry = {
+        x,
+        y,
+        timer: setTimeout(() => {
+          const e = map.get(id);
+          if (e && !deletedNoteIdsRef.current.has(id) && notesRef.current.some((n) => n.id === id)) {
+            patchNote(id, { positionX: e.x, positionY: e.y }).catch(() => {});
+          }
+          map.delete(id);
+        }, DRAG_THROTTLE_MS),
+      };
+      map.set(id, entry);
+    } else {
+      entry.x = x;
+      entry.y = y;
+    }
+  }, []);
+  const handleCardDrag = useCallback((id: string, x: number, y: number) => {
+    const map = cardDragMapRef.current;
+    let entry = map.get(id);
+    if (!entry) {
+      entry = {
+        x,
+        y,
+        timer: setTimeout(() => {
+          const e = map.get(id);
+          if (e && !deletedCardIdsRef.current.has(id) && indexCardsRef.current.some((c) => c.id === id)) {
+            patchIndexCard(id, { positionX: e.x, positionY: e.y }).catch(() => {});
+          }
+          map.delete(id);
+        }, DRAG_THROTTLE_MS),
+      };
+      map.set(id, entry);
+    } else {
+      entry.x = x;
+      entry.y = y;
+    }
+  }, []);
 
   // Push the board name up to the navbar
   useEffect(() => {
@@ -203,13 +664,400 @@ export function NoteBoardPage() {
     return () => document.removeEventListener("board-tool-click", onToolClick);
   });
 
+  // Ctrl+Z undo / Ctrl+Y redo for note position, size, and deletion (skip when typing in editor)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (
+        (!e.ctrlKey && !e.metaKey) ||
+        e.repeat ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      const isUndo = e.key === "z";
+      const isRedo = e.key === "y";
+      if (!isUndo && !isRedo) return;
+
+      if (isUndo) {
+        const stack = boardUndoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "note-position") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "note-position",
+              noteId: entry.noteId,
+              positionX: current.positionX ?? 0,
+              positionY: current.positionY ?? 0,
+            });
+          }
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.prevPositionX,
+            positionY: entry.prevPositionY,
+          }).catch(() => {});
+        } else if (entry.type === "note-size") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "note-size",
+              noteId: entry.noteId,
+              width: current.width ?? 270,
+              height: current.height ?? 270,
+            });
+          }
+          const w = entry.prevWidth ?? 270;
+          const h = entry.prevHeight ?? 270;
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: w, height: h } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: w, height: h }).catch(() => {});
+        } else if (entry.type === "note-delete") {
+          const displayColorKey = resolveNoteColorKey(entry.note);
+          createNote({
+            content: entry.note.content,
+            boardId: boardId ?? undefined,
+            title: entry.note.title ?? undefined,
+            positionX: entry.note.positionX ?? 20,
+            positionY: entry.note.positionY ?? 20,
+            width: entry.note.width ?? undefined,
+            height: entry.note.height ?? undefined,
+            color: displayColorKey,
+            rotation: entry.note.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "note-delete", noteId: created.id });
+              const restored = { ...created, color: displayColorKey, rotation: entry.note.rotation ?? created.rotation };
+              setNotes((prev) => (prev.some((n) => n.id === created.id) ? prev : [...prev, restored]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "connection-create") {
+          boardRedoStackRef.current.push({
+            type: "connection-delete",
+            fromItemId: entry.connection.fromItemId,
+            toItemId: entry.connection.toItemId,
+          });
+          setConnections((prev) => prev.filter((c) => c.id !== entry.connection.id));
+          deleteConnection(entry.connection.id).catch(() => {});
+        } else if (entry.type === "connection-delete") {
+          createConnection({
+            fromItemId: entry.connection.fromItemId,
+            toItemId: entry.connection.toItemId,
+            boardId: boardId ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "connection-create", connectionId: created.id });
+              setConnections((prev) => [...prev, created]);
+            })
+            .catch(() => {});
+        } else if (entry.type === "image-add") {
+          boardRedoStackRef.current.push({ type: "image-delete", image: { ...entry.image } });
+          deletedImageIdsRef.current.add(entry.image.id);
+          setImageCards((prev) => prev.filter((img) => img.id !== entry.image.id));
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.image.id && c.toItemId !== entry.image.id),
+          );
+          if (boardId) deleteBoardImageCard(boardId, entry.image.id).catch(() => fetchData());
+        } else if (entry.type === "image-delete") {
+          deletedImageIdsRef.current.delete(entry.image.id);
+          createBoardImageCard(boardId!, {
+            imageUrl: entry.image.imageUrl,
+            positionX: entry.image.positionX,
+            positionY: entry.image.positionY,
+            width: entry.image.width ?? undefined,
+            height: entry.image.height ?? undefined,
+            rotation: entry.image.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "image-add", imageId: created.id });
+              setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "image-position") {
+          const current = imageCardsRef.current.find((img) => img.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "image-position",
+              cardId: entry.cardId,
+              positionX: current.positionX,
+              positionY: current.positionY,
+            });
+          }
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, { positionX: entry.prevPositionX, positionY: entry.prevPositionY }).catch(() => {});
+        } else if (entry.type === "image-size") {
+          const current = imageCardsRef.current.find((img) => img.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "image-size",
+              cardId: entry.cardId,
+              width: current.width ?? 0,
+              height: current.height ?? 0,
+              positionX: entry.prevPositionX,
+              positionY: entry.prevPositionY,
+            });
+          }
+          const w = entry.prevWidth ?? 100;
+          const h = entry.prevHeight ?? 100;
+          const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width: w, height: h };
+          if (entry.prevPositionX != null) payload.positionX = entry.prevPositionX;
+          if (entry.prevPositionY != null) payload.positionY = entry.prevPositionY;
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, width: w, height: h, ...(entry.prevPositionX != null && { positionX: entry.prevPositionX }), ...(entry.prevPositionY != null && { positionY: entry.prevPositionY }) }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, payload).catch(() => {});
+        } else if (entry.type === "card-position") {
+          const current = indexCardsRef.current.find((c) => c.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "card-position",
+              cardId: entry.cardId,
+              positionX: current.positionX ?? 0,
+              positionY: current.positionY ?? 0,
+            });
+          }
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId
+                ? { ...c, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { positionX: entry.prevPositionX, positionY: entry.prevPositionY }).catch(() => {});
+        } else if (entry.type === "card-size") {
+          const current = indexCardsRef.current.find((c) => c.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "card-size",
+              cardId: entry.cardId,
+              width: current.width ?? 450,
+              height: current.height ?? 300,
+            });
+          }
+          const w = entry.prevWidth ?? 450;
+          const h = entry.prevHeight ?? 300;
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId ? { ...c, width: w, height: h } : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { width: w, height: h }).catch(() => {});
+        } else if (entry.type === "card-delete") {
+          const displayColorKey = resolveCardColorKey(entry.card);
+          createIndexCard({
+            content: entry.card.content,
+            boardId: boardId ?? undefined,
+            title: entry.card.title ?? undefined,
+            positionX: entry.card.positionX ?? 20,
+            positionY: entry.card.positionY ?? 20,
+            width: entry.card.width ?? undefined,
+            height: entry.card.height ?? undefined,
+            color: displayColorKey,
+            rotation: entry.card.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "card-delete", cardId: created.id });
+              const restored = { ...created, color: displayColorKey, rotation: entry.card.rotation ?? created.rotation };
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, restored]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "card-create") {
+          boardRedoStackRef.current.push({ type: "card-create", card: { ...entry.card } });
+          setIndexCards((prev) => prev.filter((c) => c.id !== entry.card.id));
+          setEditingCardIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.card.id);
+            if (primaryEditingCardIdRef.current === entry.card.id) {
+              primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.card.id && c.toItemId !== entry.card.id),
+          );
+          deleteIndexCard(entry.card.id).catch(() => fetchData());
+        }
+      } else {
+        const stack = boardRedoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "note-position") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.positionX, positionY: entry.positionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.positionX,
+            positionY: entry.positionY,
+          }).catch(() => {});
+        } else if (entry.type === "note-size") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: entry.width, height: entry.height } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: entry.width, height: entry.height }).catch(() => {});
+        } else if (entry.type === "note-delete") {
+          deletedNoteIdsRef.current.add(entry.noteId);
+          setTimeout(() => deletedNoteIdsRef.current.delete(entry.noteId), 2000);
+          setNotes((prev) => prev.filter((n) => n.id !== entry.noteId));
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.noteId);
+            if (primaryEditingNoteIdRef.current === entry.noteId) {
+              primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.noteId && c.toItemId !== entry.noteId),
+          );
+          deleteNote(entry.noteId).catch(() => fetchData());
+        } else if (entry.type === "connection-create") {
+          deleteConnection(entry.connectionId).catch(() => {});
+          setConnections((prev) => prev.filter((c) => c.id !== entry.connectionId));
+        } else if (entry.type === "connection-delete") {
+          createConnection({
+            fromItemId: entry.fromItemId,
+            toItemId: entry.toItemId,
+            boardId: boardId ?? undefined,
+          })
+            .then((created) =>
+              setConnections((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created])),
+            )
+            .catch(() => {});
+        } else if (entry.type === "image-add") {
+          const img = imageCardsRef.current.find((i) => i.id === entry.imageId);
+          if (img) {
+            deletedImageIdsRef.current.add(entry.imageId);
+            setImageCards((prev) => prev.filter((i) => i.id !== entry.imageId));
+            setConnections((prev) =>
+              prev.filter((c) => c.fromItemId !== entry.imageId && c.toItemId !== entry.imageId),
+            );
+            if (boardId) deleteBoardImageCard(boardId, entry.imageId).catch(() => fetchData());
+          }
+        } else if (entry.type === "image-delete") {
+          deletedImageIdsRef.current.delete(entry.image.id);
+          createBoardImageCard(boardId!, {
+            imageUrl: entry.image.imageUrl,
+            positionX: entry.image.positionX,
+            positionY: entry.image.positionY,
+            width: entry.image.width ?? undefined,
+            height: entry.image.height ?? undefined,
+            rotation: entry.image.rotation ?? undefined,
+          })
+            .then((created) =>
+              setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created])),
+            )
+            .catch(() => {});
+        } else if (entry.type === "image-position") {
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, positionX: entry.positionX, positionY: entry.positionY }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, { positionX: entry.positionX, positionY: entry.positionY }).catch(() => {});
+        } else if (entry.type === "image-size") {
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, width: entry.width, height: entry.height, ...(entry.positionX != null && { positionX: entry.positionX }), ...(entry.positionY != null && { positionY: entry.positionY }) }
+                : img,
+            ),
+          );
+          const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width: entry.width, height: entry.height };
+          if (entry.positionX != null) payload.positionX = entry.positionX;
+          if (entry.positionY != null) payload.positionY = entry.positionY;
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, payload).catch(() => {});
+        } else if (entry.type === "card-position") {
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId
+                ? { ...c, positionX: entry.positionX, positionY: entry.positionY }
+                : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { positionX: entry.positionX, positionY: entry.positionY }).catch(() => {});
+        } else if (entry.type === "card-size") {
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId ? { ...c, width: entry.width, height: entry.height } : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { width: entry.width, height: entry.height }).catch(() => {});
+        } else if (entry.type === "card-delete") {
+          setIndexCards((prev) => prev.filter((c) => c.id !== entry.cardId));
+          setEditingCardIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.cardId);
+            if (primaryEditingCardIdRef.current === entry.cardId) {
+              primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.cardId && c.toItemId !== entry.cardId),
+          );
+          deleteIndexCard(entry.cardId).catch(() => fetchData());
+        } else if (entry.type === "card-create") {
+          const displayColorKey = resolveCardColorKey(entry.card);
+          createIndexCard({
+            content: entry.card.content,
+            boardId: boardId ?? undefined,
+            title: entry.card.title ?? undefined,
+            positionX: entry.card.positionX ?? 20,
+            positionY: entry.card.positionY ?? 20,
+            width: entry.card.width ?? undefined,
+            height: entry.card.height ?? undefined,
+            color: displayColorKey,
+            rotation: entry.card.rotation ?? undefined,
+          })
+            .then((created) => {
+              const restored = { ...created, color: displayColorKey, rotation: entry.card.rotation ?? created.rotation };
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, restored]));
+            })
+            .catch(() => {});
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [boardId, fetchData]);
+
   // =============================================
   // Sticky Note handlers
   // =============================================
 
   async function handleQuickAddNote() {
     if (!boardId) return;
-    setShowAddMenu(false);
     try {
       const positionX = 30 + Math.random() * 400;
       const positionY = 30 + Math.random() * 300;
@@ -221,28 +1069,70 @@ export function NoteBoardPage() {
         positionY,
       });
 
-      setNotes((prev) => [...prev, created]);
-      setEditingNoteId(created.id);
-      setEditingCardId(null);
+      setNotes((prev) => [created, ...prev]);
+      setEditingNoteIds((prev) => new Set(prev).add(created.id));
+      primaryEditingNoteIdRef.current = created.id;
+      setEditingCardIds(new Set());
+      primaryEditingCardIdRef.current = null;
     } catch {
       // Silently fail - user can retry
     }
   }
 
+  const DRAG_ECHO_IGNORE_MS = 280;
+  function handleNoteDragStart(id: string) {
+    draggingNoteIdRef.current = id;
+  }
   async function handleDragStop(id: string, x: number, y: number) {
+    const pending = noteDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(id);
+    }
+    const inDeletedRef = deletedNoteIdsRef.current.has(id);
+    const inNotesRef = notesRef.current.some((n) => n.id === id);
+    if (inDeletedRef) return;
+    if (!inNotesRef) return;
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.positionX !== x || prevNote.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "note-position",
+        noteId: id,
+        prevPositionX: prevNote.positionX ?? 0,
+        prevPositionY: prevNote.positionY ?? 0,
+      });
+    }
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, positionX: x, positionY: y } : n)),
     );
+    // Keep treating this id as "just dragged" so we ignore echo broadcasts (our own PATCH or late throttle)
+    window.setTimeout(() => {
+      if (draggingNoteIdRef.current === id) draggingNoteIdRef.current = null;
+    }, DRAG_ECHO_IGNORE_MS);
 
     try {
-      await patchNote(id, { positionX: x, positionY: y });
+      // Defer to next macrotask so handleDelete (from click-after-mouseup) can run first
+      window.setTimeout(() => {
+        const inDeletedRef2 = deletedNoteIdsRef.current.has(id);
+        const inNotesRef2 = notesRef.current.some((n) => n.id === id);
+        if (inDeletedRef2 || !inNotesRef2) return;
+        patchNote(id, { positionX: x, positionY: y }).catch(() => {});
+      }, 0);
     } catch {
       // Silently fail
     }
   }
 
   async function handleSave(id: string, title: string, content: string) {
-    setEditingNoteId(null);
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingNoteIdRef.current === id) {
+        primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
 
     setNotes((prev) =>
       prev.map((n) =>
@@ -261,13 +1151,71 @@ export function NoteBoardPage() {
     }
   }
 
+  async function handleNoteContentChange(id: string, title: string, content: string) {
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, title: title || null, content } : n,
+      ),
+    );
+    try {
+      await patchNote(id, {
+        patchTitle: true,
+        title: title || null,
+        content: content || undefined,
+      });
+    } catch {
+      // Silently fail
+    }
+  }
+
+  const handleNoteUnmount = useCallback((id: string) => {
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+  }, []);
+
   function handleStartEdit(id: string) {
-    setEditingNoteId(id);
-    setEditingCardId(null);
+    // Single note in edit mode: clicking another note switches to it (previous saves when isEditing flips)
+    setEditingNoteIds(new Set([id]));
+    setEditingCardIds(new Set());
+    primaryEditingNoteIdRef.current = id;
+    primaryEditingCardIdRef.current = null;
     bringToFront(id);
   }
 
+  function handleExitEditNote(id: string) {
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (primaryEditingNoteIdRef.current === id) {
+      primaryEditingNoteIdRef.current = null;
+    }
+  }
+
+  function handleExitEditCard(id: string) {
+    setEditingCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (primaryEditingCardIdRef.current === id) {
+      primaryEditingCardIdRef.current = null;
+    }
+  }
+
   async function handleResize(id: string, width: number, height: number) {
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.width !== width || prevNote.height !== height)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "note-size",
+        noteId: id,
+        prevWidth: prevNote.width ?? null,
+        prevHeight: prevNote.height ?? null,
+      });
+    }
+    lastResizedNoteRef.current = { id, at: Date.now() };
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, width, height } : n)),
     );
@@ -304,10 +1252,28 @@ export function NoteBoardPage() {
   }
 
   async function handleDelete(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-    if (editingNoteId === id) {
-      setEditingNoteId(null);
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+    // Clear any pending drag throttle so we don't patch after delete
+    const pending = noteDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(id);
     }
+    const deletedNote = notesRef.current.find((n) => n.id === id);
+    if (deletedNote) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "note-delete", note: { ...deletedNote } });
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingNoteIdRef.current === id) {
+        primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
     setConnections((prev) =>
       prev.filter((c) => c.fromItemId !== id && c.toItemId !== id),
     );
@@ -325,7 +1291,6 @@ export function NoteBoardPage() {
 
   async function handleQuickAddCard() {
     if (!boardId) return;
-    setShowAddMenu(false);
     const positionX = 30 + Math.random() * 300;
     const positionY = 30 + Math.random() * 200;
     const tempId = `temp-card-${nextTempCardId++}`;
@@ -349,8 +1314,10 @@ export function NoteBoardPage() {
     };
 
     setIndexCards((prev) => [...prev, optimisticCard]);
-    setEditingCardId(tempId);
-    setEditingNoteId(null);
+    setEditingCardIds((prev) => new Set(prev).add(tempId));
+    primaryEditingCardIdRef.current = tempId;
+    setEditingNoteIds(new Set());
+    primaryEditingNoteIdRef.current = null;
 
     try {
       const created = await createIndexCard({
@@ -360,21 +1327,53 @@ export function NoteBoardPage() {
         positionY,
       });
 
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "card-create", card: created });
       setIndexCards((prev) =>
         prev.map((c) => (c.id === tempId ? created : c)),
       );
-      setEditingCardId(created.id);
+      setEditingCardIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tempId);
+        next.add(created.id);
+        return next;
+      });
+      primaryEditingCardIdRef.current = created.id;
     } catch {
       // Card stays in local state with temp ID
     }
   }
 
+  function handleCardDragStart(id: string) {
+    draggingCardIdRef.current = id;
+  }
   async function handleCardDragStop(id: string, x: number, y: number) {
+    const pending = cardDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      cardDragMapRef.current.delete(id);
+    }
+    if (deletedCardIdsRef.current.has(id)) return;
+    if (!indexCardsRef.current.some((c) => c.id === id)) return;
+    const prevCard = indexCardsRef.current.find((c) => c.id === id);
+    if (prevCard && (prevCard.positionX !== x || prevCard.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "card-position",
+        cardId: id,
+        prevPositionX: prevCard.positionX ?? 0,
+        prevPositionY: prevCard.positionY ?? 0,
+      });
+    }
     setIndexCards((prev) =>
       prev.map((c) => (c.id === id ? { ...c, positionX: x, positionY: y } : c)),
     );
+    window.setTimeout(() => {
+      if (draggingCardIdRef.current === id) draggingCardIdRef.current = null;
+    }, DRAG_ECHO_IGNORE_MS);
 
     try {
+      if (deletedCardIdsRef.current.has(id) || !indexCardsRef.current.some((c) => c.id === id)) return;
       await patchIndexCard(id, { positionX: x, positionY: y });
     } catch {
       // Silently fail
@@ -382,7 +1381,14 @@ export function NoteBoardPage() {
   }
 
   async function handleCardSave(id: string, title: string, content: string) {
-    setEditingCardId(null);
+    setEditingCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingCardIdRef.current === id) {
+        primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
 
     setIndexCards((prev) =>
       prev.map((c) =>
@@ -401,13 +1407,43 @@ export function NoteBoardPage() {
     }
   }
 
+  async function handleCardContentChange(id: string, title: string, content: string) {
+    setIndexCards((prev) =>
+      prev.map((c) =>
+        c.id === id ? { ...c, title: title || null, content } : c,
+      ),
+    );
+    try {
+      await patchIndexCard(id, {
+        patchTitle: true,
+        title: title || null,
+        content: content || undefined,
+      });
+    } catch {
+      // Silently fail
+    }
+  }
+
   function handleCardStartEdit(id: string) {
-    setEditingCardId(id);
-    setEditingNoteId(null);
+    setEditingNoteIds(new Set());
+    setEditingCardIds(new Set([id]));
+    primaryEditingNoteIdRef.current = null;
+    primaryEditingCardIdRef.current = id;
     bringToFront(id);
   }
 
   async function handleCardResize(id: string, width: number, height: number) {
+    const prevCard = indexCardsRef.current.find((c) => c.id === id);
+    if (prevCard && (prevCard.width !== width || prevCard.height !== height)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "card-size",
+        cardId: id,
+        prevWidth: prevCard.width ?? null,
+        prevHeight: prevCard.height ?? null,
+      });
+    }
+    lastResizedCardRef.current = { id, at: Date.now() };
     setIndexCards((prev) =>
       prev.map((c) => (c.id === id ? { ...c, width, height } : c)),
     );
@@ -445,7 +1481,6 @@ export function NoteBoardPage() {
 
   async function handleQuickAddImage() {
     if (!boardId) return;
-    setShowAddMenu(false);
     setPendingImageDrop(null);
     imageFileInputRef.current?.click();
   }
@@ -468,14 +1503,31 @@ export function NoteBoardPage() {
         })
       )
       .then((created) => {
-        setImageCards((prev) => [...prev, created]);
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({ type: "image-add", image: created });
+        setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created]));
       })
       .catch(() => {
         // Silently fail
       });
   }
 
+  function handleImageDragStart(id: string) {
+    draggingImageIdRef.current = id;
+  }
   async function handleImageDragStop(id: string, x: number, y: number) {
+    if (draggingImageIdRef.current === id) draggingImageIdRef.current = null;
+    if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
+    const prevImg = imageCardsRef.current.find((img) => img.id === id);
+    if (prevImg && (prevImg.positionX !== x || prevImg.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "image-position",
+        cardId: id,
+        prevPositionX: prevImg.positionX,
+        prevPositionY: prevImg.positionY,
+      });
+    }
     setImageCards((prev) =>
       prev.map((img) => (img.id === id ? { ...img, positionX: x, positionY: y } : img))
     );
@@ -487,19 +1539,56 @@ export function NoteBoardPage() {
     }
   }
 
-  async function handleImageResize(id: string, width: number, height: number) {
+  async function handleImageResize(
+    id: string,
+    width: number,
+    height: number,
+    positionX?: number,
+    positionY?: number,
+  ) {
+    if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
+    const prevImg = imageCardsRef.current.find((img) => img.id === id);
+    if (prevImg) {
+      const prevW = prevImg.width ?? null;
+      const prevH = prevImg.height ?? null;
+      if (prevW !== width || prevH !== height || (positionX != null && prevImg.positionX !== positionX) || (positionY != null && prevImg.positionY !== positionY)) {
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({
+          type: "image-size",
+          cardId: id,
+          prevWidth: prevW,
+          prevHeight: prevH,
+          prevPositionX: positionX != null ? prevImg.positionX : undefined,
+          prevPositionY: positionY != null ? prevImg.positionY : undefined,
+        });
+      }
+    }
+    lastResizedImageRef.current = { id, at: Date.now() };
     setImageCards((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, width, height } : img))
+      prev.map((img) =>
+        img.id === id
+          ? { ...img, width, height, ...(positionX != null && { positionX }), ...(positionY != null && { positionY }) }
+          : img,
+      ),
     );
     if (!boardId) return;
     try {
-      await patchBoardImageCard(boardId, id, { width, height });
+      const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width, height };
+      if (positionX != null) payload.positionX = positionX;
+      if (positionY != null) payload.positionY = positionY;
+      await patchBoardImageCard(boardId, id, payload);
     } catch {
       // Silently fail
     }
   }
 
   async function handleImageDelete(id: string) {
+    const deletedImg = imageCardsRef.current.find((img) => img.id === id);
+    if (deletedImg) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "image-delete", image: { ...deletedImg } });
+    }
+    deletedImageIdsRef.current.add(id);
     setImageCards((prev) => prev.filter((img) => img.id !== id));
     setConnections((prev) => prev.filter((c) => c.fromItemId !== id && c.toItemId !== id));
     if (!boardId) return;
@@ -511,10 +1600,27 @@ export function NoteBoardPage() {
   }
 
   async function handleCardDelete(id: string) {
-    setIndexCards((prev) => prev.filter((c) => c.id !== id));
-    if (editingCardId === id) {
-      setEditingCardId(null);
+    deletedCardIdsRef.current.add(id);
+    setTimeout(() => deletedCardIdsRef.current.delete(id), 2000);
+    const pending = cardDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      cardDragMapRef.current.delete(id);
     }
+    const deletedCard = indexCardsRef.current.find((c) => c.id === id);
+    if (deletedCard) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "card-delete", card: { ...deletedCard } });
+    }
+    setIndexCards((prev) => prev.filter((c) => c.id !== id));
+    setEditingCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      if (primaryEditingCardIdRef.current === id) {
+        primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+      }
+      return next;
+    });
     setConnections((prev) =>
       prev.filter((c) => c.fromItemId !== id && c.toItemId !== id),
     );
@@ -524,6 +1630,260 @@ export function NoteBoardPage() {
     } catch {
       fetchData();
     }
+  }
+
+  const DUPLICATE_OFFSET = 20;
+
+  async function handleDuplicateNote(note: NoteSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createNote({
+        boardId,
+        title: note.title ?? undefined,
+        content: note.content ?? "",
+        positionX: (note.positionX ?? 0) + DUPLICATE_OFFSET,
+        positionY: (note.positionY ?? 0) + DUPLICATE_OFFSET,
+        width: note.width ?? undefined,
+        height: note.height ?? undefined,
+        color: note.color ?? undefined,
+        rotation: note.rotation ?? undefined,
+      });
+      setNotes((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleDuplicateCard(card: IndexCardSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createIndexCard({
+        boardId,
+        title: card.title ?? undefined,
+        content: card.content ?? "",
+        positionX: (card.positionX ?? 0) + DUPLICATE_OFFSET,
+        positionY: (card.positionY ?? 0) + DUPLICATE_OFFSET,
+        width: card.width ?? undefined,
+        height: card.height ?? undefined,
+        color: card.color ?? undefined,
+        rotation: card.rotation ?? undefined,
+      });
+      setIndexCards((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  async function handleDuplicateImage(image: BoardImageSummaryDto) {
+    if (!boardId) return;
+    setItemContextMenu(null);
+    try {
+      const created = await createBoardImageCard(boardId, {
+        imageUrl: image.imageUrl,
+        positionX: image.positionX + DUPLICATE_OFFSET,
+        positionY: image.positionY + DUPLICATE_OFFSET,
+        width: image.width ?? undefined,
+        height: image.height ?? undefined,
+        rotation: image.rotation ?? undefined,
+      });
+      setImageCards((prev) => [created, ...prev]);
+      bringToFront(created.id);
+    } catch {
+      // Silently fail
+    }
+  }
+
+  function buildItemContextMenuItems(): import("../components/ui/ContextMenu").ContextMenuItem[] {
+    if (!itemContextMenu) return [];
+    if (itemContextMenu.type === "note") {
+      const { note } = itemContextMenu;
+      return [
+        { label: "Edit", icon: Pencil, onClick: () => handleStartEdit(note.id) },
+        { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateNote(note) },
+        { label: "Bring to front", icon: Layers, onClick: () => bringToFront(note.id) },
+        { label: "Delete", icon: Trash2, onClick: () => handleDelete(note.id), divider: true },
+      ];
+    }
+    if (itemContextMenu.type === "card") {
+      const { card } = itemContextMenu;
+      return [
+        { label: "Edit", icon: Pencil, onClick: () => handleCardStartEdit(card.id) },
+        { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateCard(card) },
+        { label: "Bring to front", icon: Layers, onClick: () => bringToFront(card.id) },
+        { label: "Delete", icon: Trash2, onClick: () => handleCardDelete(card.id), divider: true },
+      ];
+    }
+    const { image } = itemContextMenu;
+    return [
+      { label: "Duplicate", icon: Copy, onClick: () => handleDuplicateImage(image) },
+      { label: "Bring to front", icon: Layers, onClick: () => bringToFront(image.id) },
+      { label: "Delete", icon: Trash2, onClick: () => handleImageDelete(image.id), divider: true },
+    ];
+  }
+
+  // =============================================
+  // File save/load and menu actions
+  // =============================================
+
+  function handleSaveToFile() {
+    const payload = createBoardExportPayload("NoteBoard", board?.name ?? "Board", {
+      notes,
+      indexCards,
+      imageCards,
+      connections,
+      viewport: { zoom, panX, panY },
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    triggerBoardDownload(blob, buildBoardExportFilename(board?.name ?? "board"));
+  }
+
+  function handleLoadFromFile() {
+    loadFileInputRef.current?.click();
+  }
+
+  async function handleLoadFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !boardId) return;
+    try {
+      const text = await file.text();
+      const payload = parseBoardExportFile(text);
+      if (!payload || payload.boardType !== "NoteBoard") {
+        return; // Invalid or wrong board type
+      }
+      setEditingNoteIds(new Set());
+      setEditingCardIds(new Set());
+      primaryEditingNoteIdRef.current = null;
+      primaryEditingCardIdRef.current = null;
+      const idMap = new Map<string, string>();
+
+      // Delete existing items
+      for (const conn of connections) {
+        try {
+          await deleteConnection(conn.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const img of imageCards) {
+        try {
+          await deleteBoardImageCard(boardId, img.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const card of indexCards) {
+        try {
+          await deleteIndexCard(card.id);
+        } catch {
+          // ignore
+        }
+      }
+      for (const note of notes) {
+        try {
+          await deleteNote(note.id);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Create notes
+      const newNotes: NoteSummaryDto[] = [];
+      for (const n of payload.notes ?? []) {
+        const created = await createNote({
+          content: n.content,
+          boardId,
+          title: n.title ?? undefined,
+          positionX: n.positionX ?? 20,
+          positionY: n.positionY ?? 20,
+          width: n.width ?? undefined,
+          height: n.height ?? undefined,
+          color: n.color ?? undefined,
+          rotation: n.rotation ?? undefined,
+        });
+        idMap.set(n.id, created.id);
+        newNotes.push(created);
+      }
+
+      // Create index cards
+      const newCards: IndexCardSummaryDto[] = [];
+      for (const c of payload.indexCards ?? []) {
+        const created = await createIndexCard({
+          content: c.content,
+          boardId,
+          title: c.title ?? undefined,
+          positionX: c.positionX ?? 20,
+          positionY: c.positionY ?? 20,
+          width: c.width ?? undefined,
+          height: c.height ?? undefined,
+          color: c.color ?? undefined,
+          rotation: c.rotation ?? undefined,
+        });
+        idMap.set(c.id, created.id);
+        newCards.push(created);
+      }
+
+      // Create image cards
+      const newImages: BoardImageSummaryDto[] = [];
+      for (const img of payload.imageCards ?? []) {
+        const created = await createBoardImageCard(boardId, {
+          imageUrl: img.imageUrl,
+          positionX: img.positionX,
+          positionY: img.positionY,
+          width: img.width ?? undefined,
+          height: img.height ?? undefined,
+          rotation: img.rotation ?? undefined,
+        });
+        idMap.set(img.id, created.id);
+        newImages.push(created);
+      }
+
+      // Create connections (with mapped IDs)
+      for (const conn of payload.connections ?? []) {
+        const fromId = idMap.get(conn.fromItemId);
+        const toId = idMap.get(conn.toItemId);
+        if (fromId && toId) {
+          try {
+            await createConnection({
+              fromItemId: fromId,
+              toItemId: toId,
+              boardId,
+            });
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      // Restore viewport
+      if (payload.viewport) {
+        setZoom(payload.viewport.zoom);
+        setPanX(payload.viewport.panX);
+        setPanY(payload.viewport.panY);
+      }
+
+      await fetchData();
+    } catch {
+      // Load failed
+    }
+  }
+
+  function triggerMenuUndo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true })
+    );
+  }
+
+  function triggerMenuRedo() {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "y", ctrlKey: true, bubbles: true })
+    );
   }
 
   // =============================================
@@ -542,8 +1902,10 @@ export function NoteBoardPage() {
           positionY: y,
         });
         setNotes((prev) => [...prev, created]);
-        setEditingNoteId(created.id);
-        setEditingCardId(null);
+        setEditingNoteIds((prev) => new Set(prev).add(created.id));
+        primaryEditingNoteIdRef.current = created.id;
+        setEditingCardIds(new Set());
+        primaryEditingCardIdRef.current = null;
       } catch {
         // Silently fail
       }
@@ -572,8 +1934,10 @@ export function NoteBoardPage() {
       };
 
       setIndexCards((prev) => [...prev, optimisticCard]);
-      setEditingCardId(tempId);
-      setEditingNoteId(null);
+      setEditingCardIds((prev) => new Set(prev).add(tempId));
+      primaryEditingCardIdRef.current = tempId;
+      setEditingNoteIds(new Set());
+      primaryEditingNoteIdRef.current = null;
 
       try {
         const created = await createIndexCard({
@@ -582,10 +1946,18 @@ export function NoteBoardPage() {
           positionX: x,
           positionY: y,
         });
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({ type: "card-create", card: created });
         setIndexCards((prev) =>
           prev.map((c) => (c.id === tempId ? created : c)),
         );
-        setEditingCardId(created.id);
+        setEditingCardIds((prev) => {
+          const next = new Set(prev);
+          next.delete(tempId);
+          next.add(created.id);
+          return next;
+        });
+        primaryEditingCardIdRef.current = created.id;
       } catch {
         // Card stays in local state with temp ID
       }
@@ -602,6 +1974,11 @@ export function NoteBoardPage() {
   }
 
   async function handleDeleteConnection(id: string) {
+    const conn = connectionsRef.current.find((c) => c.id === id);
+    if (conn) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "connection-delete", connection: conn });
+    }
     setConnections((prev) => prev.filter((c) => c.id !== id));
     try {
       await deleteConnection(id);
@@ -642,8 +2019,10 @@ export function NoteBoardPage() {
             (c.fromItemId === targetNoteId && c.toItemId === sourceId),
         );
         if (!isDuplicate) {
+          boardRedoStackRef.current = [];
           createConnection({ fromItemId: sourceId, toItemId: targetNoteId, boardId: boardId ?? undefined })
             .then((created) => {
+              boardUndoStackRef.current.push({ type: "connection-create", connection: created });
               setConnections((prev) => [...prev, created]);
             })
             .catch(() => {
@@ -700,17 +2079,85 @@ export function NoteBoardPage() {
   const isEmpty = notes.length === 0 && indexCards.length === 0 && imageCards.length === 0;
 
   return (
-    <div className="relative h-full">
+    <div className="relative flex h-full flex-col">
+      {/* Menu bar - paper style with online users on left */}
+      <div className="notepad-card flex-shrink-0 !overflow-visible border-b border-border/50 z-10">
+        <div className="notepad-spiral-strip" />
+        <div className="flex items-center gap-3 px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <BoardMenuBar
+          boardType="NoteBoard"
+          zoom={zoom}
+          onZoomChange={(z) => handleViewportChange(z, panX, panY)}
+          onSaveToFile={handleSaveToFile}
+          onLoadFromFile={handleLoadFromFile}
+          onUndo={triggerMenuUndo}
+          onRedo={triggerMenuRedo}
+          canUndo={boardUndoStackRef.current.length > 0}
+          canRedo={boardRedoStackRef.current.length > 0}
+          onInsertStickyNote={handleQuickAddNote}
+          onInsertIndexCard={handleQuickAddCard}
+          onInsertImage={handleQuickAddImage}
+          backgroundTheme={backgroundTheme}
+          onBackgroundThemeChange={setBackgroundTheme}
+          autoEnlargeNotes={autoEnlargeNotes}
+          onAutoEnlargeNotesChange={setAutoEnlargeNotes}
+        />
+          </div>
+          <BoardConnectedUsers users={connectedUsers} />
+        </div>
+      </div>
+      <input
+        ref={loadFileInputRef}
+        type="file"
+        accept=".json,.asidenote-board,application/json"
+        className="hidden"
+        aria-hidden
+        onChange={handleLoadFileSelect}
+      />
       {/* Board content */}
-      <div className="absolute inset-0">
+      <div className="relative flex-1 min-h-0">
         <CorkBoard
           boardRef={boardRef}
           onDropItem={handleBoardDrop}
+          onBoardMouseMove={handleBoardMouseMove}
+          onBoardMouseLeave={handleBoardMouseLeave}
+          onBoardClick={(e) => {
+            if (!(e.target as Element).closest("[data-board-item]")) {
+              setEditingNoteIds(new Set());
+              setEditingCardIds(new Set());
+              primaryEditingNoteIdRef.current = null;
+              primaryEditingCardIdRef.current = null;
+            }
+          }}
           zoom={zoom}
           panX={panX}
           panY={panY}
           onViewportChange={handleViewportChange}
+          backgroundTheme={backgroundTheme}
+          onBoardContextMenu={(e) => setBoardContextMenu({ x: e.clientX, y: e.clientY })}
         >
+          {/* Remote cursors layer (board-space coords, same transform as canvas) */}
+          <div className="pointer-events-none absolute inset-0 overflow-visible" aria-hidden>
+            {Array.from(remoteCursors.entries()).map(([userId, { x, y, color }]) => (
+              <div
+                key={userId}
+                className="absolute z-[9999] flex items-center gap-1 overflow-visible"
+                style={{ left: x, top: y, transform: "translate(-6px, -2px)" }}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 32 32"
+                  width="32"
+                  height="32"
+                  className="drop-shadow-lg"
+                >
+                  <path d="M6 2v24l6-6 4 10 4-2-4-10h8L6 2z" fill={color} stroke="rgba(255,255,255,0.9)" strokeWidth="0.5" />
+                </svg>
+              </div>
+            ))}
+          </div>
+
           <RedStringLayer
             connections={connections}
             linkingFrom={linkingFrom}
@@ -724,17 +2171,29 @@ export function NoteBoardPage() {
             <StickyNote
               key={note.id}
               note={note}
-              isEditing={note.id === editingNoteId}
-              zIndex={zIndexMap[note.id] ?? 0}
+              isEditing={editingNoteIds.has(note.id)}
+              enlargeWhenEditing={autoEnlargeNotes}
+              focusedBy={remoteFocus.get(`note:${note.id}`) ?? null}
+              remoteTextCursors={Array.from(remoteTextCursors.entries())
+                .filter(([, v]) => v.itemType === "note" && v.itemId === note.id)
+                .map(([userId, v]) => ({ userId, field: v.field, position: v.position, color: v.color }))}
+              onTextCursor={(field, position) => sendTextCursor("note", note.id, field, position)}
+              zIndex={(zIndexMap[note.id] ?? 0) + (editingNoteIds.has(note.id) ? 10000 : 0)}
+              onDrag={handleNoteDrag}
+              onDragStart={handleNoteDragStart}
               onDragStop={handleDragStop}
               onDelete={handleDelete}
               onStartEdit={handleStartEdit}
               onSave={handleSave}
+              onContentChange={handleNoteContentChange}
               onResize={handleResize}
               onColorChange={handleColorChange}
               onRotationChange={handleRotationChange}
               onPinMouseDown={handlePinMouseDown}
               onBringToFront={bringToFront}
+              onUnmount={handleNoteUnmount}
+              onExitEdit={handleExitEditNote}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "note", note })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -745,11 +2204,13 @@ export function NoteBoardPage() {
               key={img.id}
               image={img}
               zIndex={zIndexMap[img.id] ?? 0}
+              onDragStart={handleImageDragStart}
               onDragStop={handleImageDragStop}
               onDelete={handleImageDelete}
               onResize={handleImageResize}
               onBringToFront={bringToFront}
               onPinMouseDown={handlePinMouseDown}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "image", image: img })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -759,17 +2220,24 @@ export function NoteBoardPage() {
             <IndexCard
               key={card.id}
               card={card}
-              isEditing={card.id === editingCardId}
-              zIndex={zIndexMap[card.id] ?? 0}
+              isEditing={editingCardIds.has(card.id)}
+              enlargeWhenEditing={autoEnlargeNotes}
+              focusedBy={remoteFocus.get(`card:${card.id}`) ?? null}
+              zIndex={(zIndexMap[card.id] ?? 0) + (editingCardIds.has(card.id) ? 10000 : 0)}
+              onDrag={handleCardDrag}
+              onDragStart={handleCardDragStart}
               onDragStop={handleCardDragStop}
               onDelete={handleCardDelete}
               onStartEdit={handleCardStartEdit}
               onSave={handleCardSave}
+              onContentChange={handleCardContentChange}
               onResize={handleCardResize}
               onColorChange={handleCardColorChange}
               onRotationChange={handleCardRotationChange}
               onPinMouseDown={handlePinMouseDown}
               onBringToFront={bringToFront}
+              onExitEdit={handleExitEditCard}
+              onContextMenu={(e) => setItemContextMenu({ x: e.clientX, y: e.clientY, type: "card", card })}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -794,60 +2262,30 @@ export function NoteBoardPage() {
             onChange={handleImageFileSelect}
           />
         </CorkBoard>
-      </div>
 
-      {/* Floating Add Button with popover menu */}
-      <div ref={addMenuRef} className="absolute bottom-6 right-6 z-20">
-        {/* Popover menu */}
-        <div
-          className={[
-            "absolute bottom-16 right-0 mb-2 overflow-hidden rounded-xl bg-white shadow-xl border border-gray-200 transition-all duration-200 origin-bottom-right dark:bg-gray-800 dark:border-gray-700",
-            showAddMenu
-              ? "scale-100 opacity-100 pointer-events-auto"
-              : "scale-90 opacity-0 pointer-events-none",
-          ].join(" ")}
-        >
-          <div className="py-1">
-            <button
-              type="button"
-              onClick={handleQuickAddImage}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <ImageIcon className="h-4 w-4 text-emerald-500" />
-              <span>Image</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickAddNote}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <StickyNoteIcon className="h-4 w-4 text-yellow-500" />
-              <span>Sticky Note</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleQuickAddCard}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              <CreditCard className="h-4 w-4 text-sky-500" />
-              <span>Index Card</span>
-            </button>
-          </div>
-        </div>
+        {boardContextMenu && (
+          <ContextMenu
+            x={boardContextMenu.x}
+            y={boardContextMenu.y}
+            items={[
+              { label: "Add Sticky Note", icon: StickyNoteIcon, onClick: handleQuickAddNote },
+              { label: "Add Index Card", icon: CreditCard, onClick: handleQuickAddCard },
+              { label: "Add Image", icon: ImageIcon, onClick: handleQuickAddImage },
+              { label: "Undo", onClick: triggerMenuUndo, disabled: boardUndoStackRef.current.length === 0, divider: true },
+              { label: "Redo", onClick: triggerMenuRedo, disabled: boardRedoStackRef.current.length === 0 },
+            ]}
+            onClose={() => setBoardContextMenu(null)}
+          />
+        )}
 
-        {/* Main button */}
-        <button
-          type="button"
-          onClick={() => setShowAddMenu((prev) => !prev)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 hover:bg-primary/90 focus:outline-none focus:ring-4 focus:ring-primary/20"
-          aria-label="Add new item"
-        >
-          {showAddMenu ? (
-            <ChevronUp className="h-6 w-6" />
-          ) : (
-            <Plus className="h-6 w-6" />
-          )}
-        </button>
+        {itemContextMenu && (
+          <ContextMenu
+            x={itemContextMenu.x}
+            y={itemContextMenu.y}
+            items={buildItemContextMenuItems()}
+            onClose={() => setItemContextMenu(null)}
+          />
+        )}
       </div>
     </div>
   );

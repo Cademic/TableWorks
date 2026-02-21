@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import axios from "axios";
 import {
@@ -6,20 +6,38 @@ import {
   Plus,
   Filter,
   PencilLine,
+  Upload,
 } from "lucide-react";
 import type { AppLayoutContext } from "../components/layout/AppLayout";
 import {
   getBoards,
   createBoard,
+  createBoardImageCard,
   deleteBoard,
   updateBoard,
   toggleBoardPin,
 } from "../api/boards";
 import { getProjects, addBoardToProject } from "../api/projects";
+import { createNote } from "../api/notes";
+import { createIndexCard } from "../api/index-cards";
+import { createConnection } from "../api/connections";
+import { saveDrawing } from "../api/drawings";
+import { parseBoardExportFile } from "../lib/boardExport";
 import { BoardCard } from "../components/dashboard/BoardCard";
 import { ConfirmDialog } from "../components/dashboard/ConfirmDialog";
 import { CreateBoardDialog } from "../components/dashboard/CreateBoardDialog";
 import type { BoardSummaryDto, ProjectSummaryDto } from "../types";
+
+function getUniqueBoardName(baseName: string, existingNames: Set<string>): string {
+  const name = baseName.trim() || "Imported Board";
+  let candidate = name;
+  let n = 1;
+  while (existingNames.has(candidate)) {
+    candidate = `${name} (${n})`;
+    n++;
+  }
+  return candidate;
+}
 
 const BOARD_TYPE_FILTERS = [
   { value: "", label: "All" },
@@ -39,6 +57,8 @@ export function BoardsPage() {
   const [deleteTarget, setDeleteTarget] = useState<BoardSummaryDto | null>(null);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchBoards = useCallback(async () => {
     try {
@@ -77,6 +97,116 @@ export function BoardsPage() {
   }, [boards, boardTypeFilter]);
 
   const navigate = useNavigate();
+
+  function handleImportClick() {
+    importFileInputRef.current?.click();
+  }
+
+  async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const payload = parseBoardExportFile(text);
+      if (!payload) {
+        setIsImporting(false);
+        return;
+      }
+      const existingNames = new Set(boards.map((b) => b.name));
+      const boardName = getUniqueBoardName(payload.boardName, existingNames);
+
+      const created = await createBoard({
+        name: boardName,
+        description: undefined,
+        boardType: payload.boardType,
+      });
+      setBoards((prev) => [created, ...prev]);
+      const boardId = created.id;
+      const idMap = new Map<string, string>();
+
+      if (payload.boardType === "NoteBoard") {
+        for (const n of payload.notes ?? []) {
+          const note = await createNote({
+            content: n.content,
+            boardId,
+            title: n.title ?? undefined,
+            positionX: n.positionX ?? 20,
+            positionY: n.positionY ?? 20,
+            width: n.width ?? undefined,
+            height: n.height ?? undefined,
+            color: n.color ?? undefined,
+            rotation: n.rotation ?? undefined,
+          });
+          idMap.set(n.id, note.id);
+        }
+        for (const c of payload.indexCards ?? []) {
+          const card = await createIndexCard({
+            content: c.content,
+            boardId,
+            title: c.title ?? undefined,
+            positionX: c.positionX ?? 20,
+            positionY: c.positionY ?? 20,
+            width: c.width ?? undefined,
+            height: c.height ?? undefined,
+            color: c.color ?? undefined,
+            rotation: c.rotation ?? undefined,
+          });
+          idMap.set(c.id, card.id);
+        }
+        for (const img of payload.imageCards ?? []) {
+          const imageCard = await createBoardImageCard(boardId, {
+            imageUrl: img.imageUrl,
+            positionX: img.positionX,
+            positionY: img.positionY,
+            width: img.width ?? undefined,
+            height: img.height ?? undefined,
+            rotation: img.rotation ?? undefined,
+          });
+          idMap.set(img.id, imageCard.id);
+        }
+        for (const conn of payload.connections ?? []) {
+          const fromId = idMap.get(conn.fromItemId);
+          const toId = idMap.get(conn.toItemId);
+          if (fromId && toId) {
+            await createConnection({
+              fromItemId: fromId,
+              toItemId: toId,
+              boardId,
+            });
+          }
+        }
+      } else if (payload.boardType === "ChalkBoard") {
+        if (payload.drawing?.canvasJson) {
+          await saveDrawing(boardId, { canvasJson: payload.drawing.canvasJson });
+        }
+        for (const n of payload.notes ?? []) {
+          await createNote({
+            content: n.content,
+            boardId,
+            title: n.title ?? undefined,
+            positionX: n.positionX ?? 20,
+            positionY: n.positionY ?? 20,
+            width: n.width ?? undefined,
+            height: n.height ?? undefined,
+            color: n.color ?? undefined,
+            rotation: n.rotation ?? undefined,
+          });
+        }
+      }
+
+      const path =
+        created.boardType === "ChalkBoard"
+          ? `/chalkboards/${created.id}`
+          : `/boards/${created.id}`;
+      navigate(path);
+    } catch (err) {
+      console.error("Import board failed:", err);
+    } finally {
+      setIsImporting(false);
+    }
+  }
 
   async function handleCreate(name: string, description: string, boardType: string) {
     try {
@@ -215,14 +345,25 @@ export function BoardsPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateOpen(true)}
-            className="flex flex-shrink-0 items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md dark:bg-amber-600 dark:hover:bg-amber-500"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Board</span>
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleImportClick}
+              disabled={isImporting}
+              className="flex items-center gap-2 rounded-lg border border-border/80 bg-background px-4 py-2.5 text-sm font-medium text-foreground/80 transition-colors hover:bg-foreground/5 hover:text-foreground disabled:opacity-50"
+            >
+              <Upload className="h-4 w-4" />
+              <span>{isImporting ? "Importing…" : "Import Board"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-600 hover:shadow-md dark:bg-amber-600 dark:hover:bg-amber-500"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Board</span>
+            </button>
+          </div>
         </div>
 
         {/* Type filter pills */}
@@ -282,6 +423,14 @@ export function BoardsPage() {
         )}
       </div>
 
+      <input
+        ref={importFileInputRef}
+        type="file"
+        accept=".json,.asidenote-board,application/json"
+        className="hidden"
+        aria-hidden
+        onChange={handleImportFileSelect}
+      />
       <CreateBoardDialog
         isOpen={isCreateOpen}
         error={createError}

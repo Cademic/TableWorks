@@ -166,6 +166,7 @@ export interface NotebookDetailDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  projectId: string | null;
   contentJson: string;
 }
 
@@ -273,6 +274,21 @@ export interface CreateBoardConnectionRequest {
   fromItemId: string;
   toItemId: string;
   boardId?: string;
+}
+
+// --- Board Export (save/load to file) ---
+
+export interface BoardExportPayload {
+  version: 1;
+  boardType: "NoteBoard" | "ChalkBoard";
+  boardName: string;
+  exportedAt: string;
+  notes?: NoteSummaryDto[];
+  indexCards?: IndexCardSummaryDto[];
+  imageCards?: BoardImageSummaryDto[];
+  connections?: BoardConnectionDto[];
+  drawing?: { canvasJson: string };
+  viewport?: { zoom: number; panX: number; panY: number };
 }
 
 // --- Board Image Card DTOs ---

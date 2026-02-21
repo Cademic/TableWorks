@@ -25,26 +25,32 @@ const CURSOR_MAP: Record<ResizeDir, string> = {
 interface ImageCardProps {
   image: BoardImageSummaryDto;
   zIndex?: number;
+  onDragStart?: (id: string) => void;
   onDragStop: (id: string, x: number, y: number) => void;
   onDelete: (id: string) => void;
-  onResize: (id: string, width: number, height: number) => void;
+  /** When position is also provided, both size and position were updated (e.g. resize with n/w handles) - send single PATCH. */
+  onResize: (id: string, width: number, height: number, positionX?: number, positionY?: number) => void;
   onBringToFront?: (id: string) => void;
   /** Called when the pin is pressed to start a red-string connection */
   onPinMouseDown?: (id: string) => void;
   /** True when another item is being linked (pin shows linking hover state) */
   isLinking?: boolean;
+  /** Called when user right-clicks the image (for context menu). Call e.preventDefault() and e.stopPropagation() before showing menu. */
+  onContextMenu?: (e: React.MouseEvent) => void;
   zoom?: number;
 }
 
 export function ImageCard({
   image,
   zIndex = 0,
+  onDragStart,
   onDragStop,
   onDelete,
   onResize,
   onBringToFront,
   onPinMouseDown,
   isLinking = false,
+  onContextMenu,
   zoom = 1,
 }: ImageCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -96,6 +102,7 @@ export function ImageCard({
     move: (e: MouseEvent) => void;
     up: () => void;
   } | null>(null);
+  const lastResizeValuesRef = useRef<{ w: number; h: number; x: number; y: number } | null>(null);
 
   function startResize(dir: ResizeDir) {
     return (e: React.MouseEvent) => {
@@ -164,6 +171,7 @@ export function ImageCard({
           }
         }
 
+        lastResizeValuesRef.current = { w: newW, h: newH, x: newX, y: newY };
         setSize({ width: newW, height: newH });
         setPosition({ x: newX, y: newY });
       }
@@ -172,21 +180,24 @@ export function ImageCard({
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
         listenersRef.current = null;
+        let final = lastResizeValuesRef.current;
+        lastResizeValuesRef.current = null;
+        const rs = resizeRef.current;
         resizeRef.current = null;
         setIsResizing(false);
 
-        setSize((finalSize) => {
-          const w = Math.round(finalSize.width);
-          const h = Math.round(finalSize.height);
-          setTimeout(() => onResizeRef.current(image.id, w, h), 0);
-          return finalSize;
-        });
-        setPosition((finalPos) => {
-          const x = Math.round(finalPos.x);
-          const y = Math.round(finalPos.y);
-          setTimeout(() => onDragStopRef.current(image.id, x, y), 0);
-          return finalPos;
-        });
+        if (!final && rs) {
+          final = { w: rs.startW, h: rs.startH, x: rs.startPosX, y: rs.startPosY };
+        }
+        if (final) {
+          const w = Math.round(final.w);
+          const h = Math.round(final.h);
+          const x = Math.round(final.x);
+          const y = Math.round(final.y);
+          setSize({ width: final.w, height: final.h });
+          setPosition({ x: final.x, y: final.y });
+          setTimeout(() => onResizeRef.current(image.id, w, h, x, y), 0);
+        }
       }
 
       listenersRef.current = { move: onMove, up: onUp };
@@ -211,6 +222,7 @@ export function ImageCard({
     <Draggable
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
       position={position}
+      onStart={() => onDragStart?.(image.id)}
       onStop={handleDragStop}
       handle=".image-card-handle"
       scale={zoom}
@@ -218,6 +230,7 @@ export function ImageCard({
     >
       <div
         ref={nodeRef}
+        data-board-item="image"
         className="absolute overflow-visible rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-black/10 dark:border-white/10"
         style={{
           width: `${size.width}px`,
@@ -227,6 +240,11 @@ export function ImageCard({
           rotate: `${image.rotation ?? 0}deg`,
         }}
         onMouseDown={() => onBringToFront?.(image.id)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
       >
         {/* Pin – interactive for red-string linking */}
         <div

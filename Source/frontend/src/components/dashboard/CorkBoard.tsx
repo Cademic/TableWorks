@@ -2,14 +2,25 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { ZoomControls } from "./ZoomControls";
 import { useTouchViewport } from "../../hooks/useTouchViewport";
 
+export type CorkBoardBackgroundTheme = "whiteboard" | "blackboard" | "default";
+
 interface CorkBoardProps {
   children: ReactNode;
   boardRef?: React.RefObject<HTMLDivElement | null>;
   onDropItem?: (type: string, x: number, y: number) => void;
+  /** Board-space (canvas) coords when mouse moves over the viewport */
+  onBoardMouseMove?: (x: number, y: number) => void;
+  onBoardMouseLeave?: () => void;
+  /** Called when user clicks the board (receives event so handler can check if click was on background) */
+  onBoardClick?: (e: React.MouseEvent) => void;
   zoom: number;
   panX: number;
   panY: number;
   onViewportChange: (zoom: number, panX: number, panY: number) => void;
+  /** Background theme: whiteboard (light), blackboard (dark), or default (cork) */
+  backgroundTheme?: CorkBoardBackgroundTheme;
+  /** Called when user right-clicks on empty canvas (not on a board item). Use to show board-level context menu. */
+  onBoardContextMenu?: (e: React.MouseEvent) => void;
 }
 
 const MIN_ZOOM = 0.25;
@@ -20,7 +31,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, onViewportChange }: CorkBoardProps) {
+export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, onBoardMouseLeave, onBoardClick, zoom, panX, panY, onViewportChange, backgroundTheme = "default", onBoardContextMenu }: CorkBoardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -69,6 +80,17 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
     onDropItem(itemType, canvasX, canvasY);
   }
 
+  const handleViewportMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect || !onBoardMouseMove) return;
+      const x = (e.clientX - rect.left) / zoom - panX;
+      const y = (e.clientY - rect.top) / zoom - panY;
+      onBoardMouseMove(x, y);
+    },
+    [zoom, panX, panY, onBoardMouseMove],
+  );
+
   // ---- Wheel zoom (Ctrl + scroll only) ----
 
   useEffect(() => {
@@ -106,6 +128,8 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
   const didRightPanRef = useRef(false);
 
   function handleMouseDown(e: React.MouseEvent) {
+    // Don't start pan when right-clicking on a board item (let item show context menu)
+    if (e.button === 2 && (e.target as Element).closest("[data-board-item]")) return;
     // Right mouse button (2), middle mouse button (1), or space+left click (0)
     if (e.button === 2 || e.button === 1 || (e.button === 0 && isSpaceHeld)) {
       e.preventDefault();
@@ -144,7 +168,7 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
     };
   }, [isPanning, zoom, onViewportChange]);
 
-  // Suppress context menu after right-click panning
+  // Suppress context menu after right-click panning; show board menu on empty-area right-click
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -153,12 +177,16 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
       if (didRightPanRef.current) {
         e.preventDefault();
         didRightPanRef.current = false;
+        return;
       }
+      if ((e.target as Element).closest("[data-board-item]")) return;
+      e.preventDefault();
+      onBoardContextMenu?.(e as unknown as React.MouseEvent);
     }
 
     viewport.addEventListener("contextmenu", onContextMenu);
     return () => viewport.removeEventListener("contextmenu", onContextMenu);
-  }, []);
+  }, [onBoardContextMenu]);
 
   // Track space bar for space-to-pan
   useEffect(() => {
@@ -203,14 +231,6 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
     onViewportChange(newZoom, newPanX, newPanY);
   }
 
-  function handleZoomIn() {
-    zoomToCenter(clamp(zoom * ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
-
-  function handleZoomOut() {
-    zoomToCenter(clamp(zoom / ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
-  }
-
   function handleZoomReset() {
     onViewportChange(1, 0, 0);
   }
@@ -236,6 +256,8 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
         ref={viewportRef}
         className={[
           "corkboard-surface relative h-full w-full overflow-hidden transition-shadow duration-150",
+          backgroundTheme === "whiteboard" ? "corkboard-surface--whiteboard" : "",
+          backgroundTheme === "blackboard" ? "corkboard-surface--blackboard" : "",
           isDragOver ? "ring-2 ring-inset ring-primary/40" : "",
           cursorClass,
         ].join(" ")}
@@ -243,6 +265,8 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onMouseDown={handleMouseDown}
+        onMouseMove={onBoardMouseMove ? handleViewportMouseMove : undefined}
+        onMouseLeave={onBoardMouseLeave}
       >
         {/* Canvas (transformed layer) */}
         <div
@@ -253,6 +277,9 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
             width: "10000px",
             height: "10000px",
           }}
+          onClick={(e) => {
+            if (onBoardClick) onBoardClick(e);
+          }}
         >
           {children}
         </div>
@@ -262,8 +289,7 @@ export function CorkBoard({ children, boardRef, onDropItem, zoom, panX, panY, on
       <div className="absolute bottom-4 left-4 z-20">
         <ZoomControls
           zoom={zoom}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
+          onZoomChange={zoomToCenter}
           onReset={handleZoomReset}
           onCenterView={handleCenterView}
         />

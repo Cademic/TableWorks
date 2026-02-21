@@ -163,7 +163,7 @@ export function ZoomablePaperShell({
         >
           <ZoomOut className="h-4 w-4" />
         </button>
-        <div className="flex items-center gap-2 min-w-[120px]">
+        <div className="hidden sm:flex min-w-[4rem] shrink items-center gap-1.5 w-24 md:w-32 lg:w-40">
           <input
             type="range"
             min={minZoom}
@@ -171,10 +171,10 @@ export function ZoomablePaperShell({
             step={0.01}
             value={zoom}
             onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
-            className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-foreground/10 accent-primary"
+            className="min-w-0 flex-1 h-1.5 rounded-full appearance-none cursor-pointer bg-foreground/10 accent-primary"
             aria-label="Zoom level"
           />
-          <span className="text-xs font-medium text-foreground/70 min-w-[3rem] text-right">
+          <span className="shrink-0 text-xs font-medium text-foreground/70 min-w-[2.5rem] text-right">
             {Math.round(zoom * 100)}%
           </span>
         </div>

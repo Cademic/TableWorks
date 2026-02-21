@@ -258,16 +258,6 @@ public sealed class UserService : IUserService
 
     public async Task<IReadOnlyList<UserPublicDto>> SearchUsersAsync(Guid currentUserId, string query, int limit, CancellationToken cancellationToken = default)
     {
-        // #region agent log
-        try
-        {
-            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
-            var entry = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:entry", ["message"] = "Search entry", ["data"] = new Dictionary<string, object> { ["currentUserId"] = currentUserId.ToString(), ["query"] = query ?? "", ["limit"] = limit }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H2" };
-            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry) + "\n");
-        }
-        catch { }
-        // #endregion
-
         if (string.IsNullOrWhiteSpace(query) || limit <= 0)
             return Array.Empty<UserPublicDto>();
 
@@ -283,17 +273,6 @@ public sealed class UserService : IUserService
         foreach (var id in friendOrPendingUserIds)
             excludeUserIds.Add(id);
 
-        // #region agent log
-        try
-        {
-            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
-            var allRequestCount = await _friendRequestRepo.Query().CountAsync(f => f.RequesterId == currentUserId || f.ReceiverId == currentUserId, cancellationToken);
-            var entry2 = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:exclude", ["message"] = "Exclude list built", ["data"] = new Dictionary<string, object> { ["friendOrPendingCount"] = friendOrPendingUserIds.Count, ["excludeCount"] = excludeUserIds.Count, ["allFriendRequestsForUser"] = allRequestCount }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H1" };
-            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry2) + "\n");
-        }
-        catch { }
-        // #endregion
-
         var users = await _userRepo.Query()
             .Where(u => (u.Username.ToLower().Contains(q) || u.Email.ToLower().Contains(q)) && !excludeUserIds.Contains(u.Id))
             .OrderBy(u => u.Username)
@@ -307,16 +286,6 @@ public sealed class UserService : IUserService
                 Bio = u.Bio
             })
             .ToListAsync(cancellationToken);
-
-        // #region agent log
-        try
-        {
-            var logPath = @"d:\Projects\ASideNote\.cursor\debug.log";
-            var entry3 = new Dictionary<string, object> { ["location"] = "UserService.cs:SearchUsersAsync:exit", ["message"] = "Search result", ["data"] = new Dictionary<string, object> { ["resultCount"] = users.Count, ["resultIds"] = users.Take(5).Select(u => u.Id.ToString()).ToList() }, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), ["hypothesisId"] = "H2" };
-            System.IO.File.AppendAllText(logPath, JsonSerializer.Serialize(entry3) + "\n");
-        }
-        catch { }
-        // #endregion
 
         return users;
     }

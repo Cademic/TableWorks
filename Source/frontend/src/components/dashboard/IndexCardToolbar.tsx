@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { useEditorState } from "@tiptap/react";
 import {
   Bold,
   Italic,
@@ -111,8 +112,8 @@ function ToolbarButton({
         disabled
           ? "cursor-not-allowed text-gray-300"
           : isActive
-            ? "bg-black/20 text-gray-900"
-            : "text-gray-600 hover:bg-black/10 hover:text-gray-800",
+            ? "bg-sky-100 text-sky-800 ring-1 ring-sky-300/50 dark:bg-sky-900/40 dark:text-sky-200 dark:ring-sky-500/30"
+            : "text-gray-600 hover:bg-black/10 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200",
       ].join(" ")}
     >
       {children}
@@ -509,9 +510,44 @@ export function IndexCardToolbar({
     [editor],
   );
 
+  const activeState = useEditorState({
+    editor,
+    selector: (ctx) => {
+      const ed = ctx.editor;
+      if (!ed) return null;
+      return {
+        isBold: ed.isActive("bold"),
+        isItalic: ed.isActive("italic"),
+        isUnderline: ed.isActive("underline"),
+        isStrike: ed.isActive("strike"),
+        isHighlight: ed.isActive("highlight"),
+        isLink: ed.isActive("link"),
+        textAlignLeft: ed.isActive({ textAlign: "left" }),
+        textAlignCenter: ed.isActive({ textAlign: "center" }),
+        textAlignRight: ed.isActive({ textAlign: "right" }),
+        textAlignJustify: ed.isActive({ textAlign: "justify" }),
+        heading1: ed.isActive("heading", { level: 1 }),
+        heading2: ed.isActive("heading", { level: 2 }),
+        heading3: ed.isActive("heading", { level: 3 }),
+        heading4: ed.isActive("heading", { level: 4 }),
+        heading5: ed.isActive("heading", { level: 5 }),
+        heading6: ed.isActive("heading", { level: 6 }),
+        color: ed.getAttributes("textStyle").color as string | undefined,
+        highlightColor: ed.getAttributes("highlight").color as string | undefined,
+      };
+    },
+  });
+
   if (!editor) return null;
 
-  const currentColor = editor.getAttributes("textStyle").color ?? "#1f2937";
+  const state = activeState ?? {
+    isBold: false, isItalic: false, isUnderline: false, isStrike: false,
+    isHighlight: false, isLink: false,
+    textAlignLeft: false, textAlignCenter: false, textAlignRight: false, textAlignJustify: false,
+    heading1: false, heading2: false, heading3: false, heading4: false, heading5: false, heading6: false,
+    color: undefined, highlightColor: undefined,
+  };
+  const currentColor = state.color ?? "#1f2937";
   const isInsideTable =
     editor.isActive("table") ||
     editor.isActive("tableRow") ||
@@ -547,28 +583,28 @@ export function IndexCardToolbar({
 
         {/* Bold / Italic / Underline / Strikethrough */}
         <ToolbarButton
-          isActive={editor.isActive("bold")}
+          isActive={state.isBold}
           onClick={() => editor.chain().focus().toggleBold().run()}
           title="Bold"
         >
           <Bold className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("italic")}
+          isActive={state.isItalic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           title="Italic"
         >
           <Italic className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("underline")}
+          isActive={state.isUnderline}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           title="Underline"
         >
           <Underline className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("strike")}
+          isActive={state.isStrike}
           onClick={() => editor.chain().focus().toggleStrike().run()}
           title="Strikethrough"
         >
@@ -580,19 +616,8 @@ export function IndexCardToolbar({
         {/* Heading dropdown */}
         <select
           value={
-            editor.isActive("heading", { level: 1 })
-              ? "1"
-              : editor.isActive("heading", { level: 2 })
-                ? "2"
-                : editor.isActive("heading", { level: 3 })
-                  ? "3"
-                  : editor.isActive("heading", { level: 4 })
-                    ? "4"
-                    : editor.isActive("heading", { level: 5 })
-                      ? "5"
-                      : editor.isActive("heading", { level: 6 })
-                        ? "6"
-                        : "0"
+            state.heading1 ? "1" : state.heading2 ? "2" : state.heading3 ? "3"
+              : state.heading4 ? "4" : state.heading5 ? "5" : state.heading6 ? "6" : "0"
           }
           onChange={(e) => {
             const level = parseInt(e.target.value, 10);
@@ -619,28 +644,28 @@ export function IndexCardToolbar({
 
         {/* Text alignment */}
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "left" })}
+          isActive={state.textAlignLeft}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           title="Align Left"
         >
           <AlignLeft className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "center" })}
+          isActive={state.textAlignCenter}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           title="Align Center"
         >
           <AlignCenter className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "right" })}
+          isActive={state.textAlignRight}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           title="Align Right"
         >
           <AlignRight className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "justify" })}
+          isActive={state.textAlignJustify}
           onClick={() => editor.chain().focus().setTextAlign("justify").run()}
           title="Justify"
         >

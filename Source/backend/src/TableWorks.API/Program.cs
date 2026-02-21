@@ -63,6 +63,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSignalR();
 
 // ---------------------------------------------------------------------------
 // API Versioning
@@ -172,6 +173,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        };
+
+        // SignalR: read JWT from query string (for WebSocket and HTTP negotiation)
+        // The SignalR client sends token via accessTokenFactory which adds it to query string
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                // Read token from query string for SignalR hub requests (both HTTP negotiation and WebSocket)
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -288,6 +306,9 @@ builder.Services.AddScoped<IIndexCardService, IndexCardService>();
 builder.Services.AddScoped<IBoardConnectionService, BoardConnectionService>();
 builder.Services.AddScoped<IBoardImageService, BoardImageService>();
 builder.Services.AddScoped<IBoardService, BoardService>();
+builder.Services.AddScoped<IBoardAccessService, BoardAccessService>();
+builder.Services.AddScoped<ASideNote.Application.Interfaces.IBoardHubBroadcaster, ASideNote.API.Services.BoardHubBroadcaster>();
+builder.Services.AddSingleton<IBoardPresenceService, ASideNote.API.Services.BoardPresenceService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IFolderService, FolderService>();
@@ -296,7 +317,10 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IDrawingService, DrawingService>();
 builder.Services.AddScoped<ICalendarEventService, CalendarEventService>();
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookAccessService, ASideNote.Application.Services.NotebookAccessService>();
 builder.Services.AddScoped<INotebookExportService, NotebookExportService>();
+builder.Services.AddScoped<ASideNote.Application.Interfaces.INotebookHubBroadcaster, ASideNote.API.Services.NotebookHubBroadcaster>();
+builder.Services.AddSingleton<ASideNote.Application.Interfaces.INotebookPresenceService, ASideNote.API.Services.NotebookPresenceService>();
 builder.Services.AddScoped<IUserStorageService, ASideNote.Infrastructure.Services.UserStorageService>();
 builder.Services.AddScoped<IImageResolver, ASideNote.Infrastructure.Services.ImageResolverService>();
 
@@ -409,6 +433,22 @@ app.Use(async (context, next) =>
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors("AllowedOrigins");
+
+// SignalR: Extract token from query string and add to Authorization header for HTTP requests
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/hubs") && 
+        string.IsNullOrEmpty(context.Request.Headers.Authorization))
+    {
+        var token = context.Request.Query["access_token"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(token))
+        {
+            context.Request.Headers.Authorization = $"Bearer {token}";
+        }
+    }
+    await next();
+});
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -442,6 +482,8 @@ app.MapGet("/health/db", (AppDbContext db, IWebHostEnvironment env) =>
 }).AllowAnonymous();
 
 app.MapControllers();
+app.MapHub<ASideNote.API.Hubs.BoardHub>("/hubs/board");
+app.MapHub<ASideNote.API.Hubs.NotebookHub>("/hubs/notebook");
 
 app.Run();
 

@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  optimizeDeps: {
+    include: ["@microsoft/signalr"],
+  },
   server: {
     port: 5173,
     headers: {
@@ -12,6 +15,11 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
+      },
+      "/hubs": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+        ws: true,
       },
     },
   },

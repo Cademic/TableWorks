@@ -15,6 +15,7 @@ public sealed class BoardImageService : IBoardImageService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IImageStorageService _imageStorage;
     private readonly IUserStorageService _userStorage;
+    private readonly IBoardHubBroadcaster _boardHub;
 
     public BoardImageService(
         IRepository<BoardImage> imageRepo,
@@ -23,7 +24,8 @@ public sealed class BoardImageService : IBoardImageService
         IRepository<ProjectMember> memberRepo,
         IUnitOfWork unitOfWork,
         IImageStorageService imageStorage,
-        IUserStorageService userStorage)
+        IUserStorageService userStorage,
+        IBoardHubBroadcaster boardHub)
     {
         _imageRepo = imageRepo;
         _boardRepo = boardRepo;
@@ -32,6 +34,7 @@ public sealed class BoardImageService : IBoardImageService
         _unitOfWork = unitOfWork;
         _imageStorage = imageStorage;
         _userStorage = userStorage;
+        _boardHub = boardHub;
     }
 
     public async Task<IReadOnlyList<BoardImageSummaryDto>> GetByBoardIdAsync(Guid userId, Guid boardId, CancellationToken cancellationToken = default)
@@ -75,8 +78,10 @@ public sealed class BoardImageService : IBoardImageService
 
         await _imageRepo.AddAsync(image, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        var summary = MapToSummary(image);
+        await _boardHub.NotifyImageCardAddedAsync(boardId, image.Id, summary, cancellationToken);
 
-        return MapToSummary(image);
+        return summary;
     }
 
     public async Task PatchAsync(Guid userId, Guid id, PatchBoardImageRequest request, CancellationToken cancellationToken = default)
@@ -101,6 +106,8 @@ public sealed class BoardImageService : IBoardImageService
         image.UpdatedAt = DateTime.UtcNow;
         _imageRepo.Update(image);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        var summary = MapToSummary(image);
+        await _boardHub.NotifyImageCardUpdatedAsync(image.BoardId, image.Id, summary, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid userId, Guid id, CancellationToken cancellationToken = default)
@@ -115,8 +122,11 @@ public sealed class BoardImageService : IBoardImageService
         if (key is not null)
             await _userStorage.RecordDeletionByKeyAsync(key, cancellationToken);
 
+        var boardId = image.BoardId;
+        var imageId = image.Id;
         _imageRepo.Delete(image);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _boardHub.NotifyImageCardDeletedAsync(boardId, imageId, cancellationToken);
     }
 
     private async Task EnsureBoardReadAccessAsync(Guid userId, Guid boardId, CancellationToken cancellationToken)

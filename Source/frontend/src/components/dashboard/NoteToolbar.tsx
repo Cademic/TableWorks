@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Editor } from "@tiptap/react";
+import { useEditorState } from "@tiptap/react";
 import {
   Bold,
   Italic,
@@ -12,6 +13,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Link as LinkIcon,
 } from "lucide-react";
 
 interface NoteToolbarProps {
@@ -75,8 +77,8 @@ function ToolbarButton({
       className={[
         "flex h-6 w-6 items-center justify-center rounded transition-colors",
         isActive
-          ? "bg-black/20 text-gray-900"
-          : "text-gray-600 hover:bg-black/10 hover:text-gray-800",
+          ? "bg-sky-100 text-sky-800 ring-1 ring-sky-300/50 dark:bg-sky-900/40 dark:text-sky-200 dark:ring-sky-500/30"
+          : "text-gray-600 hover:bg-black/10 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200",
       ].join(" ")}
     >
       {children}
@@ -88,6 +90,73 @@ function parseFontSize(raw: string | undefined | null): number {
   if (!raw) return 14;
   const n = parseInt(raw, 10);
   return Number.isNaN(n) ? 14 : n;
+}
+
+function LinkButton({ editor, isLinkActive }: { editor: Editor; isLinkActive: boolean }) {
+  const [showInput, setShowInput] = useState(false);
+  const [url, setUrl] = useState("");
+  const isLink = isLinkActive;
+
+  function handleSetLink() {
+    if (url.trim()) {
+      editor.chain().focus().setLink({ href: url.trim() }).run();
+    } else {
+      editor.chain().focus().unsetLink().run();
+    }
+    setUrl("");
+    setShowInput(false);
+  }
+
+  return (
+    <div className="relative">
+      <ToolbarButton
+        isActive={isLink}
+        onClick={() => {
+          if (isLink) {
+            editor.chain().focus().unsetLink().run();
+          } else {
+            setUrl(editor.getAttributes("link").href || "https://");
+            setShowInput(true);
+          }
+        }}
+        title="Link / Unlink"
+      >
+        <LinkIcon className="h-3.5 w-3.5" />
+      </ToolbarButton>
+      {showInput && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 flex gap-1 rounded border border-black/15 bg-white p-1 shadow-lg"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <input
+            type="text"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSetLink();
+              if (e.key === "Escape") {
+                setShowInput(false);
+                setUrl("");
+              }
+            }}
+            placeholder="Enter URL"
+            autoFocus
+            className="h-6 w-44 rounded border border-black/15 px-2 text-[10px] text-gray-700 focus:outline-none"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSetLink();
+            }}
+            className="h-6 rounded bg-black/10 px-2 text-[10px] text-gray-700 hover:bg-black/20"
+          >
+            Set
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FontSizeInput({ editor }: { editor: Editor }) {
@@ -183,9 +252,32 @@ export function NoteToolbar({
     [editor],
   );
 
+  const activeState = useEditorState({
+    editor,
+    selector: (ctx) => {
+      const ed = ctx.editor;
+      if (!ed) return null;
+      return {
+        isBold: ed.isActive("bold"),
+        isItalic: ed.isActive("italic"),
+        isUnderline: ed.isActive("underline"),
+        isStrike: ed.isActive("strike"),
+        isLink: ed.isActive("link"),
+        textAlignLeft: ed.isActive({ textAlign: "left" }),
+        textAlignCenter: ed.isActive({ textAlign: "center" }),
+        textAlignRight: ed.isActive({ textAlign: "right" }),
+        color: ed.getAttributes("textStyle").color as string | undefined,
+      };
+    },
+  });
+
   if (!editor) return null;
 
-  const currentColor = editor.getAttributes("textStyle").color ?? "#1f2937";
+  const state = activeState ?? {
+    isBold: false, isItalic: false, isUnderline: false, isStrike: false, isLink: false,
+    textAlignLeft: false, textAlignCenter: false, textAlignRight: false, color: undefined,
+  };
+  const currentColor = state.color ?? "#1f2937";
 
   return (
     <div className="space-y-1.5 border-b border-black/10 px-2 pb-2 pt-1">
@@ -216,28 +308,28 @@ export function NoteToolbar({
 
         {/* Bold / Italic / Underline / Strikethrough */}
         <ToolbarButton
-          isActive={editor.isActive("bold")}
+          isActive={state.isBold}
           onClick={() => editor.chain().focus().toggleBold().run()}
           title="Bold"
         >
           <Bold className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("italic")}
+          isActive={state.isItalic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           title="Italic"
         >
           <Italic className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("underline")}
+          isActive={state.isUnderline}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           title="Underline"
         >
           <Underline className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive("strike")}
+          isActive={state.isStrike}
           onClick={() => editor.chain().focus().toggleStrike().run()}
           title="Strikethrough"
         >
@@ -248,21 +340,21 @@ export function NoteToolbar({
 
         {/* Text alignment */}
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "left" })}
+          isActive={state.textAlignLeft}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           title="Align Left"
         >
           <AlignLeft className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "center" })}
+          isActive={state.textAlignCenter}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           title="Align Center"
         >
           <AlignCenter className="h-3.5 w-3.5" />
         </ToolbarButton>
         <ToolbarButton
-          isActive={editor.isActive({ textAlign: "right" })}
+          isActive={state.textAlignRight}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           title="Align Right"
         >
@@ -271,6 +363,10 @@ export function NoteToolbar({
 
         <div className="mx-0.5 h-4 w-px bg-black/10" />
 
+        {/* Link / Unlink */}
+        <LinkButton editor={editor} isLinkActive={state.isLink} />
+
+        <div className="mx-0.5 h-4 w-px bg-black/10" />
 
         {/* Text color swatches */}
         <div className="flex items-center gap-0.5">

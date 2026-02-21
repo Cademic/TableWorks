@@ -13,7 +13,9 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
+import Link from "@tiptap/extension-link";
 import { X, GripVertical } from "lucide-react";
+import { handleTabKey } from "../../lib/tiptap-tab-indent";
 import type { IndexCardSummaryDto } from "../../types";
 import { FontSize } from "../../lib/tiptap-font-size";
 import { INDEX_CARD_COLORS } from "./indexCardColors";
@@ -27,15 +29,26 @@ interface IndexCardProps {
   onDelete: (id: string) => void;
   onStartEdit: (id: string) => void;
   onSave: (id: string, title: string, content: string) => void;
+  /** Optional: called on debounced content/title change while editing (for real-time sync). If not provided, debounced save is skipped. */
+  onContentChange?: (id: string, title: string, content: string) => void;
   onResize: (id: string, width: number, height: number) => void;
   onColorChange: (id: string, color: string) => void;
   onRotationChange: (id: string, rotation: number) => void;
   onPinMouseDown?: (cardId: string) => void;
   onDrag?: (id: string, x: number, y: number) => void;
+  onDragStart?: (id: string) => void;
   onBringToFront?: (id: string) => void;
   /** True when any item on the board is being linked (used for pin hover styling) */
   isLinking?: boolean;
+  /** When other user(s) are focusing this card, show a border in their color(s). Multiple users can edit at once. */
+  focusedBy?: { userId: string; color: string }[] | null;
+  /** Called when user clicks the drag handle while editing (to exit edit mode) */
+  onExitEdit?: (id: string) => void;
+  /** Called when user right-clicks the card (for context menu). Call e.preventDefault() and e.stopPropagation() before showing menu. */
+  onContextMenu?: (e: React.MouseEvent) => void;
   zoom?: number;
+  /** When true, visually scale the card when editing (for better readability) */
+  enlargeWhenEditing?: boolean;
 }
 
 const DEFAULT_WIDTH = 450;
@@ -61,13 +74,14 @@ const CURSOR_MAP: Record<ResizeDir, string> = {
 };
 
 function resolveCardColorKey(card: IndexCardSummaryDto): string {
-  if (card.color && INDEX_CARD_COLORS[card.color]) return card.color;
+  const colors = INDEX_CARD_COLORS ?? {};
+  if (card.color && colors[card.color]) return card.color;
   let hash = 0;
   for (let i = 0; i < card.id.length; i++) {
     hash = card.id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const keys = Object.keys(INDEX_CARD_COLORS);
-  return keys[Math.abs(hash) % keys.length];
+  const keys = Object.keys(colors);
+  return keys[Math.abs(hash) % keys.length] ?? "white";
 }
 
 export function IndexCard({
@@ -78,16 +92,23 @@ export function IndexCard({
   onDelete,
   onStartEdit,
   onSave,
+  onContentChange,
   onResize,
   onColorChange,
   onRotationChange,
   onPinMouseDown,
   onDrag,
+  onDragStart,
   onBringToFront,
   isLinking,
+  focusedBy,
+  onExitEdit,
+  onContextMenu,
   zoom = 1,
+  enlargeWhenEditing = false,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
+  const lastDragEndRef = useRef<number>(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const colorKey = resolveCardColorKey(card);
   const color = INDEX_CARD_COLORS[colorKey];
@@ -106,12 +127,13 @@ export function IndexCard({
 
   // --- TipTap editors ---
   const sharedExtensions = [
-    StarterKit.configure({ heading: false }),
+    StarterKit.configure({ heading: false, link: false }),
     TextStyle,
     Color,
     FontFamily,
     FontSize,
     TextAlign.configure({ types: ["paragraph"] }),
+    Link.configure({ openOnClick: false }),
   ];
 
   const titleEditor = useEditor({
@@ -126,6 +148,7 @@ export function IndexCard({
         class:
           "prose-none w-full bg-transparent text-sm font-semibold text-gray-800 focus:outline-none break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: () => setActiveField("title"),
   });
@@ -148,6 +171,7 @@ export function IndexCard({
         class:
           "prose-none w-full bg-transparent text-xs text-gray-700 focus:outline-none min-h-[60px] break-words",
       },
+      handleKeyDown: handleTabKey,
     },
     onFocus: () => setActiveField("content"),
   });
@@ -161,25 +185,65 @@ export function IndexCard({
     contentEditor?.setEditable(isEditing);
   }, [titleEditor, contentEditor, isEditing]);
 
-  // Sync title editor from props when NOT editing
+  // Sync title editor from props
   useEffect(() => {
-    if (!isEditing && titleEditor && !titleEditor.isFocused) {
-      const currentHtml = titleEditor.getHTML();
-      if (currentHtml !== (card.title ?? "") && card.title !== undefined) {
-        titleEditor.commands.setContent(card.title || "", { emitUpdate: false });
+    if (!titleEditor) return;
+    const currentHtml = titleEditor.getHTML();
+    const propHtml = card.title ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative live editing)
+      if (!isEditing) {
+        if (!titleEditor.isFocused) {
+          titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        titleEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [card.title, isEditing, titleEditor]);
 
-  // Sync content editor from props when NOT editing
+  // Sync content editor from props
   useEffect(() => {
-    if (!isEditing && contentEditor && !contentEditor.isFocused) {
-      const currentHtml = contentEditor.getHTML();
-      if (currentHtml !== card.content && card.content !== undefined) {
-        contentEditor.commands.setContent(card.content || "", { emitUpdate: false });
+    if (!contentEditor) return;
+    const currentHtml = contentEditor.getHTML();
+    const propHtml = card.content ?? "";
+    if (currentHtml !== propHtml && propHtml !== undefined) {
+      // When not editing, only sync if editor is not focused
+      // When editing, always sync to show remote changes (collaborative live editing)
+      if (!isEditing) {
+        if (!contentEditor.isFocused) {
+          contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
+        }
+      } else {
+        contentEditor.commands.setContent(propHtml || "", { emitUpdate: false });
       }
     }
   }, [card.content, isEditing, contentEditor]);
+
+  // Debounced content push while typing so other clients see updates in real time (only when onContentChange provided)
+  const SAVE_DEBOUNCE_MS = 200;
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onContentChangeRef = useRef(onContentChange);
+  onContentChangeRef.current = onContentChange;
+  useEffect(() => {
+    if (!onContentChangeRef.current || !isEditing || !titleEditor || !contentEditor) return;
+    const flush = () => {
+      onContentChangeRef.current?.(card.id, titleEditor.getHTML(), contentEditor.getHTML());
+    };
+    const onUpdate = () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+    };
+    titleEditor.on("update", onUpdate);
+    contentEditor.on("update", onUpdate);
+    return () => {
+      titleEditor.off("update", onUpdate);
+      contentEditor.off("update", onUpdate);
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    };
+  }, [isEditing, card.id, titleEditor, contentEditor]);
 
   // Keep stable refs for parent callbacks so resize handlers never go stale
   const onResizeRef = useRef(onResize);
@@ -269,23 +333,25 @@ export function IndexCard({
 
   const handleDragStop: DraggableEventHandler = (_e, data) => {
     setPosition({ x: data.x, y: data.y });
+    lastDragEndRef.current = Date.now();
     onDragStop(card.id, data.x, data.y);
   };
 
-  const handleBlur = useCallback(
-    (e: React.FocusEvent) => {
-      const relatedTarget = e.relatedTarget as Node | null;
-      if (nodeRef.current && relatedTarget && nodeRef.current.contains(relatedTarget)) {
-        return;
-      }
-      if (isEditing && titleEditor && contentEditor) {
-        const titleHtml = titleEditor.getHTML();
-        const contentHtml = contentEditor.getHTML();
-        onSave(card.id, titleHtml, contentHtml);
-      }
-    },
-    [isEditing, titleEditor, contentEditor, card.id, onSave],
-  );
+  // Do not close edit mode on blur (e.g. tab switch). Close only when user clicks another card or board.
+  const handleBlur = useCallback(() => {
+    // No-op: keep edit mode on; parent will remove from editingCardIds on board click or other-card click
+  }, []);
+
+  // When parent removes this card from editing (isEditing -> false), save current content once
+  const wasEditingRef = useRef(false);
+  useEffect(() => {
+    if (wasEditingRef.current && !isEditing && titleEditor && contentEditor) {
+      const titleHtml = titleEditor.getHTML();
+      const contentHtml = contentEditor.getHTML();
+      onSave(card.id, titleHtml, contentHtml);
+    }
+    wasEditingRef.current = isEditing;
+  }, [isEditing, titleEditor, contentEditor, card.id, onSave]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -454,6 +520,7 @@ export function IndexCard({
     <Draggable
       nodeRef={nodeRef as React.RefObject<HTMLElement>}
       position={position}
+      onStart={() => onDragStart?.(card.id)}
       onStop={handleDragStop}
       onDrag={(_e, data) => onDrag?.(card.id, data.x, data.y)}
       handle=".index-card-handle"
@@ -463,6 +530,8 @@ export function IndexCard({
       {/* Outer positioning wrapper */}
       <div
         ref={nodeRef}
+        data-board-item="card"
+        data-card-id={card.id}
         className="absolute overflow-visible"
         style={{
           width: `${size.width}px`,
@@ -470,22 +539,47 @@ export function IndexCard({
           zIndex,
         }}
         onMouseDown={() => onBringToFront?.(card.id)}
+        onContextMenu={(e) => {
+          const target = e.target as Element;
+          const inEditable = target.closest('[contenteditable="true"]');
+          const sel = window.getSelection();
+          if (inEditable && sel?.isCollapsed) {
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
       >
         <div
           className={[
             "index-card relative overflow-visible rounded-md shadow-lg transition-shadow hover:shadow-xl",
             isEditing ? "cursor-default ring-2 ring-primary/40" : "cursor-pointer",
+            focusedBy?.length ? "ring-[3px]" : "",
             color.bg,
           ]
             .filter(Boolean)
             .join(" ")}
           style={{
+            ...(focusedBy?.length
+              ? {
+                  boxShadow: [
+                    ...focusedBy.map((u, i) => `0 0 0 ${3 + i * 3}px ${u.color}`),
+                    `0 0 12px 2px ${focusedBy[0]!.color}40`,
+                  ].join(", "),
+                }
+              : {}),
             width: "100%",
             minHeight: `${size.height}px`,
             transformOrigin: "center center",
-            rotate: isEditing ? "0deg" : `${card.rotation ?? 0}deg`,
+            transform: [
+              enlargeWhenEditing && isEditing ? "scale(1.25)" : "scale(1)",
+              `rotate(${isEditing ? 0 : card.rotation ?? 0}deg)`,
+            ].join(" "),
           }}
           onClick={(e) => {
+            // Ignore click if it follows a drag (drag release fires click, which would open edit)
+            if (Date.now() - lastDragEndRef.current < 300) return;
             if (!isEditing) {
               const target = e.target as HTMLElement;
               const titleEl = target.closest("[data-field='title']") as HTMLElement | null;
@@ -532,7 +626,12 @@ export function IndexCard({
 
           {/* Header band with drag handle + delete + red rule line */}
           <div className={`rounded-t-md ${color.headerBg}`}>
-            <div className="index-card-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing">
+            <div
+              className="index-card-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing"
+              onClick={() => {
+                if (isEditing && onExitEdit) onExitEdit(card.id);
+              }}
+            >
               <GripVertical className="h-3.5 w-3.5 text-black/20" />
               <button
                 type="button"

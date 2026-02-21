@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   StickyNote,
@@ -31,6 +32,9 @@ interface SidebarProps {
   pinnedProjects: ProjectSummaryDto[];
   pinnedNotebooks: NotebookSummaryDto[];
   onOpenNotebook: (id: string) => void;
+  onUnpinBoard: (id: string) => void;
+  onUnpinProject: (id: string) => void;
+  onUnpinNotebook: (id: string) => void;
 }
 
 const NAV_ITEMS = [
@@ -65,18 +69,57 @@ const BOARD_TOOLS = [
   },
 ];
 
+const AUTO_ENLARGE_STORAGE_KEY = "board-auto-enlarge-note-on-click";
+
 const BOARD_TYPE_ICON: Record<string, typeof ClipboardList> = {
   NoteBoard: ClipboardList,
   ChalkBoard: PenTool,
   Calendar: Calendar,
 };
+export function useAutoEnlargeNoteSetting() {
+  const [value, setValue] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(AUTO_ENLARGE_STORAGE_KEY);
+      return stored !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    function onChange() {
+      try {
+        const stored = localStorage.getItem(AUTO_ENLARGE_STORAGE_KEY);
+        setValue(stored !== "false");
+      } catch {
+        setValue(true);
+      }
+    }
+    window.addEventListener("board-auto-enlarge-change", onChange);
+    return () => window.removeEventListener("board-auto-enlarge-change", onChange);
+  }, []);
+
+  const toggle = useCallback(() => {
+    const next = !value;
+    setValue(next);
+    try {
+      localStorage.setItem(AUTO_ENLARGE_STORAGE_KEY, String(next));
+      window.dispatchEvent(new Event("board-auto-enlarge-change"));
+    } catch {
+      setValue(true);
+    }
+  }, [value]);
+
+  return [value, toggle] as const;
+}
+
 
 function getBoardPath(board: OpenedBoard): string {
   if (board.boardType === "ChalkBoard") return `/chalkboards/${board.id}`;
   return `/boards/${board.id}`;
 }
 
-export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects, pinnedNotebooks, onOpenNotebook }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCloseBoard, pinnedBoards, pinnedProjects, pinnedNotebooks, onOpenNotebook, onUnpinBoard, onUnpinProject, onUnpinNotebook }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -202,27 +245,27 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
         )}
       </nav>
 
-      {/* Pinned Projects */}
-      {pinnedProjects.length > 0 && (
+      {/* Pinned (projects, notebooks, boards) */}
+      {(pinnedProjects.length > 0 || pinnedNotebooks.length > 0 || pinnedBoards.length > 0) && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
           {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
-              <FolderOpen className="h-3 w-3" />
-              Pinned Projects
+              <Pin className="h-3 w-3" />
+              Pinned
             </span>
           )}
           {!isOpen && (
             <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
-              <FolderOpen className="mx-auto h-3 w-3" />
+              <Pin className="mx-auto h-3 w-3" />
             </span>
           )}
-          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
+          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-48 scrollbar-thin">
             {pinnedProjects.map((project) => {
               const projectPath = `/projects/${project.id}`;
               const active = location.pathname === projectPath;
               return (
                 <Link
-                  key={project.id}
+                  key={`project-${project.id}`}
                   to={projectPath}
                   title={project.name}
                   className={[
@@ -241,78 +284,72 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
                     }`}
                   />
                   {expanded && (
-                    <span className="flex-1 truncate text-xs font-medium">{project.name}</span>
+                    <>
+                      <span className="flex-1 truncate text-xs font-medium">{project.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onUnpinProject(project.id);
+                        }}
+                        className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10"
+                        title="Unpin project"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
                   )}
                 </Link>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Pinned Notebooks */}
-      {pinnedNotebooks.length > 0 && (
-        <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {expanded && (
-            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
-              <BookOpen className="h-3 w-3" />
-              Pinned Notebooks
-            </span>
-          )}
-          {!isOpen && (
-            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
-              <BookOpen className="mx-auto h-3 w-3" />
-            </span>
-          )}
-          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
             {pinnedNotebooks.map((notebook) => (
-              <button
-                key={notebook.id}
-                type="button"
-                onClick={() => onOpenNotebook(notebook.id)}
-                title={notebook.name}
+              <div
+                key={`notebook-${notebook.id}`}
                 className={[
-                  "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 text-left w-full",
+                  "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-all duration-150",
                   "text-foreground/60 hover:bg-foreground/[0.04] hover:text-foreground",
                   !expanded && "justify-center",
                 ]
                   .filter(Boolean)
                   .join(" ")}
               >
-                <BookOpen
-                  className="h-4 w-4 flex-shrink-0 text-foreground/40 group-hover:text-foreground/60"
-                />
+                <button
+                  type="button"
+                  onClick={() => onOpenNotebook(notebook.id)}
+                  title={notebook.name}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                >
+                  <BookOpen
+                    className="h-4 w-4 flex-shrink-0 text-foreground/40 group-hover:text-foreground/60"
+                  />
+                  {expanded && (
+                    <span className="truncate text-xs font-medium">{notebook.name}</span>
+                  )}
+                </button>
                 {expanded && (
-                  <span className="flex-1 truncate text-xs font-medium">{notebook.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onUnpinNotebook(notebook.id);
+                    }}
+                    className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10"
+                    title="Unpin notebook"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 )}
-              </button>
+              </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pinned Boards */}
-      {pinnedBoards.length > 0 && (
-        <div className="flex flex-col border-t border-border/40 overflow-hidden">
-          {expanded && (
-            <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0 flex items-center gap-1">
-              <Pin className="h-3 w-3" />
-              Pinned Boards
-            </span>
-          )}
-          {!isOpen && (
-            <span className="pt-3 pb-1 text-center text-[9px] font-semibold uppercase tracking-wider text-foreground/30 flex-shrink-0">
-              <Pin className="mx-auto h-3 w-3" />
-            </span>
-          )}
-          <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-0.5 max-h-36 scrollbar-thin">
             {pinnedBoards.map((board) => {
               const boardPath = board.boardType === "ChalkBoard" ? `/chalkboards/${board.id}` : `/boards/${board.id}`;
               const active = location.pathname === boardPath;
               const BoardIcon = BOARD_TYPE_ICON[board.boardType] ?? ClipboardList;
               return (
                 <Link
-                  key={board.id}
+                  key={`board-${board.id}`}
                   to={boardPath}
                   title={board.name}
                   className={[
@@ -331,7 +368,21 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
                     }`}
                   />
                   {expanded && (
-                    <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
+                    <>
+                      <span className="flex-1 truncate text-xs font-medium">{board.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onUnpinBoard(board.id);
+                        }}
+                        className="flex-shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10"
+                        title="Unpin board"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
                   )}
                 </Link>
               );
@@ -340,12 +391,12 @@ export function Sidebar({ isOpen, onToggle, isDrawer = false, openedBoards, onCl
         </div>
       )}
 
-      {/* Opened Boards */}
+      {/* Opened */}
       {filteredOpenedBoards.length > 0 && (
         <div className="flex flex-col border-t border-border/40 overflow-hidden">
           {expanded && (
             <span className="px-6 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-foreground/35 flex-shrink-0">
-              Opened Boards
+              Opened
             </span>
           )}
           {!isOpen && (

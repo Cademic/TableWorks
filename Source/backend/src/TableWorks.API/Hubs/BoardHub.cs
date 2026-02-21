@@ -47,8 +47,9 @@ public sealed class BoardHub : Hub
         var userId = GetUserId();
         if (userId is null)
         {
+            var path = SanitizeForLog(Context.GetHttpContext()?.Request.Path.ToString());
             _logger.LogWarning("JoinBoard: User not authenticated. Claims present: {HasUser}, Path: {Path}",
-                Context.User != null, Context.GetHttpContext()?.Request.Path);
+                Context.User != null, path);
             throw new HubException("Unauthorized");
         }
 
@@ -116,5 +117,12 @@ public sealed class BoardHub : Hub
         var sub = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
             ?? Context.User?.FindFirst("sub")?.Value;
         return Guid.TryParse(sub, out var id) ? id : null;
+    }
+
+    /// <summary>Sanitizes a string for safe logging to prevent log injection (CWE-117).</summary>
+    private static string SanitizeForLog(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return value ?? string.Empty;
+        return value.Replace("\r", "").Replace("\n", " ");
     }
 }

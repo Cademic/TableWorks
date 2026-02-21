@@ -62,6 +62,44 @@ export function NoteBoardPage() {
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
   const zCounterRef = useRef(1);
 
+  // --- Board undo/redo stacks (notes, connections, images, index cards) ---
+  type BoardUndoEntry =
+    | { type: "note-position"; noteId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "note-size"; noteId: string; prevWidth: number | null; prevHeight: number | null }
+    | { type: "note-delete"; note: NoteSummaryDto }
+    | { type: "connection-create"; connection: BoardConnectionDto }
+    | { type: "connection-delete"; connection: BoardConnectionDto }
+    | { type: "image-add"; image: BoardImageSummaryDto }
+    | { type: "image-delete"; image: BoardImageSummaryDto }
+    | { type: "image-position"; cardId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "image-size"; cardId: string; prevWidth: number | null; prevHeight: number | null; prevPositionX?: number; prevPositionY?: number }
+    | { type: "card-position"; cardId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "card-size"; cardId: string; prevWidth: number | null; prevHeight: number | null }
+    | { type: "card-delete"; card: IndexCardSummaryDto }
+    | { type: "card-create"; card: IndexCardSummaryDto };
+  type BoardRedoEntry =
+    | { type: "note-position"; noteId: string; positionX: number; positionY: number }
+    | { type: "note-size"; noteId: string; width: number; height: number }
+    | { type: "note-delete"; noteId: string }
+    | { type: "connection-create"; connectionId: string }
+    | { type: "connection-delete"; fromItemId: string; toItemId: string }
+    | { type: "image-add"; imageId: string }
+    | { type: "image-delete"; image: BoardImageSummaryDto }
+    | { type: "image-position"; cardId: string; positionX: number; positionY: number }
+    | { type: "image-size"; cardId: string; width: number; height: number; positionX?: number; positionY?: number }
+    | { type: "card-position"; cardId: string; positionX: number; positionY: number }
+    | { type: "card-size"; cardId: string; width: number; height: number }
+    | { type: "card-delete"; cardId: string }
+    | { type: "card-create"; card: IndexCardSummaryDto };
+  const boardUndoStackRef = useRef<BoardUndoEntry[]>([]);
+  const boardRedoStackRef = useRef<BoardRedoEntry[]>([]);
+  const notesRef = useRef(notes);
+  const indexCardsRef = useRef(indexCards);
+  const imageCardsRef = useRef(imageCards);
+  notesRef.current = notes;
+  indexCardsRef.current = indexCards;
+  imageCardsRef.current = imageCards;
+
   function bringToFront(id: string) {
     const next = zCounterRef.current++;
     setZIndexMap((prev) => ({ ...prev, [id]: next }));
@@ -78,6 +116,7 @@ export function NoteBoardPage() {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const imageIdsRef = useRef<Set<string>>(new Set());
   const deletedImageIdsRef = useRef<Set<string>>(new Set());
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
   const [pendingImageDrop, setPendingImageDrop] = useState<{ x: number; y: number } | null>(null);
 
   // --- Viewport state (pan & zoom) ---
@@ -168,6 +207,22 @@ export function NoteBoardPage() {
         const notesStillExist = editingIdsBefore.filter(id => newNoteIds.includes(id));
         fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:161',message:'fetchData setting notes',data:{noteCount:notesRes.value.items.length,editingNoteIds:editingIdsBefore,newNoteIds,notesStillExist,willLoseEditing:editingIdsBefore.filter(id => !newNoteIds.includes(id))},timestamp:Date.now(),runId:'run1',hypothesisId:'A'})}).catch(()=>{});
         // #endregion
+        const serverIds = new Set(newNoteIds);
+        const removedIds: string[] = [];
+        for (const n of notesRef.current) {
+          if (!serverIds.has(n.id)) {
+            removedIds.push(n.id);
+            deletedNoteIdsRef.current.add(n.id);
+            setTimeout(() => deletedNoteIdsRef.current.delete(n.id), 2000);
+          }
+        }
+        if (removedIds.length > 0) {
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            for (const id of removedIds) next.delete(id);
+            return next.size === prev.size ? prev : next;
+          });
+        }
         setNotes(notesRes.value.items);
         // #region agent log
         setTimeout(() => {
@@ -395,6 +450,7 @@ export function NoteBoardPage() {
   }, []);
 
   const { sendFocus, sendCursor, sendTextCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
+    enabled: !!board?.projectId,
     onNoteUpdated: mergeNotePayload,
     onIndexCardUpdated: mergeCardPayload,
     onPresenceUpdate: handlePresenceUpdate,
@@ -445,10 +501,10 @@ export function NoteBoardPage() {
         y,
         timer: setTimeout(() => {
           const e = map.get(id);
-          if (e) {
+          if (e && !deletedNoteIdsRef.current.has(id) && notesRef.current.some((n) => n.id === id)) {
             patchNote(id, { positionX: e.x, positionY: e.y }).catch(() => {});
-            map.delete(id);
           }
+          map.delete(id);
         }, DRAG_THROTTLE_MS),
       };
       map.set(id, entry);
@@ -509,6 +565,388 @@ export function NoteBoardPage() {
     return () => document.removeEventListener("board-tool-click", onToolClick);
   });
 
+  // Ctrl+Z undo / Ctrl+Y redo for note position, size, and deletion (skip when typing in editor)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (
+        (!e.ctrlKey && !e.metaKey) ||
+        e.repeat ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      const isUndo = e.key === "z";
+      const isRedo = e.key === "y";
+      if (!isUndo && !isRedo) return;
+
+      if (isUndo) {
+        const stack = boardUndoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "note-position") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "note-position",
+              noteId: entry.noteId,
+              positionX: current.positionX ?? 0,
+              positionY: current.positionY ?? 0,
+            });
+          }
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.prevPositionX,
+            positionY: entry.prevPositionY,
+          }).catch(() => {});
+        } else if (entry.type === "note-size") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "note-size",
+              noteId: entry.noteId,
+              width: current.width ?? 270,
+              height: current.height ?? 270,
+            });
+          }
+          const w = entry.prevWidth ?? 270;
+          const h = entry.prevHeight ?? 270;
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: w, height: h } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: w, height: h }).catch(() => {});
+        } else if (entry.type === "note-delete") {
+          createNote({
+            content: entry.note.content,
+            boardId: boardId ?? undefined,
+            title: entry.note.title ?? undefined,
+            positionX: entry.note.positionX ?? 20,
+            positionY: entry.note.positionY ?? 20,
+            width: entry.note.width ?? undefined,
+            height: entry.note.height ?? undefined,
+            color: entry.note.color ?? undefined,
+            rotation: entry.note.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "note-delete", noteId: created.id });
+              setNotes((prev) => (prev.some((n) => n.id === created.id) ? prev : [...prev, created]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "connection-create") {
+          boardRedoStackRef.current.push({
+            type: "connection-delete",
+            fromItemId: entry.connection.fromItemId,
+            toItemId: entry.connection.toItemId,
+          });
+          setConnections((prev) => prev.filter((c) => c.id !== entry.connection.id));
+          deleteConnection(entry.connection.id).catch(() => {});
+        } else if (entry.type === "connection-delete") {
+          createConnection({
+            fromItemId: entry.connection.fromItemId,
+            toItemId: entry.connection.toItemId,
+            boardId: boardId ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "connection-create", connectionId: created.id });
+              setConnections((prev) => [...prev, created]);
+            })
+            .catch(() => {});
+        } else if (entry.type === "image-add") {
+          boardRedoStackRef.current.push({ type: "image-delete", image: { ...entry.image } });
+          deletedImageIdsRef.current.add(entry.image.id);
+          setImageCards((prev) => prev.filter((img) => img.id !== entry.image.id));
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.image.id && c.toItemId !== entry.image.id),
+          );
+          if (boardId) deleteBoardImageCard(boardId, entry.image.id).catch(() => fetchData());
+        } else if (entry.type === "image-delete") {
+          deletedImageIdsRef.current.delete(entry.image.id);
+          createBoardImageCard(boardId!, {
+            imageUrl: entry.image.imageUrl,
+            positionX: entry.image.positionX,
+            positionY: entry.image.positionY,
+            width: entry.image.width ?? undefined,
+            height: entry.image.height ?? undefined,
+            rotation: entry.image.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "image-add", imageId: created.id });
+              setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "image-position") {
+          const current = imageCardsRef.current.find((img) => img.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "image-position",
+              cardId: entry.cardId,
+              positionX: current.positionX,
+              positionY: current.positionY,
+            });
+          }
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, { positionX: entry.prevPositionX, positionY: entry.prevPositionY }).catch(() => {});
+        } else if (entry.type === "image-size") {
+          const current = imageCardsRef.current.find((img) => img.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "image-size",
+              cardId: entry.cardId,
+              width: current.width ?? 0,
+              height: current.height ?? 0,
+              positionX: entry.prevPositionX,
+              positionY: entry.prevPositionY,
+            });
+          }
+          const w = entry.prevWidth ?? 100;
+          const h = entry.prevHeight ?? 100;
+          const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width: w, height: h };
+          if (entry.prevPositionX != null) payload.positionX = entry.prevPositionX;
+          if (entry.prevPositionY != null) payload.positionY = entry.prevPositionY;
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, width: w, height: h, ...(entry.prevPositionX != null && { positionX: entry.prevPositionX }), ...(entry.prevPositionY != null && { positionY: entry.prevPositionY }) }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, payload).catch(() => {});
+        } else if (entry.type === "card-position") {
+          const current = indexCardsRef.current.find((c) => c.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "card-position",
+              cardId: entry.cardId,
+              positionX: current.positionX ?? 0,
+              positionY: current.positionY ?? 0,
+            });
+          }
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId
+                ? { ...c, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { positionX: entry.prevPositionX, positionY: entry.prevPositionY }).catch(() => {});
+        } else if (entry.type === "card-size") {
+          const current = indexCardsRef.current.find((c) => c.id === entry.cardId);
+          if (current) {
+            boardRedoStackRef.current.push({
+              type: "card-size",
+              cardId: entry.cardId,
+              width: current.width ?? 450,
+              height: current.height ?? 300,
+            });
+          }
+          const w = entry.prevWidth ?? 450;
+          const h = entry.prevHeight ?? 300;
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId ? { ...c, width: w, height: h } : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { width: w, height: h }).catch(() => {});
+        } else if (entry.type === "card-delete") {
+          createIndexCard({
+            content: entry.card.content,
+            boardId: boardId ?? undefined,
+            title: entry.card.title ?? undefined,
+            positionX: entry.card.positionX ?? 20,
+            positionY: entry.card.positionY ?? 20,
+            width: entry.card.width ?? undefined,
+            height: entry.card.height ?? undefined,
+            color: entry.card.color ?? undefined,
+            rotation: entry.card.rotation ?? undefined,
+          })
+            .then((created) => {
+              boardRedoStackRef.current.push({ type: "card-delete", cardId: created.id });
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created]));
+            })
+            .catch(() => {});
+        } else if (entry.type === "card-create") {
+          boardRedoStackRef.current.push({ type: "card-create", card: { ...entry.card } });
+          setIndexCards((prev) => prev.filter((c) => c.id !== entry.card.id));
+          setEditingCardIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.card.id);
+            if (primaryEditingCardIdRef.current === entry.card.id) {
+              primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.card.id && c.toItemId !== entry.card.id),
+          );
+          deleteIndexCard(entry.card.id).catch(() => fetchData());
+        }
+      } else {
+        const stack = boardRedoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "note-position") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.positionX, positionY: entry.positionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.positionX,
+            positionY: entry.positionY,
+          }).catch(() => {});
+        } else if (entry.type === "note-size") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: entry.width, height: entry.height } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: entry.width, height: entry.height }).catch(() => {});
+        } else if (entry.type === "note-delete") {
+          deletedNoteIdsRef.current.add(entry.noteId);
+          setTimeout(() => deletedNoteIdsRef.current.delete(entry.noteId), 2000);
+          setNotes((prev) => prev.filter((n) => n.id !== entry.noteId));
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.noteId);
+            if (primaryEditingNoteIdRef.current === entry.noteId) {
+              primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.noteId && c.toItemId !== entry.noteId),
+          );
+          deleteNote(entry.noteId).catch(() => fetchData());
+        } else if (entry.type === "connection-create") {
+          deleteConnection(entry.connectionId).catch(() => {});
+          setConnections((prev) => prev.filter((c) => c.id !== entry.connectionId));
+        } else if (entry.type === "connection-delete") {
+          createConnection({
+            fromItemId: entry.fromItemId,
+            toItemId: entry.toItemId,
+            boardId: boardId ?? undefined,
+          })
+            .then((created) =>
+              setConnections((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created])),
+            )
+            .catch(() => {});
+        } else if (entry.type === "image-add") {
+          const img = imageCardsRef.current.find((i) => i.id === entry.imageId);
+          if (img) {
+            deletedImageIdsRef.current.add(entry.imageId);
+            setImageCards((prev) => prev.filter((i) => i.id !== entry.imageId));
+            setConnections((prev) =>
+              prev.filter((c) => c.fromItemId !== entry.imageId && c.toItemId !== entry.imageId),
+            );
+            if (boardId) deleteBoardImageCard(boardId, entry.imageId).catch(() => fetchData());
+          }
+        } else if (entry.type === "image-delete") {
+          deletedImageIdsRef.current.delete(entry.image.id);
+          createBoardImageCard(boardId!, {
+            imageUrl: entry.image.imageUrl,
+            positionX: entry.image.positionX,
+            positionY: entry.image.positionY,
+            width: entry.image.width ?? undefined,
+            height: entry.image.height ?? undefined,
+            rotation: entry.image.rotation ?? undefined,
+          })
+            .then((created) =>
+              setImageCards((prev) => (prev.some((i) => i.id === created.id) ? prev : [...prev, created])),
+            )
+            .catch(() => {});
+        } else if (entry.type === "image-position") {
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, positionX: entry.positionX, positionY: entry.positionY }
+                : img,
+            ),
+          );
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, { positionX: entry.positionX, positionY: entry.positionY }).catch(() => {});
+        } else if (entry.type === "image-size") {
+          setImageCards((prev) =>
+            prev.map((img) =>
+              img.id === entry.cardId
+                ? { ...img, width: entry.width, height: entry.height, ...(entry.positionX != null && { positionX: entry.positionX }), ...(entry.positionY != null && { positionY: entry.positionY }) }
+                : img,
+            ),
+          );
+          const payload: { width: number; height: number; positionX?: number; positionY?: number } = { width: entry.width, height: entry.height };
+          if (entry.positionX != null) payload.positionX = entry.positionX;
+          if (entry.positionY != null) payload.positionY = entry.positionY;
+          if (boardId) patchBoardImageCard(boardId, entry.cardId, payload).catch(() => {});
+        } else if (entry.type === "card-position") {
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId
+                ? { ...c, positionX: entry.positionX, positionY: entry.positionY }
+                : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { positionX: entry.positionX, positionY: entry.positionY }).catch(() => {});
+        } else if (entry.type === "card-size") {
+          setIndexCards((prev) =>
+            prev.map((c) =>
+              c.id === entry.cardId ? { ...c, width: entry.width, height: entry.height } : c,
+            ),
+          );
+          patchIndexCard(entry.cardId, { width: entry.width, height: entry.height }).catch(() => {});
+        } else if (entry.type === "card-delete") {
+          setIndexCards((prev) => prev.filter((c) => c.id !== entry.cardId));
+          setEditingCardIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.cardId);
+            if (primaryEditingCardIdRef.current === entry.cardId) {
+              primaryEditingCardIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          setConnections((prev) =>
+            prev.filter((c) => c.fromItemId !== entry.cardId && c.toItemId !== entry.cardId),
+          );
+          deleteIndexCard(entry.cardId).catch(() => fetchData());
+        } else if (entry.type === "card-create") {
+          createIndexCard({
+            content: entry.card.content,
+            boardId: boardId ?? undefined,
+            title: entry.card.title ?? undefined,
+            positionX: entry.card.positionX ?? 20,
+            positionY: entry.card.positionY ?? 20,
+            width: entry.card.width ?? undefined,
+            height: entry.card.height ?? undefined,
+            color: entry.card.color ?? undefined,
+            rotation: entry.card.rotation ?? undefined,
+          })
+            .then((created) =>
+              setIndexCards((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created])),
+            )
+            .catch(() => {});
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [boardId, fetchData]);
+
   // =============================================
   // Sticky Note handlers
   // =============================================
@@ -527,7 +965,7 @@ export function NoteBoardPage() {
         positionY,
       });
 
-      setNotes((prev) => [...prev, created]);
+      setNotes((prev) => [created, ...prev]);
       setEditingNoteIds((prev) => new Set(prev).add(created.id));
       primaryEditingNoteIdRef.current = created.id;
       setEditingCardIds(new Set());
@@ -547,6 +985,18 @@ export function NoteBoardPage() {
       clearTimeout(pending.timer);
       noteDragMapRef.current.delete(id);
     }
+    if (deletedNoteIdsRef.current.has(id)) return;
+    if (!notesRef.current.some((n) => n.id === id)) return;
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.positionX !== x || prevNote.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "note-position",
+        noteId: id,
+        prevPositionX: prevNote.positionX ?? 0,
+        prevPositionY: prevNote.positionY ?? 0,
+      });
+    }
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, positionX: x, positionY: y } : n)),
     );
@@ -556,6 +1006,7 @@ export function NoteBoardPage() {
     }, DRAG_ECHO_IGNORE_MS);
 
     try {
+      if (deletedNoteIdsRef.current.has(id) || !notesRef.current.some((n) => n.id === id)) return;
       await patchNote(id, { positionX: x, positionY: y });
     } catch {
       // Silently fail
@@ -614,14 +1065,53 @@ export function NoteBoardPage() {
     }
   }
 
+  const handleNoteUnmount = useCallback((id: string) => {
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+  }, []);
+
   function handleStartEdit(id: string) {
     // Single note in edit mode: clicking another note switches to it (previous saves when isEditing flips)
     setEditingNoteIds(new Set([id]));
+    setEditingCardIds(new Set());
     primaryEditingNoteIdRef.current = id;
+    primaryEditingCardIdRef.current = null;
     bringToFront(id);
   }
 
+  function handleExitEditNote(id: string) {
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (primaryEditingNoteIdRef.current === id) {
+      primaryEditingNoteIdRef.current = null;
+    }
+  }
+
+  function handleExitEditCard(id: string) {
+    setEditingCardIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (primaryEditingCardIdRef.current === id) {
+      primaryEditingCardIdRef.current = null;
+    }
+  }
+
   async function handleResize(id: string, width: number, height: number) {
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.width !== width || prevNote.height !== height)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "note-size",
+        noteId: id,
+        prevWidth: prevNote.width ?? null,
+        prevHeight: prevNote.height ?? null,
+      });
+    }
     lastResizedNoteRef.current = { id, at: Date.now() };
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, width, height } : n)),
@@ -659,9 +1149,22 @@ export function NoteBoardPage() {
   }
 
   async function handleDelete(id: string) {
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+    // Clear any pending drag throttle so we don't patch after delete
+    const pending = noteDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(id);
+    }
     // #region agent log
     fetch('http://127.0.0.1:7887/ingest/9b54b090-c8e8-4b5b-b36e-8d4dee1fa1ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d9986e'},body:JSON.stringify({sessionId:'d9986e',location:'NoteBoardPage.tsx:550',message:'handleDelete called',data:{noteId:id,editingNoteIdsBefore:Array.from(editingNoteIds)},timestamp:Date.now(),runId:'run1',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
     // #endregion
+    const deletedNote = notesRef.current.find((n) => n.id === id);
+    if (deletedNote) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "note-delete", note: { ...deletedNote } });
+    }
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setEditingNoteIds((prev) => {
       const next = new Set(prev);
@@ -736,6 +1239,8 @@ export function NoteBoardPage() {
         positionY,
       });
 
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "card-create", card: created });
       setIndexCards((prev) =>
         prev.map((c) => (c.id === tempId ? created : c)),
       );
@@ -759,6 +1264,16 @@ export function NoteBoardPage() {
     if (pending) {
       clearTimeout(pending.timer);
       cardDragMapRef.current.delete(id);
+    }
+    const prevCard = indexCardsRef.current.find((c) => c.id === id);
+    if (prevCard && (prevCard.positionX !== x || prevCard.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "card-position",
+        cardId: id,
+        prevPositionX: prevCard.positionX ?? 0,
+        prevPositionY: prevCard.positionY ?? 0,
+      });
     }
     setIndexCards((prev) =>
       prev.map((c) => (c.id === id ? { ...c, positionX: x, positionY: y } : c)),
@@ -819,12 +1334,24 @@ export function NoteBoardPage() {
   }
 
   function handleCardStartEdit(id: string) {
+    setEditingNoteIds(new Set());
     setEditingCardIds(new Set([id]));
+    primaryEditingNoteIdRef.current = null;
     primaryEditingCardIdRef.current = id;
     bringToFront(id);
   }
 
   async function handleCardResize(id: string, width: number, height: number) {
+    const prevCard = indexCardsRef.current.find((c) => c.id === id);
+    if (prevCard && (prevCard.width !== width || prevCard.height !== height)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "card-size",
+        cardId: id,
+        prevWidth: prevCard.width ?? null,
+        prevHeight: prevCard.height ?? null,
+      });
+    }
     lastResizedCardRef.current = { id, at: Date.now() };
     setIndexCards((prev) =>
       prev.map((c) => (c.id === id ? { ...c, width, height } : c)),
@@ -886,6 +1413,8 @@ export function NoteBoardPage() {
         })
       )
       .then((created) => {
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({ type: "image-add", image: created });
         setImageCards((prev) => [...prev, created]);
       })
       .catch(() => {
@@ -899,6 +1428,16 @@ export function NoteBoardPage() {
   async function handleImageDragStop(id: string, x: number, y: number) {
     if (draggingImageIdRef.current === id) draggingImageIdRef.current = null;
     if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
+    const prevImg = imageCardsRef.current.find((img) => img.id === id);
+    if (prevImg && (prevImg.positionX !== x || prevImg.positionY !== y)) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({
+        type: "image-position",
+        cardId: id,
+        prevPositionX: prevImg.positionX,
+        prevPositionY: prevImg.positionY,
+      });
+    }
     setImageCards((prev) =>
       prev.map((img) => (img.id === id ? { ...img, positionX: x, positionY: y } : img))
     );
@@ -918,6 +1457,22 @@ export function NoteBoardPage() {
     positionY?: number,
   ) {
     if (!imageIdsRef.current.has(id)) return; // Image was deleted (e.g. by another user), skip PATCH
+    const prevImg = imageCardsRef.current.find((img) => img.id === id);
+    if (prevImg) {
+      const prevW = prevImg.width ?? null;
+      const prevH = prevImg.height ?? null;
+      if (prevW !== width || prevH !== height || (positionX != null && prevImg.positionX !== positionX) || (positionY != null && prevImg.positionY !== positionY)) {
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({
+          type: "image-size",
+          cardId: id,
+          prevWidth: prevW,
+          prevHeight: prevH,
+          prevPositionX: positionX != null ? prevImg.positionX : undefined,
+          prevPositionY: positionY != null ? prevImg.positionY : undefined,
+        });
+      }
+    }
     lastResizedImageRef.current = { id, at: Date.now() };
     setImageCards((prev) =>
       prev.map((img) =>
@@ -938,6 +1493,11 @@ export function NoteBoardPage() {
   }
 
   async function handleImageDelete(id: string) {
+    const deletedImg = imageCardsRef.current.find((img) => img.id === id);
+    if (deletedImg) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "image-delete", image: { ...deletedImg } });
+    }
     deletedImageIdsRef.current.add(id);
     setImageCards((prev) => prev.filter((img) => img.id !== id));
     setConnections((prev) => prev.filter((c) => c.fromItemId !== id && c.toItemId !== id));
@@ -950,6 +1510,11 @@ export function NoteBoardPage() {
   }
 
   async function handleCardDelete(id: string) {
+    const deletedCard = indexCardsRef.current.find((c) => c.id === id);
+    if (deletedCard) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "card-delete", card: { ...deletedCard } });
+    }
     setIndexCards((prev) => prev.filter((c) => c.id !== id));
     setEditingCardIds((prev) => {
       const next = new Set(prev);
@@ -1036,6 +1601,8 @@ export function NoteBoardPage() {
           positionX: x,
           positionY: y,
         });
+        boardRedoStackRef.current = [];
+        boardUndoStackRef.current.push({ type: "card-create", card: created });
         setIndexCards((prev) =>
           prev.map((c) => (c.id === tempId ? created : c)),
         );
@@ -1062,6 +1629,11 @@ export function NoteBoardPage() {
   }
 
   async function handleDeleteConnection(id: string) {
+    const conn = connectionsRef.current.find((c) => c.id === id);
+    if (conn) {
+      boardRedoStackRef.current = [];
+      boardUndoStackRef.current.push({ type: "connection-delete", connection: conn });
+    }
     setConnections((prev) => prev.filter((c) => c.id !== id));
     try {
       await deleteConnection(id);
@@ -1102,8 +1674,10 @@ export function NoteBoardPage() {
             (c.fromItemId === targetNoteId && c.toItemId === sourceId),
         );
         if (!isDuplicate) {
+          boardRedoStackRef.current = [];
           createConnection({ fromItemId: sourceId, toItemId: targetNoteId, boardId: boardId ?? undefined })
             .then((created) => {
+              boardUndoStackRef.current.push({ type: "connection-create", connection: created });
               setConnections((prev) => [...prev, created]);
             })
             .catch(() => {
@@ -1168,11 +1742,13 @@ export function NoteBoardPage() {
           onDropItem={handleBoardDrop}
           onBoardMouseMove={handleBoardMouseMove}
           onBoardMouseLeave={handleBoardMouseLeave}
-          onBoardClick={() => {
-            setEditingNoteIds(new Set());
-            setEditingCardIds(new Set());
-            primaryEditingNoteIdRef.current = null;
-            primaryEditingCardIdRef.current = null;
+          onBoardClick={(e) => {
+            if (!(e.target as Element).closest("[data-board-item]")) {
+              setEditingNoteIds(new Set());
+              setEditingCardIds(new Set());
+              primaryEditingNoteIdRef.current = null;
+              primaryEditingCardIdRef.current = null;
+            }
           }}
           zoom={zoom}
           panX={panX}
@@ -1232,6 +1808,8 @@ export function NoteBoardPage() {
               onRotationChange={handleRotationChange}
               onPinMouseDown={handlePinMouseDown}
               onBringToFront={bringToFront}
+              onUnmount={handleNoteUnmount}
+              onExitEdit={handleExitEditNote}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />
@@ -1272,6 +1850,7 @@ export function NoteBoardPage() {
               onRotationChange={handleCardRotationChange}
               onPinMouseDown={handlePinMouseDown}
               onBringToFront={bringToFront}
+              onExitEdit={handleExitEditCard}
               isLinking={linkingFrom !== null}
               zoom={zoom}
             />

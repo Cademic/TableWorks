@@ -21,6 +21,8 @@ function getHubBaseUrl(): string {
 }
 
 export interface UseNotebookRealtimeOptions {
+  /** When false, skips connecting to the hub (e.g. when notebook is not in a project). Default: true. */
+  enabled?: boolean;
   onPresenceUpdate?: (users: NotebookPresenceUser[]) => void;
   onNotebookUpdated?: (payload: NotebookUpdatePayload) => void;
   onTextCursorPosition?: (userId: string, position: number) => void;
@@ -58,8 +60,10 @@ export function useNotebookRealtime(
   const notebookIdRef = useRef<string | undefined>(notebookId);
   notebookIdRef.current = notebookId;
 
+  const enabled = options.enabled !== false;
+
   useEffect(() => {
-    if (!notebookId || !isAuthenticated || !accessToken) return;
+    if (!notebookId || !isAuthenticated || !accessToken || !enabled) return;
 
     const base = `${getHubBaseUrl()}/hubs/notebook`;
     const hubUrl = `${base}${base.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(accessToken)}`;
@@ -156,7 +160,7 @@ export function useNotebookRealtime(
       connection.invoke("LeaveNotebook", notebookId).catch(() => {});
       connection.stop();
     };
-  }, [notebookId, isAuthenticated, accessToken]);
+  }, [notebookId, isAuthenticated, accessToken, enabled]);
 
   return { sendTextCursor };
 }

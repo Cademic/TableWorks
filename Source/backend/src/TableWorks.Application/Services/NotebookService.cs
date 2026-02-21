@@ -130,6 +130,7 @@ public sealed class NotebookService : INotebookService
             PinnedAt = notebook.PinnedAt,
             CreatedAt = notebook.CreatedAt,
             UpdatedAt = notebook.UpdatedAt,
+            ProjectId = notebook.ProjectId,
             ContentJson = notebook.ContentJson ?? "{\"type\":\"doc\",\"content\":[]}"
         };
     }

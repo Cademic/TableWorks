@@ -48,6 +48,21 @@ export function ChalkBoardPage() {
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
   const zCounterRef = useRef(1);
 
+  // --- Note undo/redo stacks (position, size, deletion) ---
+  type NoteUndoEntry =
+    | { type: "position"; noteId: string; prevPositionX: number; prevPositionY: number }
+    | { type: "size"; noteId: string; prevWidth: number | null; prevHeight: number | null }
+    | { type: "delete"; note: NoteSummaryDto };
+  type NoteRedoEntry =
+    | { type: "position"; noteId: string; positionX: number; positionY: number }
+    | { type: "size"; noteId: string; width: number; height: number }
+    | { type: "delete"; noteId: string };
+  const noteUndoStackRef = useRef<NoteUndoEntry[]>([]);
+  const noteRedoStackRef = useRef<NoteRedoEntry[]>([]);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
+
   function bringToFront(id: string) {
     const next = zCounterRef.current++;
     setZIndexMap((prev) => ({ ...prev, [id]: next }));
@@ -395,6 +410,26 @@ export function ChalkBoardPage() {
       }
       if (notesRes.status === "fulfilled") {
         const items = notesRes.value.items;
+        const newNoteIds = items.map((n) => n.id);
+        const serverIds = new Set(newNoteIds);
+        const removedIds: string[] = [];
+        for (const n of notesRef.current) {
+          if (!serverIds.has(n.id)) {
+            removedIds.push(n.id);
+            deletedNoteIdsRef.current.add(n.id);
+            setTimeout(() => deletedNoteIdsRef.current.delete(n.id), 2000);
+          }
+        }
+        if (removedIds.length > 0) {
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            for (const id of removedIds) next.delete(id);
+            return next.size === prev.size ? prev : next;
+          });
+          if (primaryEditingNoteIdRef.current && removedIds.includes(primaryEditingNoteIdRef.current)) {
+            primaryEditingNoteIdRef.current = null;
+          }
+        }
         // Migrate old-format note positions (1x coords) to virtual canvas coords.
         // Old format: positions typically < 1200x900. New format uses 2x range.
         const migrated = items.map((n) => {
@@ -484,6 +519,7 @@ export function ChalkBoardPage() {
   }, []);
 
   const { sendFocus, sendCursor } = useBoardRealtime(boardId ?? undefined, fetchData, {
+    enabled: !!board?.projectId,
     onNoteUpdated: mergeNotePayload,
     onPresenceUpdate: setBoardPresence,
     onUserFocusingItem: handleUserFocusingItem,
@@ -525,10 +561,10 @@ export function ChalkBoardPage() {
         y,
         timer: setTimeout(() => {
           const e = map.get(id);
-          if (e) {
+          if (e && !deletedNoteIdsRef.current.has(id) && notesRef.current.some((n) => n.id === id)) {
             patchNote(id, { positionX: e.x, positionY: e.y }).catch(() => {});
-            map.delete(id);
           }
+          map.delete(id);
         }, DRAG_THROTTLE_MS),
       };
       map.set(id, entry);
@@ -570,6 +606,134 @@ export function ChalkBoardPage() {
     document.addEventListener("board-tool-click", onToolClick);
     return () => document.removeEventListener("board-tool-click", onToolClick);
   });
+
+  // Ctrl+Z undo / Ctrl+Y redo for drawing (draw mode) or notes (select mode)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (
+        (!e.ctrlKey && !e.metaKey) ||
+        e.repeat ||
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+      const isUndo = e.key === "z";
+      const isRedo = e.key === "y";
+      if (!isUndo && !isRedo) return;
+
+      // In draw mode: canvas undo/redo
+      if (mode === "draw") {
+        e.preventDefault();
+        if (isUndo) canvasRef.current?.undo();
+        else canvasRef.current?.redo();
+        return;
+      }
+
+      if (isUndo) {
+        const stack = noteUndoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "position") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            noteRedoStackRef.current.push({
+              type: "position",
+              noteId: entry.noteId,
+              positionX: current.positionX ?? 0,
+              positionY: current.positionY ?? 0,
+            });
+          }
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.prevPositionX, positionY: entry.prevPositionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.prevPositionX,
+            positionY: entry.prevPositionY,
+          }).catch(() => {});
+        } else if (entry.type === "size") {
+          const current = notesRef.current.find((n) => n.id === entry.noteId);
+          if (current) {
+            noteRedoStackRef.current.push({
+              type: "size",
+              noteId: entry.noteId,
+              width: current.width ?? 270,
+              height: current.height ?? 270,
+            });
+          }
+          const w = entry.prevWidth ?? 270;
+          const h = entry.prevHeight ?? 270;
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: w, height: h } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: w, height: h }).catch(() => {});
+        } else {
+          createNote({
+            content: entry.note.content,
+            boardId: boardId ?? undefined,
+            title: entry.note.title ?? undefined,
+            positionX: entry.note.positionX ?? 20,
+            positionY: entry.note.positionY ?? 20,
+            width: entry.note.width ?? undefined,
+            height: entry.note.height ?? undefined,
+            color: entry.note.color ?? undefined,
+            rotation: entry.note.rotation ?? undefined,
+          })
+            .then((created) => {
+              noteRedoStackRef.current.push({ type: "delete", noteId: created.id });
+              setNotes((prev) => [...prev, created]);
+            })
+            .catch(() => {});
+        }
+      } else {
+        const stack = noteRedoStackRef.current;
+        if (stack.length === 0) return;
+        e.preventDefault();
+        const entry = stack.pop()!;
+        if (entry.type === "position") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId
+                ? { ...n, positionX: entry.positionX, positionY: entry.positionY }
+                : n,
+            ),
+          );
+          patchNote(entry.noteId, {
+            positionX: entry.positionX,
+            positionY: entry.positionY,
+          }).catch(() => {});
+        } else if (entry.type === "size") {
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === entry.noteId ? { ...n, width: entry.width, height: entry.height } : n,
+            ),
+          );
+          patchNote(entry.noteId, { width: entry.width, height: entry.height }).catch(() => {});
+        } else {
+          setNotes((prev) => prev.filter((n) => n.id !== entry.noteId));
+          setEditingNoteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(entry.noteId);
+            if (primaryEditingNoteIdRef.current === entry.noteId) {
+              primaryEditingNoteIdRef.current = next.size ? next.values().next().value ?? null : null;
+            }
+            return next;
+          });
+          deleteNote(entry.noteId).catch(() => fetchData());
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [boardId, fetchData, mode]);
 
   // --- Mode & tool handlers ---
   function handleModeChange(newMode: ChalkMode) {
@@ -627,7 +791,7 @@ export function ChalkBoardPage() {
         positionY,
       });
 
-      setNotes((prev) => [...prev, created]);
+      setNotes((prev) => [created, ...prev]);
       setEditingNoteIds((prev) => new Set(prev).add(created.id));
       primaryEditingNoteIdRef.current = created.id;
       setMode("select");
@@ -647,6 +811,18 @@ export function ChalkBoardPage() {
       clearTimeout(pending.timer);
       noteDragMapRef.current.delete(id);
     }
+    if (deletedNoteIdsRef.current.has(id)) return;
+    if (!notesRef.current.some((n) => n.id === id)) return;
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.positionX !== x || prevNote.positionY !== y)) {
+      noteRedoStackRef.current = [];
+      noteUndoStackRef.current.push({
+        type: "position",
+        noteId: id,
+        prevPositionX: prevNote.positionX ?? 0,
+        prevPositionY: prevNote.positionY ?? 0,
+      });
+    }
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, positionX: x, positionY: y } : n)),
     );
@@ -654,6 +830,7 @@ export function ChalkBoardPage() {
       if (draggingNoteIdRef.current === id) draggingNoteIdRef.current = null;
     }, DRAG_ECHO_IGNORE_MS);
     try {
+      if (deletedNoteIdsRef.current.has(id) || !notesRef.current.some((n) => n.id === id)) return;
       await patchNote(id, { positionX: x, positionY: y });
     } catch {
       // Silently fail
@@ -702,6 +879,22 @@ export function ChalkBoardPage() {
     }
   }
 
+  const handleNoteUnmount = useCallback((id: string) => {
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+  }, []);
+
+  function handleExitEditNote(id: string) {
+    setEditingNoteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (primaryEditingNoteIdRef.current === id) {
+      primaryEditingNoteIdRef.current = null;
+    }
+  }
+
   function handleStartEdit(id: string) {
     setEditingNoteIds(new Set([id]));
     primaryEditingNoteIdRef.current = id;
@@ -709,6 +902,16 @@ export function ChalkBoardPage() {
   }
 
   async function handleResize(id: string, width: number, height: number) {
+    const prevNote = notesRef.current.find((n) => n.id === id);
+    if (prevNote && (prevNote.width !== width || prevNote.height !== height)) {
+      noteRedoStackRef.current = [];
+      noteUndoStackRef.current.push({
+        type: "size",
+        noteId: id,
+        prevWidth: prevNote.width ?? null,
+        prevHeight: prevNote.height ?? null,
+      });
+    }
     lastResizedNoteRef.current = { id, at: Date.now() };
     setNotes((prev) =>
       prev.map((n) => (n.id === id ? { ...n, width, height } : n)),
@@ -743,6 +946,18 @@ export function ChalkBoardPage() {
   }
 
   async function handleDelete(id: string) {
+    deletedNoteIdsRef.current.add(id);
+    setTimeout(() => deletedNoteIdsRef.current.delete(id), 2000);
+    const pending = noteDragMapRef.current.get(id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      noteDragMapRef.current.delete(id);
+    }
+    const deletedNote = notesRef.current.find((n) => n.id === id);
+    if (deletedNote) {
+      noteRedoStackRef.current = [];
+      noteUndoStackRef.current.push({ type: "delete", note: { ...deletedNote } });
+    }
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setEditingNoteIds((prev) => {
       const next = new Set(prev);
@@ -830,7 +1045,7 @@ export function ChalkBoardPage() {
             pointerEvents: mode === "select" && !isSpaceHeld && !isPanning ? "auto" : "none",
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (!(e.target as Element).closest("[data-board-item]")) {
               setEditingNoteIds(new Set());
               primaryEditingNoteIdRef.current = null;
             }
@@ -874,6 +1089,8 @@ export function ChalkBoardPage() {
               onColorChange={handleColorChange}
               onRotationChange={handleRotationChange}
               onBringToFront={bringToFront}
+              onUnmount={handleNoteUnmount}
+              onExitEdit={handleExitEditNote}
               zoom={zoom / RESOLUTION_FACTOR}
             />
           ))}

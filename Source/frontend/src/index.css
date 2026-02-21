@@ -229,6 +229,7 @@ body {
 /* TipTap editor styles */
 .tiptap-editor-area {
   overflow: hidden;
+  cursor: text;
 }
 
 .tiptap-editor-area .tiptap {

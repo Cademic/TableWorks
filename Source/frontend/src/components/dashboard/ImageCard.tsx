@@ -227,6 +227,7 @@ export function ImageCard({
     >
       <div
         ref={nodeRef}
+        data-board-item="image"
         className="absolute overflow-visible rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-black/10 dark:border-white/10"
         style={{
           width: `${size.width}px`,

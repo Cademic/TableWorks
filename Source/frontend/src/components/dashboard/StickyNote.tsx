@@ -38,6 +38,10 @@ interface StickyNoteProps {
   remoteTextCursors?: { userId: string; field: "title" | "content"; position: number; color: string }[];
   /** Callback to broadcast local text cursor position */
   onTextCursor?: (field: "title" | "content", position: number) => void;
+  /** Called when this note unmounts (so parent can skip late drag-stop patches) */
+  onUnmount?: (id: string) => void;
+  /** Called when user clicks the drag handle while editing (to exit edit mode) */
+  onExitEdit?: (id: string) => void;
   zoom?: number;
 }
 
@@ -151,6 +155,8 @@ export function StickyNote({
   focusedBy,
   remoteTextCursors = [],
   onTextCursor,
+  onUnmount,
+  onExitEdit,
   zoom = 1,
 }: StickyNoteProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -447,6 +453,12 @@ export function StickyNote({
     // No-op: keep edit mode on; parent will remove from editingNoteIds on board click or other-note click
   }, []);
 
+  useLayoutEffect(() => {
+    return () => {
+      onUnmount?.(note.id);
+    };
+  }, [note.id, onUnmount]);
+
   // When parent removes this note from editing (isEditing -> false), save current content once
   const wasEditingRef = useRef(false);
   useEffect(() => {
@@ -636,6 +648,7 @@ export function StickyNote({
            Rotation lives on the inner div so translate and rotate don't interact. */}
       <div
         ref={nodeRef}
+        data-board-item="note"
         className="absolute overflow-visible"
         style={{
           width: `${size.width}px`,
@@ -717,7 +730,12 @@ export function StickyNote({
         </div>
 
         {/* Drag handle + delete */}
-        <div className="sticky-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing">
+        <div
+          className="sticky-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing"
+          onClick={() => {
+            if (isEditing && onExitEdit) onExitEdit(note.id);
+          }}
+        >
           <GripVertical className="h-3.5 w-3.5 text-black/20" />
           <button
             type="button"

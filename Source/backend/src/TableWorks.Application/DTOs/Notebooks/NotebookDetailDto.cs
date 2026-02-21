@@ -8,6 +8,7 @@ public sealed class NotebookDetailDto
     public DateTime? PinnedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public Guid? ProjectId { get; set; }
     /// <summary>TipTap/ProseMirror document JSON.</summary>
     public string ContentJson { get; set; } = "{\"type\":\"doc\",\"content\":[]}";
 }

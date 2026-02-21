@@ -9,8 +9,8 @@ interface CorkBoardProps {
   /** Board-space (canvas) coords when mouse moves over the viewport */
   onBoardMouseMove?: (x: number, y: number) => void;
   onBoardMouseLeave?: () => void;
-  /** Called when user clicks the board background (not on a note/card) */
-  onBoardClick?: () => void;
+  /** Called when user clicks the board (receives event so handler can check if click was on background) */
+  onBoardClick?: (e: React.MouseEvent) => void;
   zoom: number;
   panX: number;
   panY: number;
@@ -272,9 +272,7 @@ export function CorkBoard({ children, boardRef, onDropItem, onBoardMouseMove, on
             height: "10000px",
           }}
           onClick={(e) => {
-            if (onBoardClick && e.target === e.currentTarget) {
-              onBoardClick();
-            }
+            if (onBoardClick) onBoardClick(e);
           }}
         >
           {children}

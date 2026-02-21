@@ -166,6 +166,7 @@ export interface NotebookDetailDto {
   pinnedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  projectId: string | null;
   contentJson: string;
 }
 

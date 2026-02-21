@@ -214,6 +214,7 @@ export function NotebookEditorPage() {
   }, []);
 
   const { sendTextCursor } = useNotebookRealtime(notebookId ?? undefined, {
+    enabled: !!notebook?.projectId,
     onPresenceUpdate: handlePresenceUpdate,
     onNotebookUpdated: handleNotebookUpdated,
     onTextCursorPosition: handleTextCursorPosition,

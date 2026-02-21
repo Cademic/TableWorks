@@ -40,6 +40,8 @@ interface IndexCardProps {
   isLinking?: boolean;
   /** When other user(s) are focusing this card, show a border in their color(s). Multiple users can edit at once. */
   focusedBy?: { userId: string; color: string }[] | null;
+  /** Called when user clicks the drag handle while editing (to exit edit mode) */
+  onExitEdit?: (id: string) => void;
   zoom?: number;
 }
 
@@ -93,6 +95,7 @@ export function IndexCard({
   onBringToFront,
   isLinking,
   focusedBy,
+  onExitEdit,
   zoom = 1,
 }: IndexCardProps) {
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -515,6 +518,7 @@ export function IndexCard({
       {/* Outer positioning wrapper */}
       <div
         ref={nodeRef}
+        data-board-item="card"
         className="absolute overflow-visible"
         style={{
           width: `${size.width}px`,
@@ -595,7 +599,12 @@ export function IndexCard({
 
           {/* Header band with drag handle + delete + red rule line */}
           <div className={`rounded-t-md ${color.headerBg}`}>
-            <div className="index-card-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing">
+            <div
+              className="index-card-handle flex cursor-grab items-center justify-between px-3 pt-4 pb-1 active:cursor-grabbing"
+              onClick={() => {
+                if (isEditing && onExitEdit) onExitEdit(card.id);
+              }}
+            >
               <GripVertical className="h-3.5 w-3.5 text-black/20" />
               <button
                 type="button"

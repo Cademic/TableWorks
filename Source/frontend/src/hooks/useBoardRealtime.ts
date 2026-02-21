@@ -42,6 +42,8 @@ export interface BoardItemUpdatePayload {
 }
 
 export interface UseBoardRealtimeOptions {
+  /** When false, skips connecting to the hub (e.g. when board is not in a project). Default: true. */
+  enabled?: boolean;
   onNoteUpdated?: (payload: BoardItemUpdatePayload) => void;
   onIndexCardUpdated?: (payload: BoardItemUpdatePayload) => void;
   onPresenceUpdate?: (users: BoardPresenceUser[]) => void;
@@ -118,8 +120,10 @@ export function useBoardRealtime(
     connectionRef.current?.invoke("TextCursorPosition", bid, itemType, itemId, field, position).catch(() => {});
   }, []);
 
+  const enabled = options.enabled !== false;
+
   useEffect(() => {
-    if (!boardId || !isAuthenticated || !accessToken) return;
+    if (!boardId || !isAuthenticated || !accessToken || !enabled) return;
 
     const base = `${getHubBaseUrl()}/hubs/board`;
     const hubUrl = `${base}${base.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(accessToken)}`;
@@ -306,7 +310,7 @@ export function useBoardRealtime(
       connection.invoke("LeaveBoard", boardId).catch(() => {});
       connection.stop();
     };
-  }, [boardId, isAuthenticated, accessToken]);
+  }, [boardId, isAuthenticated, accessToken, enabled]);
 
   return { sendFocus, sendCursor, sendTextCursor };
 }
